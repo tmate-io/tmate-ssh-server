@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Main server functions.
@@ -105,10 +106,13 @@ server_create_socket(void)
 int
 server_start(int lockfd, char *lockfile)
 {
+#ifndef TMATE_SLAVE
 	int	 	 pair[2];
+#endif
 	struct timeval	 tv;
 	char		*cause;
 
+#ifndef TMATE_SLAVE
 	/* The first client is special and gets a socketpair; create it. */
 	if (socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, pair) != 0)
 		fatal("socketpair failed");
@@ -135,8 +139,9 @@ server_start(int lockfd, char *lockfile)
 	if (event_reinit(ev_base) != 0)
 		fatal("event_reinit failed");
 	clear_signals(0);
-
 	logfile("server");
+#endif
+
 	log_debug("server started, pid %ld", (long) getpid());
 
 	ARRAY_INIT(&windows);
@@ -158,11 +163,14 @@ server_start(int lockfd, char *lockfile)
 #endif
 
 	server_fd = server_create_socket();
+
+#ifndef TMATE_SLAVE
 	server_client_create(pair[1]);
 
 	unlink(lockfile);
 	free(lockfile);
 	close(lockfd);
+#endif
 
 	cfg_cmd_q = cmdq_new(NULL);
 	cfg_cmd_q->emptyfn = cfg_default_done;
@@ -203,7 +211,8 @@ server_start(int lockfd, char *lockfile)
 void
 server_loop(void)
 {
-	while (!server_should_shutdown()) {
+	while (!server_shutdown) {
+	//while (!server_should_shutdown()) {
 		event_loop(EVLOOP_ONCE);
 
 		server_window_loop();

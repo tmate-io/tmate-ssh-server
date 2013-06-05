@@ -421,7 +421,9 @@ format_window_pane(struct format_tree *ft, struct window_pane *wp)
 	format_add(ft, "pane_title", "%s", wp->base.title);
 	format_add(ft, "pane_id", "%%%u", wp->id);
 	format_add(ft, "pane_active", "%d", wp == wp->window->active);
+#ifndef TMATE_SLAVE
 	format_add(ft, "pane_dead", "%d", wp->fd == -1);
+#endif
 
 	format_add(ft, "pane_in_mode", "%d", wp->screen != &wp->base);
 
@@ -432,12 +434,14 @@ format_window_pane(struct format_tree *ft, struct window_pane *wp)
 		format_add(ft, "pane_start_command", "%s", wp->cmd);
 	if (wp->cwd != NULL)
 		format_add(ft, "pane_start_path", "%s", wp->cwd);
+#ifndef TMATE_SLAVE
 	if ((cwd = osdep_get_cwd(wp->fd)) != NULL)
 		format_add(ft, "pane_current_path", "%s", cwd);
 	if ((cmd = osdep_get_name(wp->fd, wp->tty)) != NULL) {
 		format_add(ft, "pane_current_command", "%s", cmd);
 		free(cmd);
 	}
+#endif
 
 	format_add(ft, "cursor_x", "%d", wp->base.cx);
 	format_add(ft, "cursor_y", "%d", wp->base.cy);

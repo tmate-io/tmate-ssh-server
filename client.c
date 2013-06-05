@@ -205,6 +205,10 @@ client_main(int argc, char **argv, int flags)
 		cmd_list_free(cmdlist);
 	}
 
+#ifdef TMATE_SLAVE
+	cmdflags &= ~CMD_STARTSERVER;
+#endif
+
 	/*
 	 * Check if this could be a nested session, if the command can't nest:
 	 * if the socket path matches $TMUX, this is probably the same server.
@@ -228,7 +232,6 @@ client_main(int argc, char **argv, int flags)
 #ifdef HAVE_SETPROCTITLE
 	setproctitle("client (%s)", socket_path);
 #endif
-	logfile("client");
 
 	/* Create imsg. */
 	imsg_init(&client_ibuf, fd);
@@ -505,7 +508,7 @@ client_dispatch_wait(void *data)
 			return (0);
 		datalen = imsg.hdr.len - IMSG_HEADER_SIZE;
 
-		log_debug("got %d from server", imsg.hdr.type);
+		log_debug2("got %d from server", imsg.hdr.type);
 		switch (imsg.hdr.type) {
 		case MSG_EXIT:
 		case MSG_SHUTDOWN:
@@ -544,7 +547,7 @@ client_dispatch_wait(void *data)
 				fatalx("bad MSG_STDERR");
 			memcpy(&stderrdata, imsg.data, sizeof stderrdata);
 
-			client_write(STDERR_FILENO, stderrdata.data, stderrdata.size);
+			client_write(fileno(stderr), stderrdata.data, stderrdata.size);
 			break;
 		case MSG_VERSION:
 			if (datalen != 0)
@@ -565,7 +568,7 @@ client_dispatch_wait(void *data)
 
 			clear_signals(0);
 
-			shell_exec(shelldata.shell, shellcmd);
+			exit(1);
 			/* NOTREACHED */
 		case MSG_DETACH:
 			client_write_server(MSG_EXITING, NULL, 0);
@@ -597,7 +600,7 @@ client_dispatch_attached(void)
 			return (0);
 		datalen = imsg.hdr.len - IMSG_HEADER_SIZE;
 
-		log_debug("got %d from server", imsg.hdr.type);
+		log_debug2("got %d from server", imsg.hdr.type);
 		switch (imsg.hdr.type) {
 		case MSG_DETACHKILL:
 		case MSG_DETACH:

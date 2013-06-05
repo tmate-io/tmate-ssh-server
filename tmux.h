@@ -19,6 +19,8 @@
 #ifndef TMUX_H
 #define TMUX_H
 
+#define TMATE_SLAVE
+
 #define PROTOCOL_VERSION 7
 
 #include <sys/param.h>
@@ -950,8 +952,13 @@ struct window_pane {
 	struct event	 changes_timer;
 	u_int		 changes_redraw;
 
+#ifdef TMATE_SLAVE
+#define PANE_KILL 0x10
+	struct evbuffer *event_input;
+#else
 	int		 fd;
 	struct bufferevent *event;
+#endif
 
 	struct input_ctx ictx;
 
@@ -1714,8 +1721,10 @@ int		 paste_free_index(struct paste_stack *, u_int);
 void		 paste_add(struct paste_stack *, char *, size_t, u_int);
 int		 paste_replace(struct paste_stack *, u_int, char *, size_t);
 char		*paste_print(struct paste_buffer *, size_t);
+#ifndef TMATE_SLAVE
 void		 paste_send_pane(struct paste_buffer *, struct window_pane *,
 		     const char *, int);
+#endif
 
 /* clock.c */
 extern const char clock_table[14][5][5];
@@ -1967,10 +1976,12 @@ void	 input_init(struct window_pane *);
 void	 input_free(struct window_pane *);
 void	 input_parse(struct window_pane *);
 
+#ifndef TMATE_SLAVE
 /* input-key.c */
 void	 input_key(struct window_pane *, int);
 void	 input_mouse(struct window_pane *, struct session *,
 	     struct mouse_event *);
+#endif
 
 /* xterm-keys.c */
 char	*xterm_keys_lookup(int);

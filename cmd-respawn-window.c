@@ -42,6 +42,9 @@ const struct cmd_entry cmd_respawn_window_entry = {
 enum cmd_retval
 cmd_respawn_window_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct winlink		*wl;
 	struct window		*w;
@@ -98,4 +101,5 @@ cmd_respawn_window_exec(struct cmd *self, struct cmd_q *cmdq)
 
 	environ_free(&env);
 	return (CMD_RETURN_NORMAL);
+#endif
 }

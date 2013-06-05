@@ -123,8 +123,8 @@ cmd_server_info_exec(unused struct cmd *self, struct cmd_q *cmdq)
 					    sizeof *gl->celldata;
 				}
 				cmdq_print(cmdq,
-				    "%6u: %s %lu %d %u/%u, %zu bytes", j,
-				    wp->tty, (u_long) wp->pid, wp->fd, lines,
+				    "%6u: %s %lu %u/%u, %zu bytes", j,
+				    wp->tty, (u_long) wp->pid, lines,
 				    gd->hsize + gd->sy, size);
 				j++;
 			}

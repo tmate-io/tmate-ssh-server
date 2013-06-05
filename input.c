@@ -732,7 +732,11 @@ input_parse(struct window_pane *wp)
 {
 	struct input_ctx		*ictx = &wp->ictx;
 	const struct input_transition	*itr;
+#ifdef TMATE_SLAVE
+	struct evbuffer			*evb = wp->event_input;
+#else
 	struct evbuffer			*evb = wp->event->input;
+#endif
 	u_char				*buf;
 	size_t				 len, off;
 
@@ -760,7 +764,7 @@ input_parse(struct window_pane *wp)
 	/* Parse the input. */
 	while (off < len) {
 		ictx->ch = buf[off++];
-		log_debug("%s: '%c' %s", __func__, ictx->ch, ictx->state->name);
+		log_debug2("%s: '%c' %s", __func__, ictx->ch, ictx->state->name);
 
 		/* Find the transition. */
 		itr = ictx->state->transitions;
@@ -848,6 +852,7 @@ input_get(struct input_ctx *ictx, u_int validx, int minval, int defval)
 void
 input_reply(struct input_ctx *ictx, const char *fmt, ...)
 {
+#ifndef TMATE_SLAVE
 	va_list	ap;
 	char   *reply;
 
@@ -857,6 +862,7 @@ input_reply(struct input_ctx *ictx, const char *fmt, ...)
 
 	bufferevent_write(ictx->wp->event, reply, strlen(reply));
 	free(reply);
+#endif
 }
 
 /* Clear saved state. */
@@ -936,7 +942,7 @@ input_c0_dispatch(struct input_ctx *ictx)
 	struct screen		*s = sctx->s;
 	u_int			 trigger;
 
-	log_debug("%s: '%c", __func__, ictx->ch);
+	log_debug2("%s: '%c", __func__, ictx->ch);
 
 	switch (ictx->ch) {
 	case '\000':	/* NUL */
@@ -974,7 +980,7 @@ input_c0_dispatch(struct input_ctx *ictx)
 		ictx->cell.attr &= ~GRID_ATTR_CHARSET;
 		break;
 	default:
-		log_debug("%s: unknown '%c'", __func__, ictx->ch);
+		log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 		break;
 	}
 
@@ -1000,12 +1006,12 @@ input_esc_dispatch(struct input_ctx *ictx)
 
 	if (ictx->flags & INPUT_DISCARD)
 		return (0);
-	log_debug("%s: '%c', %s", __func__, ictx->ch, ictx->interm_buf);
+	log_debug2("%s: '%c', %s", __func__, ictx->ch, ictx->interm_buf);
 
 	entry = bsearch(ictx, input_esc_table, nitems(input_esc_table),
 	    sizeof input_esc_table[0], input_table_compare);
 	if (entry == NULL) {
-		log_debug("%s: unknown '%c'", __func__, ictx->ch);
+		log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 		return (0);
 	}
 
@@ -1080,13 +1086,13 @@ input_csi_dispatch(struct input_ctx *ictx)
 		return (0);
 	if (input_split(ictx) != 0)
 		return (0);
-	log_debug("%s: '%c' \"%s\" \"%s\"",
+	log_debug2("%s: '%c' \"%s\" \"%s\"",
 	    __func__, ictx->ch, ictx->interm_buf, ictx->param_buf);
 
 	entry = bsearch(ictx, input_csi_table, nitems(input_csi_table),
 	    sizeof input_csi_table[0], input_table_compare);
 	if (entry == NULL) {
-		log_debug("%s: unknown '%c'", __func__, ictx->ch);
+		log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 		return (0);
 	}
 
@@ -1131,7 +1137,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			input_reply(ictx, "\033[?1;2c");
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1141,7 +1147,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			input_reply(ictx, "\033[>0;95;0c");
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1168,7 +1174,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			input_reply(ictx, "\033[%u;%uR", s->cy + 1, s->cx + 1);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1195,7 +1201,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			}
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1211,7 +1217,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			screen_write_clearline(sctx);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1235,7 +1241,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			screen_write_mode_clear(&ictx->ctx, MODE_INSERT);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1280,7 +1286,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			screen_write_mode_clear(&ictx->ctx, MODE_BRACKETPASTE);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1298,7 +1304,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			screen_write_mode_set(&ictx->ctx, MODE_INSERT);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1352,7 +1358,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			screen_write_mode_set(&ictx->ctx, MODE_BRACKETPASTE);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1366,7 +1372,7 @@ input_csi_dispatch(struct input_ctx *ictx)
 			bit_nclear(s->tabs, 0, screen_size_x(s) - 1);
 			break;
 		default:
-			log_debug("%s: unknown '%c'", __func__, ictx->ch);
+			log_debug2("%s: unknown '%c'", __func__, ictx->ch);
 			break;
 		}
 		break;
@@ -1539,7 +1545,7 @@ input_dcs_dispatch(struct input_ctx *ictx)
 	if (ictx->flags & INPUT_DISCARD)
 		return (0);
 
-	log_debug("%s: \"%s\"", __func__, ictx->input_buf);
+	log_debug2("%s: \"%s\"", __func__, ictx->input_buf);
 
 	/* Check for tmux prefix. */
 	if (ictx->input_len >= prefix_len &&
@@ -1555,7 +1561,7 @@ input_dcs_dispatch(struct input_ctx *ictx)
 void
 input_enter_osc(struct input_ctx *ictx)
 {
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	input_clear(ictx);
 }
@@ -1572,7 +1578,7 @@ input_exit_osc(struct input_ctx *ictx)
 	if (ictx->input_len < 1 || *p < '0' || *p > '9')
 		return;
 
-	log_debug("%s: \"%s\"", __func__, p);
+	log_debug2("%s: \"%s\"", __func__, p);
 
 	option = 0;
 	while (*p >= '0' && *p <= '9')
@@ -1595,7 +1601,7 @@ input_exit_osc(struct input_ctx *ictx)
 			screen_set_cursor_colour(ictx->ctx.s, "");
 		break;
 	default:
-		log_debug("%s: unknown '%u'", __func__, option);
+		log_debug2("%s: unknown '%u'", __func__, option);
 		break;
 	}
 }
@@ -1604,7 +1610,7 @@ input_exit_osc(struct input_ctx *ictx)
 void
 input_enter_apc(struct input_ctx *ictx)
 {
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	input_clear(ictx);
 }
@@ -1615,7 +1621,7 @@ input_exit_apc(struct input_ctx *ictx)
 {
 	if (ictx->flags & INPUT_DISCARD)
 		return;
-	log_debug("%s: \"%s\"", __func__, ictx->input_buf);
+	log_debug2("%s: \"%s\"", __func__, ictx->input_buf);
 
 	screen_set_title(ictx->ctx.s, ictx->input_buf);
 	server_status_window(ictx->wp->window);
@@ -1625,7 +1631,7 @@ input_exit_apc(struct input_ctx *ictx)
 void
 input_enter_rename(struct input_ctx *ictx)
 {
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	input_clear(ictx);
 }
@@ -1638,7 +1644,7 @@ input_exit_rename(struct input_ctx *ictx)
 		return;
 	if (!options_get_number(&ictx->wp->window->options, "allow-rename"))
 		return;
-	log_debug("%s: \"%s\"", __func__, ictx->input_buf);
+	log_debug2("%s: \"%s\"", __func__, ictx->input_buf);
 
 	window_set_name(ictx->wp->window, ictx->input_buf);
 	options_set_number(&ictx->wp->window->options, "automatic-rename", 0);
@@ -1655,7 +1661,7 @@ input_utf8_open(struct input_ctx *ictx)
 		input_print(ictx);
 		return (-1);
 	}
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	utf8_open(&ictx->utf8data, ictx->ch);
 	return (0);
@@ -1665,7 +1671,7 @@ input_utf8_open(struct input_ctx *ictx)
 int
 input_utf8_add(struct input_ctx *ictx)
 {
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	utf8_append(&ictx->utf8data, ictx->ch);
 	return (0);
@@ -1675,7 +1681,7 @@ input_utf8_add(struct input_ctx *ictx)
 int
 input_utf8_close(struct input_ctx *ictx)
 {
-	log_debug("%s", __func__);
+	log_debug2("%s", __func__);
 
 	utf8_append(&ictx->utf8data, ictx->ch);
 

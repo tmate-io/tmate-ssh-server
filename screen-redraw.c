@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 int	screen_redraw_cell_border1(struct window_pane *, u_int, u_int);
 int	screen_redraw_cell_border(struct client *, u_int, u_int);

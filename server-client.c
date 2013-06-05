@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 void	server_client_check_focus(struct window_pane *);
 void	server_client_check_resize(struct window_pane *);
@@ -281,6 +282,7 @@ server_client_status_timer(void)
 	}
 }
 
+#ifndef TMATE_SLAVE
 /* Check for mouse keys. */
 void
 server_client_check_mouse(struct client *c, struct window_pane *wp)
@@ -333,6 +335,7 @@ server_client_check_mouse(struct client *c, struct window_pane *wp)
 	/* Update last and pass through to client. */
 	window_pane_mouse(wp, c->session, m);
 }
+#endif
 
 /* Is this fast enough to probably be a paste? */
 int
@@ -354,6 +357,9 @@ server_client_assume_paste(struct session *s)
 void
 server_client_handle_key(struct client *c, int key)
 {
+#ifdef TMATE_SLAVE
+	tmate_client_key(key);
+#else
 	struct session		*s;
 	struct window		*w;
 	struct window_pane	*wp;
@@ -479,6 +485,7 @@ server_client_handle_key(struct client *c, int key)
 
 	/* Dispatch the command. */
 	key_bindings_dispatch(bd, c);
+#endif
 }
 
 /* Client functions that need to happen every loop. */
@@ -513,13 +520,16 @@ server_client_loop(void)
 
 		w->flags &= ~WINDOW_REDRAW;
 		TAILQ_FOREACH(wp, &w->panes, entry) {
+#ifndef TMATE_SLAVE
 			server_client_check_focus(wp);
 			server_client_check_resize(wp);
+#endif
 			wp->flags &= ~PANE_REDRAW;
 		}
 	}
 }
 
+#ifndef TMATE_SLAVE
 /* Check if pane should be resized. */
 void
 server_client_check_resize(struct window_pane *wp)
@@ -597,6 +607,7 @@ focused:
 		bufferevent_write(wp->event, "\033[I", 3);
 	wp->flags |= PANE_FOCUSED;
 }
+#endif
 
 /*
  * Update cursor position and mode settings. The scroll region and attributes
@@ -811,7 +822,7 @@ server_client_msg_dispatch(struct client *c)
 			continue;
 		}
 
-		log_debug("got %d from client %d", imsg.hdr.type, c->ibuf.fd);
+		log_debug2("got %d from client %d", imsg.hdr.type, c->ibuf.fd);
 		switch (imsg.hdr.type) {
 		case MSG_COMMAND:
 			if (datalen != sizeof commanddata)
@@ -996,10 +1007,7 @@ server_client_msg_shell(struct client *c)
 	struct msg_shell_data	 data;
 	const char		*shell;
 
-	shell = options_get_string(&global_s_options, "default-shell");
-
-	if (*shell == '\0' || areshell(shell))
-		shell = _PATH_BSHELL;
+	shell = _PATH_BSHELL;
 	if (strlcpy(data.shell, shell, sizeof data.shell) >= sizeof data.shell)
 		strlcpy(data.shell, _PATH_BSHELL, sizeof data.shell);
 

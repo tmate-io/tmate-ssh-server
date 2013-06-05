@@ -23,6 +23,8 @@
 
 #include "tmux.h"
 
+#ifndef TMATE_SLAVE
+
 /*
  * This file is rather misleadingly named, it contains the code which takes a
  * key code and translates it into something suitable to be sent to the
@@ -253,3 +255,5 @@ input_mouse(struct window_pane *wp, struct session *s, struct mouse_event *m)
 		}
 	}
 }
+
+#endif

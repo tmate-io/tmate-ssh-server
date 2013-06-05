@@ -52,6 +52,9 @@ const struct cmd_entry cmd_send_prefix_entry = {
 enum cmd_retval
 cmd_send_keys_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct window_pane	*wp;
 	struct session		*s;
@@ -100,4 +103,5 @@ cmd_send_keys_exec(struct cmd *self, struct cmd_q *cmdq)
 	}
 
 	return (CMD_RETURN_NORMAL);
+#endif
 }

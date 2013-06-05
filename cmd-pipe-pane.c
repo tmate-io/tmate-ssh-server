@@ -48,6 +48,9 @@ const struct cmd_entry cmd_pipe_pane_entry = {
 enum cmd_retval
 cmd_pipe_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct client		*c;
 	struct window_pane	*wp;
@@ -128,6 +131,7 @@ cmd_pipe_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 		setblocking(wp->pipe_fd, 0);
 		return (CMD_RETURN_NORMAL);
 	}
+#endif
 }
 
 void

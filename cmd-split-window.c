@@ -52,6 +52,9 @@ cmd_split_window_key_binding(struct cmd *self, int key)
 enum cmd_retval
 cmd_split_window_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct session		*s;
 	struct winlink		*wl;
@@ -113,9 +116,7 @@ cmd_split_window_exec(struct cmd *self, struct cmd_q *cmdq)
 	}
 	hlimit = options_get_number(&s->options, "history-limit");
 
-	shell = options_get_string(&s->options, "default-shell");
-	if (*shell == '\0' || areshell(shell))
-		shell = _PATH_BSHELL;
+	shell = _PATH_BSHELL;
 
 	if ((lc = layout_split_pane(wp, type, size, 0)) == NULL) {
 		cause = xstrdup("pane too small");
@@ -165,4 +166,5 @@ error:
 	cmdq_error(cmdq, "create pane failed: %s", cause);
 	free(cause);
 	return (CMD_RETURN_ERROR);
+#endif
 }

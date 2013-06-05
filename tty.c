@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 void	tty_read_callback(struct bufferevent *, void *);
 void	tty_error_callback(struct bufferevent *, short, void *);

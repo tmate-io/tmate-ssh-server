@@ -1290,6 +1290,9 @@ cmd_template_replace(const char *template, const char *s, int idx)
 const char *
 cmd_get_default_path(struct cmd_q *cmdq, const char *cwd)
 {
+#ifdef TMATE_SLAVE
+	return NULL;
+#else
 	struct client		*c = cmdq->client;
 	struct session		*s;
 	struct environ_entry	*envent;
@@ -1361,4 +1364,5 @@ complete_path:
 	if (n > 0 && (size_t)n < sizeof path)
 		return (path);
 	return (s->cwd);
+#endif
 }

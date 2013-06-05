@@ -674,8 +674,12 @@ window_pane_create(struct window *w, u_int sx, u_int sy, u_int hlimit)
 	wp->shell = NULL;
 	wp->cwd = NULL;
 
+#ifdef TMATE_SLAVE
+	wp->event_input = evbuffer_new();
+#else
 	wp->fd = -1;
 	wp->event = NULL;
+#endif
 
 	wp->mode = NULL;
 
@@ -709,10 +713,14 @@ window_pane_destroy(struct window_pane *wp)
 	if (event_initialized(&wp->changes_timer))
 		evtimer_del(&wp->changes_timer);
 
+#ifdef TMATE_SLAVE
+	evbuffer_free(wp->event_input);
+#else
 	if (wp->fd != -1) {
 		bufferevent_free(wp->event);
 		close(wp->fd);
 	}
+#endif
 
 	input_free(wp);
 
@@ -737,6 +745,9 @@ int
 window_pane_spawn(struct window_pane *wp, const char *cmd, const char *shell,
     const char *cwd, struct environ *env, struct termios *tio, char **cause)
 {
+#ifdef TMATE_SLAVE
+	return 0;
+#else
 	struct winsize	 ws;
 	char		*argv0, paneid[16];
 	const char	*ptr;
@@ -824,6 +835,7 @@ window_pane_spawn(struct window_pane *wp, const char *cmd, const char *shell,
 	bufferevent_enable(wp->event, EV_READ|EV_WRITE);
 
 	return (0);
+#endif
 }
 
 void
@@ -869,16 +881,21 @@ window_pane_read_callback(unused struct bufferevent *bufev, void *data)
 	struct window_pane     *wp = data;
 	char   		       *new_data;
 	size_t			new_size;
+#ifdef TMATE_SLAVE
+	struct evbuffer		*evb = wp->event_input;
+#else
+	struct evbuffer		*evb = wp->event->input;
+#endif
 
-	new_size = EVBUFFER_LENGTH(wp->event->input) - wp->pipe_off;
+	new_size = EVBUFFER_LENGTH(evb) - wp->pipe_off;
 	if (wp->pipe_fd != -1 && new_size > 0) {
-		new_data = EVBUFFER_DATA(wp->event->input);
+		new_data = EVBUFFER_DATA(evb);
 		bufferevent_write(wp->pipe_event, new_data, new_size);
 	}
 
 	input_parse(wp);
 
-	wp->pipe_off = EVBUFFER_LENGTH(wp->event->input);
+	wp->pipe_off = EVBUFFER_LENGTH(evb);
 
 	/*
 	 * If we get here, we're not outputting anymore, so set the silence
@@ -1022,6 +1039,7 @@ window_pane_reset_mode(struct window_pane *wp)
 	wp->flags |= PANE_REDRAW;
 }
 
+#ifndef TMATE_SLAVE
 void
 window_pane_key(struct window_pane *wp, struct session *sess, int key)
 {
@@ -1070,14 +1088,17 @@ window_pane_mouse(
 	} else if (wp->fd != -1)
 		input_mouse(wp, sess, m);
 }
+#endif
 
 int
 window_pane_visible(struct window_pane *wp)
 {
 	struct window	*w = wp->window;
 
+#ifndef TMATE_SLAVE
 	if (wp->layout_cell == NULL)
 		return (0);
+#endif
 	if (wp->xoff >= w->sx || wp->yoff >= w->sy)
 		return (0);
 	if (wp->xoff + wp->sx > w->sx || wp->yoff + wp->sy > w->sy)

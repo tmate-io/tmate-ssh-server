@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Handle keys input from the outside terminal. tty_default_*_keys[] are a base
@@ -301,10 +302,10 @@ tty_keys_add(struct tty *tty, const char *s, int key)
 
 	keystr = key_string_lookup_key(key);
 	if ((tk = tty_keys_find(tty, s, strlen(s), &size)) == NULL) {
-		log_debug("new key %s: 0x%x (%s)", s, key, keystr);
+		log_debug2("new key %s: 0x%x (%s)", s, key, keystr);
 		tty_keys_add1(&tty->key_tree, s, key);
 	} else {
-		log_debug("replacing key %s: 0x%x (%s)", s, key, keystr);
+		log_debug2("replacing key %s: 0x%x (%s)", s, key, keystr);
 		tk->key = key;
 	}
 }
@@ -455,7 +456,7 @@ tty_keys_next(struct tty *tty)
 	len = EVBUFFER_LENGTH(tty->event->input);
 	if (len == 0)
 		return (0);
-	log_debug("keys are %zu (%.*s)", len, (int) len, buf);
+	log_debug2("keys are %zu (%.*s)", len, (int) len, buf);
 
 	/* Is this device attributes response? */
 	switch (tty_keys_device(tty, buf, len, &size)) {
@@ -535,7 +536,7 @@ first_key:
 	goto complete_key;
 
 partial_key:
-	log_debug("partial key %.*s", (int) len, buf);
+	log_debug2("partial key %.*s", (int) len, buf);
 
 	/* If timer is going, check for expiration. */
 	if (tty->flags & TTY_TIMER) {
@@ -562,7 +563,7 @@ partial_key:
 	return (0);
 
 complete_key:
-	log_debug("complete key %.*s %#x", (int) size, buf, key);
+	log_debug2("complete key %.*s %#x", (int) size, buf, key);
 
 	/* Remove data from buffer. */
 	evbuffer_drain(tty->event->input, size);
@@ -673,7 +674,7 @@ tty_keys_mouse(struct tty *tty, const char *buf, size_t len, size_t *size)
 			else
 				y = value;
 		}
-		log_debug("mouse input: %.*s", (int) *size, buf);
+		log_debug2("mouse input: %.*s", (int) *size, buf);
 
 		/* Check and return the mouse input. */
 		if (b < 32 || x < 33 || y < 33)
@@ -714,7 +715,7 @@ tty_keys_mouse(struct tty *tty, const char *buf, size_t len, size_t *size)
 				return (-1);
 			y = 10 * y + (c - '0');
 		}
-		log_debug("mouse input (sgr): %.*s", (int) *size, buf);
+		log_debug2("mouse input (sgr): %.*s", (int) *size, buf);
 
 		/* Check and return the mouse input. */
 		if (x < 1 || y < 1)
@@ -824,7 +825,7 @@ tty_keys_device(struct tty *tty, const char *buf, size_t len, size_t *size)
 	if (*endptr != ';')
 		class = 0;
 
-	log_debug("received service class %u", class);
+	log_debug2("received service class %u", class);
 	tty_set_class(tty, class);
 
 	return (0);

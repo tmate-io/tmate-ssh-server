@@ -15,3 +15,7 @@ tmux
 Makefile
 Makefile.in
 configure
+keys/
+tmate-server
+cscope.*
+tags

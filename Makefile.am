@@ -1,8 +1,8 @@
 # $Id$
 
 # Obvious program stuff.
-bin_PROGRAMS = tmux
-dist_man1_MANS = tmux.1
+bin_PROGRAMS = tmate-server
+dist_man1_MANS = tmate.1
 
 # Distribution tarball options.
 EXTRA_DIST = \
@@ -20,6 +20,9 @@ CPPFLAGS += @XOPEN_DEFINES@
 if IS_GLIBC
 CFLAGS += -D_GNU_SOURCE
 endif
+
+CFLAGS += -Wno-unused-parameter -Wno-unused-variable
+
 
 # Set flags for gcc. gcc4 whines abouts silly stuff so it needs slightly
 # different flags.
@@ -57,7 +60,7 @@ CFLAGS += -erroff=E_EMPTY_DECLARATION
 endif
 
 # List of sources.
-dist_tmux_SOURCES = \
+dist_tmate_server_SOURCES = \
 	arguments.c \
 	attributes.c \
 	cfg.c \
@@ -171,7 +174,13 @@ dist_tmux_SOURCES = \
 	session.c \
 	signal.c \
 	status.c \
-	tmux.c \
+	tmate-debug.c \
+	tmate-decoder.c \
+	tmate-encoder.c \
+	tmate-server.c \
+	tmate-ssh-client-pty.c \
+	tmate-ssh-client.c \
+	tmate-ssh-server.c \
 	tty-acs.c \
 	tty-keys.c \
 	tty-term.c \
@@ -183,66 +192,51 @@ dist_tmux_SOURCES = \
 	window.c \
 	xmalloc.c \
 	xterm-keys.c
-nodist_tmux_SOURCES = osdep-@PLATFORM@.c
+nodist_tmate_server_SOURCES = osdep-@PLATFORM@.c
 
 # Pile in all the compat/ stuff that is needed.
 if NO_FORKPTY
-nodist_tmux_SOURCES += compat/forkpty-@PLATFORM@.c
+nodist_tmate_server_SOURCES += compat/forkpty-@PLATFORM@.c
 endif
 if NO_IMSG
-nodist_tmux_SOURCES += compat/imsg.c compat/imsg-buffer.c
+nodist_tmate_server_SOURCES += compat/imsg.c compat/imsg-buffer.c
 endif
 if NO_CLOSEFROM
-nodist_tmux_SOURCES += compat/closefrom.c
+nodist_tmate_server_SOURCES += compat/closefrom.c
 endif
 if NO_DAEMON
-nodist_tmux_SOURCES += compat/daemon.c
+nodist_tmate_server_SOURCES += compat/daemon.c
 endif
 if NO_SETENV
-nodist_tmux_SOURCES += compat/setenv.c
+nodist_tmate_server_SOURCES += compat/setenv.c
 endif
 if NO_STRLCAT
-nodist_tmux_SOURCES += compat/strlcat.c
+nodist_tmate_server_SOURCES += compat/strlcat.c
 endif
 if NO_STRLCPY
-nodist_tmux_SOURCES += compat/strlcpy.c
+nodist_tmate_server_SOURCES += compat/strlcpy.c
 endif
 if NO_ASPRINTF
-nodist_tmux_SOURCES += compat/asprintf.c
+nodist_tmate_server_SOURCES += compat/asprintf.c
 endif
 if NO_FGETLN
-nodist_tmux_SOURCES += compat/fgetln.c
+nodist_tmate_server_SOURCES += compat/fgetln.c
 endif
 if NO_GETOPT
-nodist_tmux_SOURCES += compat/getopt.c
+nodist_tmate_server_SOURCES += compat/getopt.c
 endif
 if NO_STRCASESTR
-nodist_tmux_SOURCES += compat/strcasestr.c
+nodist_tmate_server_SOURCES += compat/strcasestr.c
 endif
 if NO_STRSEP
-nodist_tmux_SOURCES += compat/strsep.c
+nodist_tmate_server_SOURCES += compat/strsep.c
 endif
 if NO_VIS
-nodist_tmux_SOURCES += compat/vis.c compat/unvis.c
+nodist_tmate_server_SOURCES += compat/vis.c compat/unvis.c
 endif
 if NO_STRTONUM
-nodist_tmux_SOURCES += compat/strtonum.c
+nodist_tmate_server_SOURCES += compat/strtonum.c
 endif
 if NO_B64_NTOP
-nodist_tmux_SOURCES += compat/b64_ntop.c
+nodist_tmate_server_SOURCES += compat/b64_ntop.c
 endif
-
-# Update SF web site.
-upload-index.html: update-index.html
-	scp www/index.html www/main.css www/images/*.png \
-		${USER},tmux@web.sf.net:/home/groups/t/tm/tmux/htdocs
-	rm -f www/index.html www/images/small-*
-
-update-index.html:
-	(cd www/images && \
-		rm -f small-* && \
-		for i in *.png; do \
-			convert "$$i" -resize 200x150 "small-$$i"; \
-		done \
-	)
-	sed "s/%%VERSION%%/${VERSION}/g" www/index.html.in >www/index.html

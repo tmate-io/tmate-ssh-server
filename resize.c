@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Recalculate window and session sizes.
@@ -71,6 +72,12 @@ recalculate_sizes(void)
 					ssy = c->tty.sy;
 			}
 		}
+
+#ifdef TMATE_SLAVE
+		tmate_client_resize(ssx, ssy);
+		return;
+#endif
+
 		if (ssx == UINT_MAX || ssy == UINT_MAX) {
 			s->flags |= SESSION_UNATTACHED;
 			continue;

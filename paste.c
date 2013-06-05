@@ -167,6 +167,7 @@ paste_print(struct paste_buffer *pb, size_t width)
 	return (buf);
 }
 
+#ifndef TMATE_SLAVE
 /* Paste into a window pane, filtering '\n' according to separator. */
 void
 paste_send_pane (struct paste_buffer *pb, struct window_pane *wp,
@@ -192,3 +193,4 @@ paste_send_pane (struct paste_buffer *pb, struct window_pane *wp,
 	if (bracket)
 		bufferevent_write(wp->event, "\033[201~", 6);
 }
+#endif

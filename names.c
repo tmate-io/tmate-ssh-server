@@ -26,6 +26,22 @@
 
 #include "tmux.h"
 
+#ifdef TMATE_SLAVE
+
+char *
+default_window_name(struct window *w)
+{
+	return xstrdup("[tmux]");
+}
+
+void
+queue_window_name(struct window *w)
+{
+}
+
+#else
+
+
 void	 window_name_callback(unused int, unused short, void *);
 char	*parse_window_name(const char *);
 
@@ -128,3 +144,5 @@ parse_window_name(const char *in)
 	free(copy);
 	return (name);
 }
+
+#endif

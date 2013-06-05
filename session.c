@@ -25,6 +25,7 @@
 #include <time.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /* Global session list. */
 struct sessions	sessions;
@@ -244,9 +245,7 @@ session_new(struct session *s,
 	environ_copy(&s->environ, &env);
 	server_fill_environ(s, &env);
 
-	shell = options_get_string(&s->options, "default-shell");
-	if (*shell == '\0' || areshell(shell))
-		shell = _PATH_BSHELL;
+	shell = _PATH_BSHELL;
 
 	hlimit = options_get_number(&s->options, "history-limit");
 	w = window_create(

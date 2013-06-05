@@ -161,6 +161,7 @@ cmd_set_option_exec(struct cmd *self, struct cmd_q *cmdq)
 	}
 
 	/* Start or stop timers when automatic-rename changed. */
+#ifndef TMATE_SLAVE
 	if (strcmp (oe->name, "automatic-rename") == 0) {
 		for (i = 0; i < ARRAY_LENGTH(&windows); i++) {
 			if ((w = ARRAY_ITEM(&windows, i)) == NULL)
@@ -171,6 +172,7 @@ cmd_set_option_exec(struct cmd *self, struct cmd_q *cmdq)
 				evtimer_del(&w->name_timer);
 		}
 	}
+#endif
 
 	/* Update sizes and redraw. May not need it but meh. */
 	recalculate_sizes();

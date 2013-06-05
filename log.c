@@ -24,6 +24,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "tmux.h"
 
@@ -48,9 +49,14 @@ log_event_cb(unused int severity, const char *msg)
 void
 log_open(int level, const char *path)
 {
-	log_file = fopen(path, "w");
-	if (log_file == NULL)
-		return;
+	if (path) {
+		log_file = fopen(path, "a");
+		if (log_file == NULL)
+			return;
+	} else {
+		log_file = stderr;
+	}
+
 	log_level = level;
 
 	setlinebuf(log_file);
@@ -78,7 +84,7 @@ log_vwrite(const char *msg, va_list ap)
 	if (log_file == NULL)
 		return;
 
-	if (asprintf(&fmt, "%s\n", msg) == -1)
+	if (asprintf(&fmt, "[%d] %s\n", getpid(), msg) == -1)
 		exit(1);
 	if (vfprintf(log_file, fmt, ap) == -1)
 		exit(1);

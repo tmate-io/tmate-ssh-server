@@ -64,7 +64,7 @@ server_write_client(
 
 	if (c->flags & CLIENT_BAD)
 		return (-1);
-	log_debug("writing %d to client %d", type, c->ibuf.fd);
+	log_debug2("writing %d to client %d", type, c->ibuf.fd);
 	error = imsg_compose(ibuf, type, PROTOCOL_VERSION, -1, -1,
 	    (void *) buf, len);
 	if (error == 1)
@@ -351,6 +351,7 @@ void
 server_destroy_pane(struct window_pane *wp)
 {
 	struct window		*w = wp->window;
+#ifndef TMATE_SLAVE
 	int			 old_fd;
 	struct screen_write_ctx	 ctx;
 	struct grid_cell	 gc;
@@ -376,6 +377,7 @@ server_destroy_pane(struct window_pane *wp)
 		wp->flags |= PANE_REDRAW;
 		return;
 	}
+#endif
 
 	server_unzoom_window(w);
 	layout_close_pane(wp);
