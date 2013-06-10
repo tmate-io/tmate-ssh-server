@@ -22,6 +22,7 @@ CFLAGS += -D_GNU_SOURCE
 endif
 
 CFLAGS += -Wno-unused-parameter -Wno-unused-variable
+CFLAGS += -Ilibssh/include/
 
 
 # Set flags for gcc. gcc4 whines abouts silly stuff so it needs slightly
@@ -240,3 +241,9 @@ endif
 if NO_B64_NTOP
 nodist_tmate_server_SOURCES += compat/b64_ntop.c
 endif
+
+tmate_server_LDADD = libssh/build/src/libssh.a
+
+libssh/build/src/libssh.a:
+	cd libssh/build && cmake .. -DWITH_SFTP=OFF -DWITH_SERVER=ON -DWITH_PCAP=OFF -DWITH_STATIC_LIB=ON
+	+make -C libssh/build ssh_static
