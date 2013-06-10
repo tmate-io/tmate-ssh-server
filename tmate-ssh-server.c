@@ -22,6 +22,8 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 	alarm(SSH_GRACE_PERIOD);
 
+	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
+
 	tmate_debug("Exchanging DH keys");
 
 	if (ssh_handle_key_exchange(session) < 0)
