@@ -100,12 +100,19 @@ extern void tmate_ssh_server_main(int port);
 
 /* tmate-slave.c */
 
+#ifdef DEVENV
+#define TMATE_DEFAULT_PORT 2200
+#else
+#define TMATE_DEFAULT_PORT 22
+#endif
+
 #define TMATE_TOKEN_LEN 25
 #define TMATE_WORKDIR "/tmp/tmate"
 #define TMATE_JAIL_USER "nobody"
 
 extern struct tmate_encoder *tmate_encoder;
 extern int tmux_socket_fd;
+extern const char *tmate_session_token;
 
 extern void tmate_spawn_slave(struct tmate_ssh_client *client);
 

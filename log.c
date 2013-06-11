@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /* Log file, if needed. */
 FILE		*log_file;
@@ -84,7 +85,7 @@ log_vwrite(const char *msg, va_list ap)
 	if (log_file == NULL)
 		return;
 
-	if (asprintf(&fmt, "[%d] %s\n", getpid(), msg) == -1)
+	if (asprintf(&fmt, "[%s] %s\n", tmate_session_token, msg) == -1)
 		exit(1);
 	if (vfprintf(log_file, fmt, ap) == -1)
 		exit(1);

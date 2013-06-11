@@ -24,6 +24,9 @@ endif
 CFLAGS += -Wno-unused-parameter -Wno-unused-variable
 CFLAGS += -Ilibssh/include/ -Imsgpack/src
 
+if IS_DEVENV
+CFLAGS += -DDEVENV
+endif
 
 # Set flags for gcc. gcc4 whines abouts silly stuff so it needs slightly
 # different flags.

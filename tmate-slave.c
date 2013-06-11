@@ -16,7 +16,7 @@
 
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
-const char *tmate_session_token;
+const char *tmate_session_token = "main";
 
 extern FILE *log_file;
 extern int server_create_socket(void);
@@ -30,7 +30,7 @@ static void usage(void)
 int main(int argc, char **argv)
 {
 	int opt;
-	int port = 22;
+	int port = TMATE_DEFAULT_PORT;
 	char *log_path = NULL; /* stderr */
 
 	while ((opt = getopt(argc, argv, "p:l:v")) != -1) {
@@ -78,15 +78,14 @@ static char *get_random_token(void)
 	int i;
 	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
 
-#if 0
-	strcpy(token, "TOKENTOKENTOKENTOKENTOKEN");
-	return token;
-#endif
-
 	ssh_get_random(token, TMATE_TOKEN_LEN, 0);
 	for (i = 0; i < TMATE_TOKEN_LEN; i++)
 		token[i] = tmate_token_digits[token[i] % NUM_DIGITS];
 	token[i] = 0;
+
+#ifdef DEVENV
+	strcpy(token, "SUPERSECURETOKENFORDEVENV");
+#endif
 
 	return token;
 }
@@ -209,7 +208,7 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	set_session_token(token);
 	free(token);
 
-	tmate_debug("Spawning tmux slave server %s", tmate_session_token);
+	tmate_debug("Spawning tmux slave server");
 
 	tmux_socket_fd = server_create_socket();
 	if (tmux_socket_fd < 0)
@@ -250,7 +249,7 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	set_session_token(token);
 
-	tmate_debug("Spawn tmux slave client %s", tmate_session_token);
+	tmate_debug("Spawn tmux slave client");
 
 	tmux_socket_fd = client_connect(socket_path, 0);
 	if (tmux_socket_fd < 0) {

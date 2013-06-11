@@ -40,6 +40,13 @@ AC_CHECK_HEADERS(
 	]
 )
 
+AC_ARG_ENABLE(
+	devenv,
+	AC_HELP_STRING(--enable-devenv, "dev env (port 2200, no random tokens)"),
+	found_devenv=$enable_devenv
+)
+AM_CONDITIONAL(IS_DEVENV, test "x$found_devenv" = xyes)
+
 # Is this a debug build?
 #found_debug=yes
 AC_ARG_ENABLE(
