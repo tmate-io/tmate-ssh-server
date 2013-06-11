@@ -187,6 +187,9 @@ static void jail(void)
 	if (setresuid(gid, gid, gid) < 0)
 		tmate_fatal("Cannot setresgid()");
 
+	if (nice(1) < 0)
+		tmate_fatal("Cannot nice()");
+
 	tmate_debug("Dropped priviledges to %s (%d,%d)",
 		    TMATE_JAIL_USER, uid, gid);
 }
