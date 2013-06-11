@@ -2,6 +2,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <libssh/libssh.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <grp.h>
+#include <pwd.h>
+#ifdef HAVE_CURSES_H
+#include <curses.h>
+#else
+#include <ncurses.h>
+#endif
+#include <term.h>
 #include "tmate.h"
 
 struct tmate_encoder *tmate_encoder;
@@ -41,6 +51,12 @@ int main(int argc, char **argv)
 	}
 
 	log_open(debug_level, log_path);
+
+	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
+	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||
+	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
+		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
+
 	tmate_ssh_server_main(port);
 	return 0;
 }
@@ -48,7 +64,7 @@ int main(int argc, char **argv)
 static void set_session_token(const char *token)
 {
 	tmate_session_token = xstrdup(token);
-	strcpy(socket_path, "/tmp/tmate-slave-");
+	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
 	strcat(socket_path, token);
 }
 
@@ -61,6 +77,11 @@ static char *get_random_token(void)
 {
 	int i;
 	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
+
+#if 0
+	strcpy(token, "TOKENTOKENTOKENTOKENTOKEN");
+	return token;
+#endif
 
 	ssh_get_random(token, TMATE_TOKEN_LEN, 0);
 	for (i = 0; i < TMATE_TOKEN_LEN; i++)
@@ -134,6 +155,50 @@ static void close_fds_except(int *fd_to_preserve, int num_fds)
 	}
 }
 
+static void jail(void)
+{
+	struct passwd *pw;
+	uid_t uid;
+	gid_t gid;
+
+	pw = getpwnam(TMATE_JAIL_USER);
+	if (!pw) {
+		tmate_fatal("Cannot get the /etc/passwd entry for %s",
+			    TMATE_JAIL_USER);
+	}
+	uid = pw->pw_uid;
+	gid = pw->pw_gid;
+
+	/*
+	 * We are already in a new PID namespace (from the server fork).
+	 */
+
+	if (chroot(TMATE_WORKDIR "/jail") < 0)
+		tmate_fatal("Cannot chroot()");
+
+	if (chdir("/") < 0)
+		tmate_fatal("Cannot chdir()");
+
+	if (setgroups(1, (gid_t[]){gid}) < 0)
+		tmate_fatal("Cannot setgroups()");
+
+	if (setresuid(uid, uid, uid) < 0)
+		tmate_fatal("Cannot setresuid()");
+
+	if (setresuid(gid, gid, gid) < 0)
+		tmate_fatal("Cannot setresgid()");
+
+	tmate_debug("Dropped priviledges to %s (%d,%d)",
+		    TMATE_JAIL_USER, uid, gid);
+}
+
+static void setup_ncurse(int fd, const char *name)
+{
+	int error;
+	if (setupterm(name, fd, &error) != OK)
+		tmate_fatal("Cannot setup terminal");
+}
+
 static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 {
 	char *token;
@@ -150,8 +215,14 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	if (tmux_socket_fd < 0)
 		tmate_fatal("Cannot create to the tmux socket");
 
+	/*
+	 * Needed to initialize the database used in tty-term.c.
+	 * We won't have access to it once in the jail.
+	 */
+	setup_ncurse(STDOUT_FILENO, "screen-256color");
 	close_fds_except((int[]){tmux_socket_fd, ssh_get_fd(client->session),
 				 fileno(log_file)}, 7);
+	jail();
 
 	ev_base = osdep_event_init();
 
@@ -195,9 +266,11 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 	dup2(slave_pty, STDOUT_FILENO);
 	dup2(slave_pty, STDERR_FILENO);
 
+	setup_ncurse(slave_pty, "screen-256color");
 	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
 				 tmux_socket_fd, ssh_get_fd(client->session),
 				 client->pty, fileno(log_file)}, 7);
+	jail();
 
 	ev_base = osdep_event_init();
 

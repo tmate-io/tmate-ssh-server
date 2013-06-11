@@ -333,6 +333,8 @@ tty_term_find(char *name, int fd, const char *overrides, char **cause)
 	memset(term->codes, 0, sizeof term->codes);
 	LIST_INSERT_HEAD(&tty_terms, term, entry);
 
+	/* we are in a jail, no access to files */
+#ifndef TMATE_SLAVE
 	/* Set up curses terminal. */
 	if (setupterm(name, fd, &error) != OK) {
 		switch (error) {
@@ -353,6 +355,7 @@ tty_term_find(char *name, int fd, const char *overrides, char **cause)
 		}
 		goto error;
 	}
+#endif
 
 	/* Fill in codes. */
 	for (i = 0; i < NTTYCODE; i++) {

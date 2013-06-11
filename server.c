@@ -84,12 +84,7 @@ server_create_socket(void)
 		fatal("socket failed");
 	}
 
-#ifdef TMATE_SLAVE
-	if (access(sa.sun_path, F_OK) == 0)
-		tmate_fatal("session exists");
-#else
 	unlink(sa.sun_path);
-#endif
 
 	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 		fatal("socket failed");

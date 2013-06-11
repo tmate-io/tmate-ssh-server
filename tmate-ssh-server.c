@@ -3,9 +3,11 @@
 #include <libssh/callbacks.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
+#include <sys/wait.h>
+#include <sys/syscall.h>
+#include <sched.h>
 #include <stdio.h>
 #include <event.h>
-#include <sys/wait.h>
 
 #include "tmate.h"
 
@@ -160,6 +162,8 @@ static void handle_sigchld(void)
 	int status, child_dead, child_exit_status;
 	pid_t pid;
 
+	/* TODO cleanup the socket when the client dies */
+
 	while ((pid = waitpid(0, &status, WNOHANG)) > 0) {
 		child_dead = 0;
 
@@ -208,6 +212,14 @@ static struct ssh_callbacks_struct ssh_session_callbacks = {
 	.log_function = ssh_log_cb
 };
 
+static pid_t namespace_fork(void)
+{
+	/* XXX we are breaking getpid() libc cache. Bad libc. */
+	unsigned long flags;
+	flags = CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET;
+	return syscall(SYS_clone, flags | SIGCHLD, NULL, NULL, NULL);
+}
+
 void tmate_ssh_server_main(int port)
 {
 	struct tmate_ssh_client _client;
@@ -245,8 +257,8 @@ void tmate_ssh_server_main(int port)
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
 
-		if ((pid = fork()) < 0)
-			tmate_fatal("Can't fork");
+		if ((pid = namespace_fork()) < 0)
+			tmate_fatal("Can't fork in new namespace");
 
 		if (pid) {
 			ssh_free(client->session);

@@ -72,9 +72,13 @@ tty_init(struct tty *tty, struct client *c, int fd, char *term)
 	tty->fd = fd;
 	tty->client = c;
 
+#ifdef TMATE_SLAVE
+	tty->path = NULL;
+#else
 	if ((path = ttyname(fd)) == NULL)
 		fatalx("ttyname failed");
 	tty->path = xstrdup(path);
+#endif
 	tty->cstyle = 0;
 	tty->ccolour = xstrdup("");
 

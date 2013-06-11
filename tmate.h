@@ -101,6 +101,8 @@ extern void tmate_ssh_server_main(int port);
 /* tmate-slave.c */
 
 #define TMATE_TOKEN_LEN 25
+#define TMATE_WORKDIR "/tmp/tmate"
+#define TMATE_JAIL_USER "nobody"
 
 extern struct tmate_encoder *tmate_encoder;
 extern int tmux_socket_fd;

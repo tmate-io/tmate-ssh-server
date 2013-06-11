@@ -3,6 +3,8 @@
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
 
+extern int server_shutdown;
+
 static void consume_channel(struct tmate_ssh_client *client)
 {
 	char *buf;
@@ -18,7 +20,8 @@ static void consume_channel(struct tmate_ssh_client *client)
 		if (len < 0) {
 			tmate_debug("Error reading from channel: %s",
 				    ssh_get_error(client->session));
-			exit(1);
+			server_shutdown = 1;
+			break;
 		}
 		if (len == 0)
 			break;
@@ -35,7 +38,8 @@ static void on_session_event(struct tmate_ssh_client *client)
 	consume_channel(client);
 	if (!ssh_is_connected(session)) {
 		tmate_debug("Disconnected");
-		exit(1);
+		server_shutdown = 1;
+		return;
 	}
 }
 
@@ -68,7 +72,8 @@ static void flush_input_stream(struct tmate_ssh_client *client)
 		if (written < 0) {
 			tmate_debug("Error writing to channel: %s",
 				    ssh_get_error(client->session));
-			exit(1);
+			server_shutdown = 1;
+			break;
 		}
 
 		evbuffer_drain(evb, written);
