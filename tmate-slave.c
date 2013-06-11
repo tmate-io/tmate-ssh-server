@@ -85,30 +85,9 @@ static int validate_token(const char *token)
 	return 0;
 }
 
-static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
+static void random_sleep(void)
 {
-	char *token;
-	struct tmate_encoder encoder;
-	struct tmate_decoder decoder;
-
-	token = get_random_token();
-	set_session_token(token);
-	free(token);
-
-	tmate_debug("Spawning tmux slave server %s", tmate_session_token);
-
-	tmux_socket_fd = server_create_socket();
-	if (tmux_socket_fd < 0)
-		tmate_fatal("Cannot create to the tmux socket");
-
-	tmate_encoder_init(&encoder);
-	tmate_decoder_init(&decoder);
-	tmate_encoder = &encoder;
-
-	tmate_ssh_client_init(client, &encoder, &decoder);
-
-	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
-	/* never reached */
+	usleep(50000 + (rand() % 50000));
 }
 
 static void ssh_echo(struct tmate_ssh_client *ssh_client,
@@ -139,9 +118,32 @@ static void ssh_echo(struct tmate_ssh_client *ssh_client,
 "  Nico"							 "\r\n" \
 "  "								 "\r\n"
 
-static void random_sleep(void)
+static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 {
-	usleep(50000 + (rand() % 50000));
+	char *token;
+	struct tmate_encoder encoder;
+	struct tmate_decoder decoder;
+
+	token = get_random_token();
+	set_session_token(token);
+	free(token);
+
+	tmate_debug("Spawning tmux slave server %s", tmate_session_token);
+
+	tmux_socket_fd = server_create_socket();
+	if (tmux_socket_fd < 0)
+		tmate_fatal("Cannot create to the tmux socket");
+
+	ev_base = osdep_event_init();
+
+	tmate_encoder_init(&encoder);
+	tmate_decoder_init(&decoder);
+	tmate_encoder = &encoder;
+
+	tmate_ssh_client_init(client, &encoder, &decoder);
+
+	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
+	/* never reached */
 }
 
 static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
@@ -159,6 +161,8 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 	set_session_token(token);
 
 	tmate_debug("Spawn tmux slave client %s", tmate_session_token);
+
+	ev_base = osdep_event_init();
 
 	tmux_socket_fd = client_connect(socket_path, 0);
 	if (tmux_socket_fd < 0) {
@@ -184,8 +188,6 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 void tmate_spawn_slave(struct tmate_ssh_client *client)
 {
-	ev_base = osdep_event_init();
-
 	if (client->role == TMATE_ROLE_SERVER)
 		tmate_spawn_slave_server(client);
 	else
