@@ -67,6 +67,9 @@ struct tmate_ssh_client {
 	struct tmate_encoder *encoder;
 	struct tmate_decoder *decoder;
 
+	char *username;
+	char *pubkey;
+
 	struct winsize winsize_pty;
 
 	struct event ev_ssh;

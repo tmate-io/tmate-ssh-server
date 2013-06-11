@@ -11,6 +11,118 @@
 
 #define SSH_GRACE_PERIOD 60
 
+#define REPLY_DEFAULT	1
+#define STEP_COMPLETE	2
+
+typedef int (*bootstrap_step_cb)(struct tmate_ssh_client *client,
+				 ssh_message msg);
+
+static void bootstrap_step(struct tmate_ssh_client *client,
+			   bootstrap_step_cb step)
+{
+	ssh_message msg;
+
+	for (;;) {
+		msg = ssh_message_get(client->session);
+
+		switch (step(client, msg)) {
+		case STEP_COMPLETE:
+			return;
+		case REPLY_DEFAULT:
+			ssh_message_reply_default(msg);
+		}
+
+		ssh_message_free(msg);
+	}
+}
+
+static int user_auth_step(struct tmate_ssh_client *client,
+			  ssh_message msg)
+{
+	if (!msg)
+		tmate_fatal("Authentification error");
+
+	if (ssh_message_type(msg) != SSH_REQUEST_AUTH)
+		return REPLY_DEFAULT;
+
+	if (ssh_message_subtype(msg) != SSH_AUTH_METHOD_PUBLICKEY) {
+		ssh_message_auth_set_methods(msg, SSH_AUTH_METHOD_PUBLICKEY);
+		return REPLY_DEFAULT;
+	}
+
+	switch (ssh_message_auth_publickey_state(msg)) {
+	case SSH_PUBLICKEY_STATE_NONE:
+		ssh_message_auth_reply_pk_ok_simple(msg);
+		return 0;
+
+	case SSH_PUBLICKEY_STATE_VALID:
+		client->username = xstrdup(ssh_message_auth_user(msg));
+		if (ssh_pki_export_pubkey_base64(ssh_message_auth_pubkey(msg),
+						 &client->pubkey) != SSH_OK)
+			tmate_fatal("error getting public key");
+
+		ssh_message_auth_reply_success(msg, 0);
+		return STEP_COMPLETE;
+	default:
+		return REPLY_DEFAULT;
+	}
+}
+
+static int channel_open_step(struct tmate_ssh_client *client,
+			     ssh_message msg)
+{
+	if (!msg)
+		tmate_fatal("Error getting channel");
+
+	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL_OPEN &&
+	    ssh_message_subtype(msg) == SSH_CHANNEL_SESSION) {
+		client->channel = ssh_message_channel_request_open_reply_accept(msg);
+		if (!client->channel)
+			tmate_fatal("Error getting channel");
+
+		return STEP_COMPLETE;
+	}
+
+	return REPLY_DEFAULT;
+}
+
+static int init_client_step(struct tmate_ssh_client *client,
+			    ssh_message msg)
+{
+	if (!msg)
+		tmate_fatal("Error getting subsystem");
+
+	/* pty request */
+	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
+	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
+		client->winsize_pty.ws_col = ssh_message_channel_request_pty_width(msg);
+		client->winsize_pty.ws_row = ssh_message_channel_request_pty_height(msg);
+		ssh_message_channel_request_reply_success(msg);
+		return 0;
+	}
+
+	/* tmate subsystem request (master) */
+	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
+	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM &&
+	    !strcmp(ssh_message_channel_request_subsystem(msg), "tmate")) {
+		alarm(0);
+		ssh_message_channel_request_reply_success(msg);
+		tmate_spawn_slave_server(client);
+		/* never reached */
+	}
+
+	/* shell request (slave client) */
+	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
+	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
+		alarm(0);
+		ssh_message_channel_request_reply_success(msg);
+		tmate_spawn_slave_client(client);
+		/* never reached */
+	}
+
+	return REPLY_DEFAULT;
+}
+
 static void client_bootstrap(struct tmate_ssh_client *client)
 {
 	int auth = 0;
@@ -19,108 +131,27 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	ssh_message msg;
 
 	int flag = 1;
-	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
+		   &flag, sizeof(flag));
+
 	alarm(SSH_GRACE_PERIOD);
 
 	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
 
 	tmate_debug("Exchanging DH keys");
-
 	if (ssh_handle_key_exchange(session) < 0)
 		tmate_fatal("Error doing the key exchange");
 
 	tmate_debug("Authenticating with public key");
-
-	while (!auth) {
-		msg = ssh_message_get(session);
-		if (!msg)
-			tmate_fatal("Authentification error");
-
-		switch (ssh_message_type(msg)) {
-		case SSH_REQUEST_AUTH:
-			switch (ssh_message_subtype(msg)) {
-			case SSH_AUTH_METHOD_PUBLICKEY:
-				if (ssh_message_auth_publickey_state(msg) == SSH_PUBLICKEY_STATE_NONE)
-					ssh_message_auth_reply_pk_ok_simple(msg);
-
-				else if (ssh_message_auth_publickey_state(msg) == SSH_PUBLICKEY_STATE_VALID) {
-					ssh_message_auth_reply_success(msg, 0);
-					auth = 1;
-				}
-				break;
-			case SSH_AUTH_METHOD_NONE:
-			default:
-				ssh_message_auth_set_methods(msg, SSH_AUTH_METHOD_PUBLICKEY);
-				ssh_message_reply_default(msg);
-				break;
-			}
-			break;
-		default:
-			ssh_message_reply_default(msg);
-		}
-
-		ssh_message_free(msg);
-	}
+	bootstrap_step(client, user_auth_step);
 
 	tmate_debug("Opening channel");
-
-	while (!channel) {
-		msg = ssh_message_get(session);
-		if (!msg)
-			tmate_fatal("Error getting channel");
-
-		if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL_OPEN &&
-		    ssh_message_subtype(msg) == SSH_CHANNEL_SESSION) {
-			client->channel = channel = ssh_message_channel_request_open_reply_accept(msg);
-			if (!channel)
-				tmate_fatal("Error getting channel");
-		} else {
-			ssh_message_reply_default(msg);
-		}
-		
-		ssh_message_free(msg);
-	}
+	bootstrap_step(client, channel_open_step);
 
 	tmate_debug("Getting client type");
+	bootstrap_step(client, init_client_step);
 
-	while (1) {
-		msg = ssh_message_get(session);
-		if (!msg)
-			tmate_fatal("Error getting subsystem");
-
-		/* subsystem request */
-		if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-		    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM &&
-		    !strcmp(ssh_message_channel_request_subsystem(msg), "tmate")) {
-			alarm(0);
-			ssh_message_channel_request_reply_success(msg);
-			tmate_spawn_slave_server(client);
-		}
-
-		/* PTY request */
-		else if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-			 ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
-
-			client->winsize_pty.ws_col = ssh_message_channel_request_pty_width(msg);
-			client->winsize_pty.ws_row = ssh_message_channel_request_pty_height(msg);
-			ssh_message_channel_request_reply_success(msg);
-		}
-
-		/* SHELL request */
-		else if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-			 ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
-			alarm(0);
-			ssh_message_channel_request_reply_success(msg);
-			tmate_spawn_slave_client(client);
-		}
-
-		/* Default */
-		else {
-			ssh_message_reply_default(msg);
-		}
-
-		ssh_message_free(msg);
-	}
+	/* never reached */
 }
 
 static void handle_sigchld(void)
