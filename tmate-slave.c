@@ -144,17 +144,15 @@ static void random_sleep(void)
 	usleep(50000 + (rand() % 50000));
 }
 
-static void tmate_spawn_slave_client(struct tmate_ssh_client *ssh_client)
+static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 {
-	struct tmate_ssh_client_pty _client;
-	struct tmate_ssh_client_pty *client = &_client;
 	char *argv[] = {(char *)"attach", NULL};
-	char *token = ssh_client->username;
+	char *token = client->username;
 	int slave_pty;
 	int ret;
 
 	if (validate_token(token) < 0) {
-		ssh_echo(ssh_client, BAD_TOKEN_ERROR_STR);
+		ssh_echo(client, BAD_TOKEN_ERROR_STR);
 		tmate_fatal("Bad token");
 	}
 
@@ -165,13 +163,9 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *ssh_client)
 	tmux_socket_fd = client_connect(socket_path, 0);
 	if (tmux_socket_fd < 0) {
 		random_sleep(); /* for timing attacks */
-		ssh_echo(ssh_client, EXPIRED_TOKEN_ERROR_STR);
+		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
 		tmate_fatal("Expired token");
 	}
-
-	client->session = ssh_client->session;
-	client->channel = ssh_client->channel;
-	client->winsize_pty = ssh_client->winsize_pty;
 
 	if (openpty(&client->pty, &slave_pty, NULL, NULL, NULL) < 0)
 		tmate_fatal("Cannot allocate pty");

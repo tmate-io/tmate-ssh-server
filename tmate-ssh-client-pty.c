@@ -4,7 +4,7 @@
 #include <libssh/callbacks.h>
 #include <errno.h>
 
-static void consume_channel(struct tmate_ssh_client_pty *client)
+static void consume_channel(struct tmate_ssh_client *client)
 {
 	ssize_t len, written;
 	char buf[4096];
@@ -36,7 +36,7 @@ static void consume_channel(struct tmate_ssh_client_pty *client)
 	}
 }
 
-static void on_session_event(struct tmate_ssh_client_pty *client)
+static void on_session_event(struct tmate_ssh_client *client)
 {
 	ssh_execute_message_callbacks(client->session);
 
@@ -53,7 +53,7 @@ static void __on_session_event(evutil_socket_t fd, short what, void *arg)
 	on_session_event(arg);
 }
 
-static int message_callback(struct tmate_ssh_client_pty *client,
+static int message_callback(struct tmate_ssh_client *client,
 			    ssh_message msg)
 {
 	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
@@ -78,7 +78,7 @@ static int __message_callback(ssh_session session, ssh_message msg, void *arg)
 	return message_callback(arg, msg);
 }
 
-static void register_session_fd_event(struct tmate_ssh_client_pty *client)
+static void register_session_fd_event(struct tmate_ssh_client *client)
 {
 	ssh_set_message_callback(client->session, __message_callback, client);
 
@@ -87,7 +87,7 @@ static void register_session_fd_event(struct tmate_ssh_client_pty *client)
 	event_add(&client->ev_ssh, NULL);
 }
 
-static void on_pty_event(struct tmate_ssh_client_pty *client)
+static void on_pty_event(struct tmate_ssh_client *client)
 {
 	ssize_t len, written;
 	char buf[4096];
@@ -121,13 +121,13 @@ static void __on_pty_event(evutil_socket_t fd, short what, void *arg)
 	on_pty_event(arg);
 }
 
-void tmate_flush_pty(struct tmate_ssh_client_pty *client)
+void tmate_flush_pty(struct tmate_ssh_client *client)
 {
 	on_pty_event(client);
 	close(client->pty);
 }
 
-static void register_pty_event(struct tmate_ssh_client_pty *client)
+static void register_pty_event(struct tmate_ssh_client *client)
 {
 	setblocking(client->pty, 0);
 	event_assign(&client->ev_pty, ev_base, client->pty,
@@ -135,7 +135,7 @@ static void register_pty_event(struct tmate_ssh_client_pty *client)
 	event_add(&client->ev_pty, NULL);
 }
 
-void tmate_ssh_client_pty_init(struct tmate_ssh_client_pty *client)
+void tmate_ssh_client_pty_init(struct tmate_ssh_client *client)
 {
 	ioctl(client->pty, TIOCSWINSZ, &client->winsize_pty);
 	register_session_fd_event(client);

@@ -78,26 +78,19 @@ struct tmate_ssh_client {
 	struct winsize winsize_pty;
 
 	struct event ev_ssh;
+
+	/* only for client-pty */
+	int pty;
+	struct event ev_pty;
 };
-extern void tmate_ssh_client_init(struct tmate_ssh_client *ssh_client,
+extern void tmate_ssh_client_init(struct tmate_ssh_client *client,
 				  struct tmate_encoder *encoder,
 				  struct tmate_decoder *decoder);
 
 /* tmate-ssh-client-pty.c */
 
-struct tmate_ssh_client_pty {
-	ssh_session session;
-	ssh_channel channel;
-
-	int pty;
-	struct winsize winsize_pty;
-
-	struct event ev_ssh;
-	struct event ev_pty;
-};
-
-extern void tmate_ssh_client_pty_init(struct tmate_ssh_client_pty *client);
-extern void tmate_flush_pty(struct tmate_ssh_client_pty *client);
+extern void tmate_ssh_client_pty_init(struct tmate_ssh_client *client);
+extern void tmate_flush_pty(struct tmate_ssh_client *client);
 
 /* tmate-ssh-server.c */
 
