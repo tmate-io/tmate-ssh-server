@@ -97,9 +97,7 @@ server_create_socket(void)
 		fatal("listen failed");
 	setblocking(fd, 0);
 
-	server_update_socket();
-
-	return (fd);
+	server_update_socket(); return (fd);
 }
 
 /* Fork new server. */
@@ -162,9 +160,10 @@ server_start(int lockfd, char *lockfile)
 	setproctitle("server (%s)", socket_path);
 #endif
 
+#ifdef TMATE_SLAVE
+	server_fd = tmux_socket_fd;
+#else
 	server_fd = server_create_socket();
-
-#ifndef TMATE_SLAVE
 	server_client_create(pair[1]);
 
 	unlink(lockfile);
@@ -397,10 +396,12 @@ server_signal_callback(int sig, unused short events, unused void *data)
 		server_child_signal();
 		break;
 	case SIGUSR1:
+#ifndef TMATE_SLAVE
 		event_del(&server_ev_accept);
 		close(server_fd);
 		server_fd = server_create_socket();
 		server_add_accept(0);
+#endif
 		break;
 	}
 }

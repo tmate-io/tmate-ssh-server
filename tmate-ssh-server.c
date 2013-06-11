@@ -105,18 +105,19 @@ static int init_client_step(struct tmate_ssh_client *client,
 	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
 	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM &&
 	    !strcmp(ssh_message_channel_request_subsystem(msg), "tmate")) {
-		alarm(0);
-		ssh_message_channel_request_reply_success(msg);
-		tmate_spawn_slave_server(client);
-		/* never reached */
+		client->role = TMATE_ROLE_SERVER;
 	}
 
 	/* shell request (slave client) */
 	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
 	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
+		client->role = TMATE_ROLE_CLIENT;
+	}
+
+	if (client->role) {
 		alarm(0);
 		ssh_message_channel_request_reply_success(msg);
-		tmate_spawn_slave_client(client);
+		tmate_spawn_slave(client);
 		/* never reached */
 	}
 

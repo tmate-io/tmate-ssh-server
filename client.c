@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 struct imsgbuf	client_ibuf;
 struct event	client_event;
@@ -206,8 +207,8 @@ client_main(int argc, char **argv, int flags)
 	}
 
 #ifdef TMATE_SLAVE
-	cmdflags &= ~CMD_STARTSERVER;
-#endif
+	fd = tmux_socket_fd;
+#else
 
 	/*
 	 * Check if this could be a nested session, if the command can't nest:
@@ -227,6 +228,7 @@ client_main(int argc, char **argv, int flags)
 		fprintf(stderr, "failed to connect to server\n");
 		return (1);
 	}
+#endif
 
 	/* Set process title, log and signals now this is the client. */
 #ifdef HAVE_SETPROCTITLE
@@ -293,8 +295,9 @@ client_main(int argc, char **argv, int flags)
 
 	/* Print the exit message, if any, and exit. */
 	if (client_attached) {
-		if (client_exitreason != CLIENT_EXIT_NONE && !login_shell)
-			printf("[%s]\n", client_exit_message());
+		if (client_exitreason != CLIENT_EXIT_NONE && !login_shell) {
+			printf("[%s]\r\n", client_exit_message());
+		}
 
 		ppid = getppid();
 		if (client_exittype == MSG_DETACHKILL && ppid > 1)

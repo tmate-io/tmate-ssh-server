@@ -60,9 +60,14 @@ extern void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len);
 typedef struct ssh_session_struct* ssh_session;
 typedef struct ssh_channel_struct* ssh_channel;
 
+#define TMATE_ROLE_SERVER 1
+#define TMATE_ROLE_CLIENT 2
+
 struct tmate_ssh_client {
 	ssh_session session;
 	ssh_channel channel;
+
+	int role;
 
 	struct tmate_encoder *encoder;
 	struct tmate_decoder *decoder;
@@ -102,10 +107,12 @@ extern void tmate_ssh_server_main(int port);
 
 /* tmate-slave.c */
 
-extern struct tmate_encoder *tmate_encoder;
+#define TMATE_TOKEN_LEN 25
 
-extern void tmate_spawn_slave_server(struct tmate_ssh_client *client);
-extern void tmate_spawn_slave_client(struct tmate_ssh_client *client);
+extern struct tmate_encoder *tmate_encoder;
+extern int tmux_socket_fd;
+
+extern void tmate_spawn_slave(struct tmate_ssh_client *client);
 
 /* tmate-debug.c */
 extern void tmate_print_trace(void);
