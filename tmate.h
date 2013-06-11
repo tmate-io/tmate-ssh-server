@@ -110,4 +110,8 @@ extern void tmate_spawn_slave_client(struct tmate_ssh_client *client);
 /* tmate-debug.c */
 extern void tmate_print_trace(void);
 
+/* tmux-bare.c */
+
+extern void tmux_server_init(int flags);
+
 #endif

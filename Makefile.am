@@ -181,6 +181,7 @@ dist_tmate_slave_SOURCES = \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-client.c \
 	tmate-ssh-server.c \
+	tmux-bare.c \
 	tty-acs.c \
 	tty-keys.c \
 	tty-term.c \
