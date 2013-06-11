@@ -8,6 +8,7 @@ struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token;
 
+extern FILE *log_file;
 extern int server_create_socket(void);
 extern int client_connect(char *path, int start_server);
 
@@ -118,6 +119,21 @@ static void ssh_echo(struct tmate_ssh_client *ssh_client,
 "  Nico"							 "\r\n" \
 "  "								 "\r\n"
 
+static void close_fds_except(int *fd_to_preserve, int num_fds)
+{
+	int fd, i, preserve;
+
+	for (fd = 0; fd < 1024; fd++) {
+		preserve = 0;
+		for (i = 0; i < num_fds; i++)
+			if (fd_to_preserve[i] == fd)
+				preserve = 1;
+
+		if (!preserve)
+			close(fd);
+	}
+}
+
 static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 {
 	char *token;
@@ -133,6 +149,9 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	tmux_socket_fd = server_create_socket();
 	if (tmux_socket_fd < 0)
 		tmate_fatal("Cannot create to the tmux socket");
+
+	close_fds_except((int[]){tmux_socket_fd, ssh_get_fd(client->session),
+				 fileno(log_file)}, 7);
 
 	ev_base = osdep_event_init();
 
@@ -162,8 +181,6 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	tmate_debug("Spawn tmux slave client %s", tmate_session_token);
 
-	ev_base = osdep_event_init();
-
 	tmux_socket_fd = client_connect(socket_path, 0);
 	if (tmux_socket_fd < 0) {
 		random_sleep(); /* for timing attacks */
@@ -176,8 +193,13 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	dup2(slave_pty, STDIN_FILENO);
 	dup2(slave_pty, STDOUT_FILENO);
-	stderr = stdout;
-	close(slave_pty);
+	dup2(slave_pty, STDERR_FILENO);
+
+	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+				 tmux_socket_fd, ssh_get_fd(client->session),
+				 client->pty, fileno(log_file)}, 7);
+
+	ev_base = osdep_event_init();
 
 	tmate_ssh_client_pty_init(client);
 

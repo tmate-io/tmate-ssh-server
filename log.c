@@ -54,7 +54,7 @@ log_open(int level, const char *path)
 		if (log_file == NULL)
 			return;
 	} else {
-		log_file = stderr;
+		log_file = fdopen(dup(STDERR_FILENO), "a");
 	}
 
 	log_level = level;
