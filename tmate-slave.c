@@ -55,7 +55,7 @@ get_full_path(const char *wd, const char *path)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-server [-p PORT]\n");
+	fprintf(stderr, "usage: tmate-slave [-p PORT]\n");
 }
 
 int main(int argc, char **argv)

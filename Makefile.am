@@ -1,7 +1,7 @@
 # $Id$
 
 # Obvious program stuff.
-bin_PROGRAMS = tmate-server
+bin_PROGRAMS = tmate-slave
 dist_man1_MANS = tmate.1
 
 # Distribution tarball options.
@@ -60,7 +60,7 @@ CFLAGS += -erroff=E_EMPTY_DECLARATION
 endif
 
 # List of sources.
-dist_tmate_server_SOURCES = \
+dist_tmate_slave_SOURCES = \
 	arguments.c \
 	attributes.c \
 	cfg.c \
@@ -177,7 +177,7 @@ dist_tmate_server_SOURCES = \
 	tmate-debug.c \
 	tmate-decoder.c \
 	tmate-encoder.c \
-	tmate-server.c \
+	tmate-slave.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-client.c \
 	tmate-ssh-server.c \
@@ -192,60 +192,60 @@ dist_tmate_server_SOURCES = \
 	window.c \
 	xmalloc.c \
 	xterm-keys.c
-nodist_tmate_server_SOURCES = osdep-@PLATFORM@.c
+nodist_tmate_slave_SOURCES = osdep-@PLATFORM@.c
 
 # Pile in all the compat/ stuff that is needed.
 if NO_FORKPTY
-nodist_tmate_server_SOURCES += compat/forkpty-@PLATFORM@.c
+nodist_tmate_slave_SOURCES += compat/forkpty-@PLATFORM@.c
 endif
 if NO_IMSG
-nodist_tmate_server_SOURCES += compat/imsg.c compat/imsg-buffer.c
+nodist_tmate_slave_SOURCES += compat/imsg.c compat/imsg-buffer.c
 endif
 if NO_CLOSEFROM
-nodist_tmate_server_SOURCES += compat/closefrom.c
+nodist_tmate_slave_SOURCES += compat/closefrom.c
 endif
 if NO_DAEMON
-nodist_tmate_server_SOURCES += compat/daemon.c
+nodist_tmate_slave_SOURCES += compat/daemon.c
 endif
 if NO_SETENV
-nodist_tmate_server_SOURCES += compat/setenv.c
+nodist_tmate_slave_SOURCES += compat/setenv.c
 endif
 if NO_STRLCAT
-nodist_tmate_server_SOURCES += compat/strlcat.c
+nodist_tmate_slave_SOURCES += compat/strlcat.c
 endif
 if NO_STRLCPY
-nodist_tmate_server_SOURCES += compat/strlcpy.c
+nodist_tmate_slave_SOURCES += compat/strlcpy.c
 endif
 if NO_ASPRINTF
-nodist_tmate_server_SOURCES += compat/asprintf.c
+nodist_tmate_slave_SOURCES += compat/asprintf.c
 endif
 if NO_FGETLN
-nodist_tmate_server_SOURCES += compat/fgetln.c
+nodist_tmate_slave_SOURCES += compat/fgetln.c
 endif
 if NO_GETOPT
-nodist_tmate_server_SOURCES += compat/getopt.c
+nodist_tmate_slave_SOURCES += compat/getopt.c
 endif
 if NO_STRCASESTR
-nodist_tmate_server_SOURCES += compat/strcasestr.c
+nodist_tmate_slave_SOURCES += compat/strcasestr.c
 endif
 if NO_STRSEP
-nodist_tmate_server_SOURCES += compat/strsep.c
+nodist_tmate_slave_SOURCES += compat/strsep.c
 endif
 if NO_VIS
-nodist_tmate_server_SOURCES += compat/vis.c compat/unvis.c
+nodist_tmate_slave_SOURCES += compat/vis.c compat/unvis.c
 endif
 if NO_STRTONUM
-nodist_tmate_server_SOURCES += compat/strtonum.c
+nodist_tmate_slave_SOURCES += compat/strtonum.c
 endif
 if NO_B64_NTOP
-nodist_tmate_server_SOURCES += compat/b64_ntop.c
+nodist_tmate_slave_SOURCES += compat/b64_ntop.c
 endif
 
-tmate_server_LDADD = \
+tmate_slave_LDADD = \
 	libssh/build/src/libssh.a \
 	msgpack/src/.libs/libmsgpackc.a
 
-*.c: $(tmate_server_LDADD)
+*.c: $(tmate_slave_LDADD)
 
 libssh/build/src/libssh.a:
 	cd libssh/build && cmake .. -DWITH_SFTP=OFF -DWITH_SERVER=ON -DWITH_PCAP=OFF -DWITH_STATIC_LIB=ON

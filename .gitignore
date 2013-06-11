@@ -16,6 +16,6 @@ Makefile
 Makefile.in
 configure
 keys/
-tmate-server
+tmate-slave
 cscope.*
 tags

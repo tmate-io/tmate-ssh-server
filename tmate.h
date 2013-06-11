@@ -100,7 +100,7 @@ extern void tmate_flush_pty(struct tmate_ssh_client_pty *client);
 
 extern void tmate_ssh_server_main(int port);
 
-/* tmate-server.c */
+/* tmate-slave.c */
 
 extern struct tmate_encoder *tmate_encoder;
 
