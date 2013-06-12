@@ -18,6 +18,8 @@ struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
 
+static char *cmdline;
+
 extern FILE *log_file;
 extern int server_create_socket(void);
 extern int client_connect(char *path, int start_server);
@@ -50,6 +52,8 @@ int main(int argc, char **argv)
 		}
 	}
 
+	cmdline = *argv;
+
 	log_open(debug_level, log_path);
 
 	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
@@ -61,11 +65,14 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-static void set_session_token(const char *token)
+static void set_session_token(const char *token, int master)
 {
 	tmate_session_token = xstrdup(token);
 	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
 	strcat(socket_path, token);
+
+	sprintf(cmdline, "tmate-slave (%s) %s",
+		master ? "master" : "client", tmate_session_token);
 }
 
 static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
@@ -208,7 +215,7 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	struct tmate_decoder decoder;
 
 	token = get_random_token();
-	set_session_token(token);
+	set_session_token(token, 1);
 	free(token);
 
 	tmate_debug("Spawning tmux slave server");
@@ -250,7 +257,7 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 		tmate_fatal("Bad token");
 	}
 
-	set_session_token(token);
+	set_session_token(token, 0);
 
 	tmate_debug("Spawn tmux slave client");
 
