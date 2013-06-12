@@ -506,7 +506,9 @@ server_second_callback(unused int fd, unused short events, unused void *arg)
 		}
 	}
 
+#ifndef TMATE_SLAVE
 	server_client_status_timer();
+#endif
 
 	evtimer_del(&server_ev_second);
 	memset(&tv, 0, sizeof tv);

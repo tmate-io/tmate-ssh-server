@@ -1,5 +1,7 @@
 #include "tmate.h"
 
+char *tmate_left_status, *tmate_right_status;
+
 static struct session *main_session;
 
 struct tmate_unpacker {
@@ -227,6 +229,20 @@ out:
 	free(cmd_str);
 }
 
+static void tmate_status(struct tmate_unpacker *uk)
+{
+	struct client *c;
+	unsigned int i;
+
+	free(tmate_left_status);
+	free(tmate_right_status);
+	tmate_left_status = unpack_string(uk);
+	tmate_right_status = unpack_string(uk);
+
+	for (i = 0; i < ARRAY_LENGTH(&clients); i++)
+		ARRAY_ITEM(&clients, i)->flags |= CLIENT_STATUS;
+}
+
 static void handle_message(msgpack_object obj)
 {
 	struct tmate_unpacker _uk;
@@ -240,6 +256,7 @@ static void handle_message(msgpack_object obj)
 	case TMATE_SYNC_WINDOW:	tmate_sync_window(uk);	break;
 	case TMATE_PTY_DATA:	tmate_pty_data(uk);	break;
 	case TMATE_CMD:		tmate_cmd(uk);		break;
+	case TMATE_STATUS:	tmate_status(uk);	break;
 	default:		decoder_error();
 	}
 }

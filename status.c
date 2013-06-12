@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 char   *status_redraw_get_left(
 	    struct client *, time_t, int, struct grid_cell *, size_t *);
@@ -94,8 +95,12 @@ status_redraw_get_left(struct client *c,
 	if (attr != 0)
 		gc->attr = attr;
 
+#ifdef TMATE_SLAVE
+	left = xstrdup(tmate_left_status ?: "");
+#else
 	left = status_replace(c, NULL,
 	    NULL, NULL, options_get_string(&s->options, "status-left"), t, 1);
+#endif
 
 	*size = options_get_number(&s->options, "status-left-length");
 	leftlen = screen_write_cstrlen(utf8flag, "%s", left);
@@ -124,8 +129,12 @@ status_redraw_get_right(struct client *c,
 	if (attr != 0)
 		gc->attr = attr;
 
+#ifdef TMATE_SLAVE
+	right = xstrdup(tmate_right_status ?: "");
+#else
 	right = status_replace(c, NULL,
 	    NULL, NULL, options_get_string(&s->options, "status-right"), t, 1);
+#endif
 
 	*size = options_get_number(&s->options, "status-right-length");
 	rightlen = screen_write_cstrlen(utf8flag, "%s", right);
