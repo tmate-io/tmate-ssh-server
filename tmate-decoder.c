@@ -118,10 +118,10 @@ static void tmate_sync_window_panes(struct window *w,
 
 	unpack_each(&uk, &tmp_uk, w_uk) {
 		int id = unpack_int(&uk);
-		int sx = unpack_int(&uk);
-		int sy = unpack_int(&uk);
-		int xoff = unpack_int(&uk);
-		int yoff = unpack_int(&uk);
+		u_int sx = unpack_int(&uk);
+		u_int sy = unpack_int(&uk);
+		u_int xoff = unpack_int(&uk);
+		u_int yoff = unpack_int(&uk);
 
 		wp = window_pane_find_by_id(id);
 		if (!wp) {
@@ -131,11 +131,14 @@ static void tmate_sync_window_panes(struct window *w,
 		}
 		wp->flags &= ~PANE_KILL;
 
-		wp->xoff = xoff;
-		wp->yoff = yoff;
-		window_pane_resize(wp, sx, sy);
+		if (wp->xoff != xoff || wp->yoff != yoff ||
+		    wp->sx != sx || wp->sx != sy) {
+			wp->xoff = xoff;
+			wp->yoff = yoff;
+			window_pane_resize(wp, sx, sy);
 
-		wp->flags |= PANE_REDRAW;
+			wp->flags |= PANE_REDRAW;
+		}
 	}
 
 	TAILQ_FOREACH_SAFE(wp, &w->panes, entry, wp_tmp) {
@@ -154,24 +157,25 @@ static void tmate_sync_windows(struct session *s,
 	struct tmate_unpacker uk, tmp_uk;
 	struct winlink *wl, *wl_tmp;
 	struct window *w;
-	int active_window_id;
+	int active_window_idx;
 	char *cause;
 
 	RB_FOREACH(wl, winlinks, &s->windows)
-		wl->window->flags |= WINDOW_KILL;
+		wl->flags |= WINLINK_KILL;
 
 	unpack_each(&uk, &tmp_uk, s_uk) {
-		int id     = unpack_int(&uk);
+		int idx    = unpack_int(&uk);
 		char *name = unpack_string(&uk);
 
-		wl = winlink_find_by_window_id(&s->windows, id);
+		wl = winlink_find_by_index(&s->windows, idx);
 		if (!wl) {
-			wl = session_new(s, name, "", NULL, id, &cause);
+			wl = session_new(s, name, "", NULL, idx, &cause);
 			if (!wl)
-				tmate_fatal("can't create window id=%d", id);
+				tmate_fatal("can't create window idx=%d", idx);
 		}
+
+		wl->flags &= ~WINLINK_KILL;
 		w = wl->window;
-		w->flags &= ~WINDOW_KILL;
 
 		free(w->name);
 		w->name = name;
@@ -182,12 +186,14 @@ static void tmate_sync_windows(struct session *s,
 	}
 
 	RB_FOREACH_SAFE(wl, winlinks, &s->windows, wl_tmp) {
-		if (wl->window->flags & WINDOW_KILL)
-			winlink_remove(&s->windows, wl);
+		if (wl->flags & WINLINK_KILL)
+			session_detach(s, wl);
 	}
 
-	active_window_id = unpack_int(s_uk);
-	wl = winlink_find_by_window_id(&s->windows, active_window_id);
+	active_window_idx = unpack_int(s_uk);
+	wl = winlink_find_by_index(&s->windows, active_window_idx);
+	if (!wl)
+		tmate_fatal("no valid active window");
 
 	session_set_current(s, wl);
 	server_redraw_window(wl->window);

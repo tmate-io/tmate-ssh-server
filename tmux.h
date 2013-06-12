@@ -940,6 +940,9 @@ struct window_pane {
 #define PANE_DROP 0x2
 #define PANE_FOCUSED 0x4
 #define PANE_RESIZE 0x8
+#ifdef TMATE_SLAVE
+#define PANE_KILL 0x80
+#endif
 
 	char		*cmd;
 	char		*shell;
@@ -953,7 +956,6 @@ struct window_pane {
 	u_int		 changes_redraw;
 
 #ifdef TMATE_SLAVE
-#define PANE_KILL 0x10
 	struct evbuffer *event_input;
 #else
 	int		 fd;
@@ -1034,6 +1036,9 @@ struct winlink {
 #define WINLINK_SILENCE 0x8
 #define WINLINK_ALERTFLAGS \
     (WINLINK_BELL|WINLINK_ACTIVITY|WINLINK_CONTENT|WINLINK_SILENCE)
+#ifdef TMATE_SLAVE
+#define WINLINK_KILL 0x80
+#endif
 
 	RB_ENTRY(winlink) entry;
 	TAILQ_ENTRY(winlink) sentry;
