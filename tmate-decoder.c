@@ -206,6 +206,27 @@ static void tmate_pty_data(struct tmate_unpacker *uk)
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
+static void tmate_cmd(struct tmate_unpacker *uk)
+{
+	struct cmd_q *cmd_q;
+	struct cmd_list *cmdlist;
+	char *cmd_str;
+	char *cause;
+
+	cmd_str = unpack_string(uk);
+	if (cmd_string_parse(cmd_str, &cmdlist, NULL, 0, &cause) != 0) {
+		free(cause);
+		goto out;
+	}
+
+	cmd_q = cmdq_new(NULL);
+	cmdq_run(cmd_q, cmdlist);
+	cmd_list_free(cmdlist);
+	cmdq_free(cmd_q);
+out:
+	free(cmd_str);
+}
+
 static void handle_message(msgpack_object obj)
 {
 	struct tmate_unpacker _uk;
@@ -218,6 +239,7 @@ static void handle_message(msgpack_object obj)
 	case TMATE_HEADER:	tmate_header(uk);	break;
 	case TMATE_SYNC_WINDOW:	tmate_sync_window(uk);	break;
 	case TMATE_PTY_DATA:	tmate_pty_data(uk);	break;
+	case TMATE_CMD:		tmate_cmd(uk);		break;
 	default:		decoder_error();
 	}
 }

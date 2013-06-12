@@ -46,6 +46,7 @@ enum tmate_commands {
 	TMATE_HEADER,
 	TMATE_SYNC_WINDOW,
 	TMATE_PTY_DATA,
+	TMATE_CMD,
 };
 
 #define TMATE_PANE_ACTIVE 1

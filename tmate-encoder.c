@@ -50,6 +50,10 @@ void tmate_client_pane_key(int pane_id, int key)
 }
 
 static const struct cmd_entry *local_cmds[] = {
+	&cmd_bind_key_entry,
+	&cmd_unbind_key_entry,
+	&cmd_set_option_entry,
+	&cmd_set_window_option_entry,
 	&cmd_detach_client_entry,
 	&cmd_attach_session_entry,
 	NULL
