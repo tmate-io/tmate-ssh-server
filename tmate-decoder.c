@@ -145,47 +145,74 @@ static void tmate_sync_window_panes(struct window *w,
 
 	active_pane_id = unpack_int(w_uk);
 	wp = window_pane_find_by_id(active_pane_id);
-	if (wp && wp->window == w)
-		window_set_active_pane(w, wp);
+	window_set_active_pane(w, wp);
 }
 
-static void tmate_sync_window(struct tmate_unpacker *uk)
+static void tmate_sync_windows(struct session *s,
+			       struct tmate_unpacker *s_uk)
 {
-	struct session *s;
-	struct winlink *wl;
+	struct tmate_unpacker uk, tmp_uk;
+	struct winlink *wl, *wl_tmp;
 	struct window *w;
+	int active_window_id;
 	char *cause;
 
-	int id     = unpack_int(uk);
-	char *name = unpack_string(uk);
-	int sx     = unpack_int(uk);
-	int sy     = unpack_int(uk);
+	RB_FOREACH(wl, winlinks, &s->windows)
+		wl->window->flags |= WINDOW_KILL;
 
-	if (!main_session) {
-		main_session = session_create("default", NULL, "default", NULL,
-					      NULL, 0, sx, sy, &cause);
-		if (!main_session)
+	unpack_each(&uk, &tmp_uk, s_uk) {
+		int id     = unpack_int(&uk);
+		char *name = unpack_string(&uk);
+
+		wl = winlink_find_by_window_id(&s->windows, id);
+		if (!wl) {
+			wl = session_new(s, name, "", NULL, id, &cause);
+			if (!wl)
+				tmate_fatal("can't create window id=%d", id);
+		}
+		w = wl->window;
+		w->flags &= ~WINDOW_KILL;
+
+		free(w->name);
+		w->name = name;
+		w->sx = s->sx;
+		w->sy = s->sy;
+
+		tmate_sync_window_panes(w, &uk);
+	}
+
+	RB_FOREACH_SAFE(wl, winlinks, &s->windows, wl_tmp) {
+		if (wl->window->flags & WINDOW_KILL)
+			winlink_remove(&s->windows, wl);
+	}
+
+	active_window_id = unpack_int(s_uk);
+	wl = winlink_find_by_window_id(&s->windows, active_window_id);
+
+	session_set_current(s, wl);
+	server_redraw_window(wl->window);
+}
+
+static void tmate_sync_layout(struct tmate_unpacker *uk)
+{
+	struct session *s;
+	char *cause;
+
+	int sx = unpack_int(uk);
+	int sy = unpack_int(uk);
+
+	s = RB_MIN(sessions, &sessions);
+	if (!s) {
+		s = session_create("default", NULL, "default", NULL,
+				   NULL, 0, sx, sy, &cause);
+		if (!s)
 			tmate_fatal("can't create main session");
 	}
-	s = main_session;
 
-	wl = winlink_find_by_index(&s->windows, id);
-	if (!wl) {
-		wl = session_new(s, name, "sh", NULL, id, &cause);
-		if (!wl)
-			tmate_fatal("can't create window id=%d", id);
-		session_select(s, RB_ROOT(&s->windows)->idx);
-	}
-	w = wl->window;
+	s->sx = sx;
+	s->sy = sy;
 
-	free(w->name);
-	w->name = name;
-	s->sx = w->sx = sx;
-	s->sy = w->sy = sy;
-
-	tmate_sync_window_panes(w, uk);
-
-	server_redraw_window(w);
+	tmate_sync_windows(s, uk);
 }
 
 static void tmate_pty_data(struct tmate_unpacker *uk)
@@ -239,8 +266,11 @@ static void tmate_status(struct tmate_unpacker *uk)
 	tmate_left_status = unpack_string(uk);
 	tmate_right_status = unpack_string(uk);
 
-	for (i = 0; i < ARRAY_LENGTH(&clients); i++)
-		ARRAY_ITEM(&clients, i)->flags |= CLIENT_STATUS;
+	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
+		c = ARRAY_ITEM(&clients, i);
+		if (c)
+			c->flags |= CLIENT_STATUS;
+	}
 }
 
 static void handle_message(msgpack_object obj)
@@ -253,7 +283,7 @@ static void handle_message(msgpack_object obj)
 
 	switch (unpack_int(uk)) {
 	case TMATE_HEADER:	tmate_header(uk);	break;
-	case TMATE_SYNC_WINDOW:	tmate_sync_window(uk);	break;
+	case TMATE_SYNC_LAYOUT:	tmate_sync_layout(uk);	break;
 	case TMATE_PTY_DATA:	tmate_pty_data(uk);	break;
 	case TMATE_CMD:		tmate_cmd(uk);		break;
 	case TMATE_STATUS:	tmate_status(uk);	break;

@@ -46,7 +46,7 @@ extern char *tmate_left_status, *tmate_right_status;
 
 enum tmate_commands {
 	TMATE_HEADER,
-	TMATE_SYNC_WINDOW,
+	TMATE_SYNC_LAYOUT,
 	TMATE_PTY_DATA,
 	TMATE_CMD,
 	TMATE_STATUS,

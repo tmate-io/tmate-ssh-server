@@ -1008,6 +1008,9 @@ struct window {
 #define WINDOW_REDRAW 0x4
 #define WINDOW_SILENCE 0x8
 #define WINDOW_ZOOMED 0x10
+#ifdef TMATE_SLAVE
+#define WINDOW_KILL 0x80
+#endif
 
 	struct options	 options;
 
