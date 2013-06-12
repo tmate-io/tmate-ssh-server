@@ -28,6 +28,18 @@ void tmate_encoder_init(struct tmate_encoder *encoder)
 
 #define pack(what, ...) msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__)
 
+void tmate_reply_header(unsigned long flags)
+{
+	char remote_session[256];
+
+	pack(array, 3);
+	pack(int, TMATE_REPLY_HEADER);
+	pack(int, flags);
+
+	sprintf(remote_session, "ssh %s@tmate.io", tmate_session_token);
+	pack(string, remote_session);
+}
+
 void tmate_client_resize(u_int sx, u_int sy)
 {
 	pack(array, 3);

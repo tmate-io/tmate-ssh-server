@@ -15,6 +15,7 @@
 /* tmate-encoder.c */
 
 enum tmate_client_commands {
+	TMATE_REPLY_HEADER,
 	TMATE_CLIENT_PANE_KEY,
 	TMATE_CLIENT_RESIZE,
 	TMATE_CLIENT_CMD,
@@ -28,9 +29,7 @@ struct tmate_encoder {
 
 extern void tmate_encoder_init(struct tmate_encoder *encoder);
 
-extern void tmate_write_header(void);
-extern void tmate_write_pane(int pane, const char *data, size_t size);
-
+extern void tmate_reply_header(unsigned long flags);
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
 extern void tmate_client_cmd(const char *cmd);

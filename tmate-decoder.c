@@ -102,6 +102,7 @@ static void tmate_header(struct tmate_unpacker *uk)
 		decoder_error();
 
 	tmate_debug("new master, protocol: %d", protocol);
+	tmate_reply_header(0);
 }
 
 extern u_int next_window_pane_id;
