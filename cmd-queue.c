@@ -23,6 +23,7 @@
 #include <time.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /* Create new command queue. */
 struct cmd_q *
@@ -224,6 +225,14 @@ cmdq_continue(struct cmd_q *cmdq)
 
 			cmdq->time = time(NULL);
 			cmdq->number++;
+
+#ifdef TMATE_SLAVE
+			if (!tmate_should_exec_cmd_locally(cmdq->cmd->entry)) {
+				tmate_client_cmd(s);
+				cmdq->cmd = TAILQ_NEXT(cmdq->cmd, qentry);
+				continue;
+			}
+#endif
 
 			guard = cmdq_guard(cmdq, "begin");
 			retval = cmdq->cmd->entry->exec(cmdq->cmd, cmdq);

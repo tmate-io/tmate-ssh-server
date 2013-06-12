@@ -14,9 +14,10 @@
 
 /* tmate-encoder.c */
 
-enum tmate_notifications {
-	TMATE_CLIENT_KEY,
+enum tmate_client_commands {
+	TMATE_CLIENT_PANE_KEY,
 	TMATE_CLIENT_RESIZE,
+	TMATE_CLIENT_CMD,
 };
 
 struct tmate_encoder {
@@ -30,8 +31,11 @@ extern void tmate_encoder_init(struct tmate_encoder *encoder);
 extern void tmate_write_header(void);
 extern void tmate_write_pane(int pane, const char *data, size_t size);
 
-extern void tmate_client_key(int key);
 extern void tmate_client_resize(u_int sx, u_int sy);
+extern void tmate_client_pane_key(int pane_id, int key);
+extern void tmate_client_cmd(const char *cmd);
+extern void tmate_client_set_active_pane(int win_id, int pane_id);
+extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 
 /* tmate-decoder.c */
 

@@ -26,7 +26,6 @@
 #include <unistd.h>
 
 #include "tmux.h"
-#include "tmate.h"
 
 /*
  * Handle keys input from the outside terminal. tty_default_*_keys[] are a base

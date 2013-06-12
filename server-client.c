@@ -282,11 +282,14 @@ server_client_status_timer(void)
 	}
 }
 
-#ifndef TMATE_SLAVE
 /* Check for mouse keys. */
 void
 server_client_check_mouse(struct client *c, struct window_pane *wp)
 {
+#ifdef TMATE_SLAVE
+	/* TODO Support mouse */
+	return;
+#else
 	struct session		*s = c->session;
 	struct options		*oo = &s->options;
 	struct mouse_event	*m = &c->tty.mouse;
@@ -334,8 +337,8 @@ server_client_check_mouse(struct client *c, struct window_pane *wp)
 
 	/* Update last and pass through to client. */
 	window_pane_mouse(wp, c->session, m);
-}
 #endif
+}
 
 /* Is this fast enough to probably be a paste? */
 int
@@ -357,9 +360,6 @@ server_client_assume_paste(struct session *s)
 void
 server_client_handle_key(struct client *c, int key)
 {
-#ifdef TMATE_SLAVE
-	tmate_client_key(key);
-#else
 	struct session		*s;
 	struct window		*w;
 	struct window_pane	*wp;
@@ -390,10 +390,17 @@ server_client_handle_key(struct client *c, int key)
 	if (c->flags & CLIENT_IDENTIFY && key >= '0' && key <= '9') {
 		if (c->flags & CLIENT_READONLY)
 			return;
+
+#ifdef TMATE_SLAVE
+		wp = window_pane_at_index(w, key - '0');
+		if (wp != NULL && window_pane_visible(wp))
+			tmate_client_set_active_pane(w->id, wp->id);
+#else
 		window_unzoom(w);
 		wp = window_pane_at_index(w, key - '0');
 		if (wp != NULL && window_pane_visible(wp))
 			window_set_active_pane(w, wp);
+#endif
 		server_clear_identify(c);
 		return;
 	}
@@ -485,7 +492,6 @@ server_client_handle_key(struct client *c, int key)
 
 	/* Dispatch the command. */
 	key_bindings_dispatch(bd, c);
-#endif
 }
 
 /* Client functions that need to happen every loop. */

@@ -20,14 +20,13 @@ void tmate_encoder_init(struct tmate_encoder *encoder)
 	msgpack_packer_init(&encoder->pk, encoder, &msgpack_write);
 }
 
-#define pack(what, ...) msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__)
+#define msgpack_pack_string(pk, str) do {		\
+	int __strlen = strlen(str);			\
+	msgpack_pack_raw(pk, __strlen);			\
+	msgpack_pack_raw_body(pk, str, __strlen);	\
+} while(0)
 
-void tmate_client_key(int key)
-{
-	pack(array, 2);
-	pack(int, TMATE_CLIENT_KEY);
-	pack(int, key);
-}
+#define pack(what, ...) msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__)
 
 void tmate_client_resize(u_int sx, u_int sy)
 {
@@ -36,4 +35,47 @@ void tmate_client_resize(u_int sx, u_int sy)
 	/* cast to signed, -1 == no clients */
 	pack(int, sx);
 	pack(int, sy);
+}
+
+void tmate_client_pane_key(int pane_id, int key)
+{
+	/*
+	 * We don't specify the pane id because the current active pane is
+	 * behind, so we'll let master send the key to its active pane.
+	 */
+
+	pack(array, 2);
+	pack(int, TMATE_CLIENT_PANE_KEY);
+	pack(int, key);
+}
+
+static const struct cmd_entry *local_cmds[] = {
+	&cmd_detach_client_entry,
+	&cmd_attach_session_entry,
+	NULL
+};
+
+int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
+{
+	const struct cmd_entry **ptr;
+
+	for (ptr = local_cmds; *ptr; ptr++)
+		if (*ptr == cmd)
+			return 1;
+	return 0;
+}
+
+void tmate_client_cmd(const char *cmd)
+{
+	pack(array, 2);
+	pack(int, TMATE_CLIENT_CMD);
+	pack(string, cmd);
+}
+
+void tmate_client_set_active_pane(int win_id, int pane_id)
+{
+	char cmd[1024];
+
+	sprintf(cmd, "select-pane -t %d.%d", win_id, pane_id);
+	tmate_client_cmd(cmd);
 }

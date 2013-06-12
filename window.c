@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Each window is attached to a number of panes, each of which is a pty. This
@@ -1039,10 +1040,13 @@ window_pane_reset_mode(struct window_pane *wp)
 	wp->flags |= PANE_REDRAW;
 }
 
-#ifndef TMATE_SLAVE
 void
 window_pane_key(struct window_pane *wp, struct session *sess, int key)
 {
+#ifdef TMATE_SLAVE
+	tmate_client_pane_key(wp->id, key);
+#else
+
 	struct window_pane	*wp2;
 
 	if (!window_pane_visible(wp))
@@ -1065,12 +1069,17 @@ window_pane_key(struct window_pane *wp, struct session *sess, int key)
 				input_key(wp2, key);
 		}
 	}
+#endif
 }
 
 void
 window_pane_mouse(
     struct window_pane *wp, struct session *sess, struct mouse_event *m)
 {
+#ifdef TMATE_SLAVE
+	/* TODO Deal with mouse */
+	return;
+#else
 	if (!window_pane_visible(wp))
 		return;
 
@@ -1087,8 +1096,8 @@ window_pane_mouse(
 			wp->mode->mouse(wp, sess, m);
 	} else if (wp->fd != -1)
 		input_mouse(wp, sess, m);
-}
 #endif
+}
 
 int
 window_pane_visible(struct window_pane *wp)
