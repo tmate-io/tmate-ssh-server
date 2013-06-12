@@ -1,8 +1,10 @@
-#include "tmate.h"
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
 #include <errno.h>
+#include "tmate.h"
+
+extern void client_write_server(enum msgtype type, void *buf, size_t len);
 
 static void consume_channel(struct tmate_ssh_client *client)
 {
@@ -63,10 +65,8 @@ static int message_callback(struct tmate_ssh_client *client,
 		ws.ws_col = ssh_message_channel_request_pty_width(msg);
 		ws.ws_row = ssh_message_channel_request_pty_height(msg);
 
-		tmate_debug("change window size to %d, %d",
-			    ws.ws_col, ws.ws_row);
 		ioctl(client->pty, TIOCSWINSZ, &ws);
-		kill(getpid(), SIGWINCH);
+		client_write_server(MSG_RESIZE, NULL, 0);
 
 		return 1;
 	}

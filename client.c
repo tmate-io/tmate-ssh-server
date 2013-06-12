@@ -406,9 +406,11 @@ client_signal(int sig, unused short events, unused void *data)
 			client_exitval = 1;
 			client_write_server(MSG_EXITING, NULL, 0);
 			break;
+#ifndef TMATE_SLAVE
 		case SIGWINCH:
 			client_write_server(MSG_RESIZE, NULL, 0);
 			break;
+#endif
 		case SIGCONT:
 			memset(&sigact, 0, sizeof sigact);
 			sigemptyset(&sigact.sa_mask);
