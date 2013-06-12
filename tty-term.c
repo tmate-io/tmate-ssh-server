@@ -463,6 +463,13 @@ error:
 void
 tty_term_free(struct tty_term *term)
 {
+#ifdef TMATE_SLAVE
+	/*
+	 * We need to keep the term in memory, because we are in a jail, with
+	 * no file system, so we can't reload them.
+	 */
+	return;
+#else
 	u_int	i;
 
 	if (--term->references != 0)
@@ -476,6 +483,7 @@ tty_term_free(struct tty_term *term)
 	}
 	free(term->name);
 	free(term);
+#endif
 }
 
 int
