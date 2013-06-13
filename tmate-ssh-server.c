@@ -8,6 +8,7 @@
 #include <sched.h>
 #include <stdio.h>
 #include <event.h>
+#include <arpa/inet.h>
 
 #include "tmate.h"
 
@@ -179,13 +180,13 @@ static void handle_sigchld(void)
 		if (!child_dead)
 			continue;
 
-		tmate_debug("Child reaped pid=%d exit=%d", pid, child_exit_status);
+		tmate_info("Child reaped pid=%d exit=%d", pid, child_exit_status);
 	} while (pid > 0);
 }
 
 static void handle_sigalrm(void)
 {
-	log_fatal("Connection grace period (%d) passed", SSH_GRACE_PERIOD);
+	tmate_fatal("Connection grace period (%d) passed", SSH_GRACE_PERIOD);
 }
 
 static void signal_handler(int sig)
@@ -220,6 +221,33 @@ static pid_t namespace_fork(void)
 	return syscall(SYS_clone, flags | SIGCHLD, NULL, NULL, NULL);
 }
 
+static int get_ip(int fd, char *dst, size_t len)
+{
+	struct sockaddr sa;
+	socklen_t sa_len = sizeof(sa);
+
+	if (getpeername(fd, &sa, &sa_len) < 0)
+		return -1;
+
+
+	switch (sa.sa_family) {
+	case AF_INET:
+		if (!inet_ntop(AF_INET, &((struct sockaddr_in *)&sa)->sin_addr,
+			       dst, len))
+			return -1;
+		break;
+	case AF_INET6:
+		if (!inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&sa)->sin6_addr,
+			       dst, len))
+			return -1;
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
 void tmate_ssh_server_main(int port)
 {
 	struct tmate_ssh_client _client;
@@ -235,7 +263,7 @@ void tmate_ssh_server_main(int port)
 
 	bind = ssh_bind_new();
 	if (!bind)
-		log_fatal("Cannot initialize ssh");
+		tmate_fatal("Cannot initialize ssh");
 
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, SSH_BANNER);
@@ -244,7 +272,9 @@ void tmate_ssh_server_main(int port)
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, "keys/ssh_host_rsa_key");
 
 	if (ssh_bind_listen(bind) < 0)
-		log_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
+		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
+
+	tmate_info("Accepting connections on %d", port);
 
 	for (;;) {
 		client->session = ssh_new();
@@ -257,14 +287,20 @@ void tmate_ssh_server_main(int port)
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
 
+		if (get_ip(ssh_get_fd(client->session),
+			   client->ip_address, sizeof(client->ip_address)) < 0)
+			tmate_fatal("Error getting IP address from connection");
+
 		if ((pid = namespace_fork()) < 0)
 			tmate_fatal("Can't fork in new namespace");
 
 		if (pid) {
+			tmate_info("Child spawned pid=%d, ip=%s",
+				    pid, client->ip_address);
 			ssh_free(client->session);
 		} else {
 			ssh_bind_free(bind);
-			tmate_debug("Child spawned pid=%d", getpid());
+			tmate_session_token = ".........................";
 			client_bootstrap(client);
 		}
 	}

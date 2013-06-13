@@ -8,9 +8,12 @@
 #include "tmux.h"
 
 #define tmate_debug(str, ...) log_debug("[tmate] " str, ##__VA_ARGS__)
-#define tmate_warn(str, ...)   log_warn("[tmate] " str, ##__VA_ARGS__)
 #define tmate_info(str, ...)   log_info("[tmate] " str, ##__VA_ARGS__)
-#define tmate_fatal(str, ...) log_fatal("[tmate] " str, ##__VA_ARGS__)
+#define tmate_fatal(str, ...)				\
+do {							\
+	log_info("[tmate] FATAL " str, ##__VA_ARGS__);	\
+	exit(-1);					\
+} while (0)
 
 /* tmate-encoder.c */
 
@@ -73,6 +76,8 @@ typedef struct ssh_channel_struct* ssh_channel;
 #define TMATE_ROLE_CLIENT 2
 
 struct tmate_ssh_client {
+	char ip_address[64];
+
 	ssh_session session;
 	ssh_channel channel;
 

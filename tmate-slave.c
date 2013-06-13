@@ -26,7 +26,7 @@ extern int client_connect(char *path, int start_server);
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-p PORT]\n");
+	fprintf(stderr, "usage: tmate-slave [-l logfile] [-p PORT] [-v]\n");
 }
 
 int main(int argc, char **argv)
@@ -64,15 +64,17 @@ int main(int argc, char **argv)
 	tmate_ssh_server_main(port);
 	return 0;
 }
-
-static void set_session_token(const char *token, int master)
+static void set_session_token(struct tmate_ssh_client *client,
+			      const char *token)
 {
 	tmate_session_token = xstrdup(token);
 	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
 	strcat(socket_path, token);
 
-	sprintf(cmdline, "tmate-slave (%s) %s",
-		master ? "master" : "client", tmate_session_token);
+	sprintf(cmdline, "tmate-slave [%s] %s %s",
+		tmate_session_token,
+		client->ip_address,
+		client->role == TMATE_ROLE_SERVER ? "(server)" : "");
 }
 
 static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
@@ -215,7 +217,7 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	struct tmate_decoder decoder;
 
 	token = get_random_token();
-	set_session_token(token, 1);
+	set_session_token(client, token);
 	free(token);
 
 	tmate_debug("Spawning tmux slave server");
@@ -257,7 +259,7 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 		tmate_fatal("Bad token");
 	}
 
-	set_session_token(token, 0);
+	set_session_token(client, token);
 
 	tmate_debug("Spawn tmux slave client");
 

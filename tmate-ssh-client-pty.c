@@ -16,9 +16,11 @@ static void consume_channel(struct tmate_ssh_client *client)
 		len = ssh_channel_read_nonblocking(client->channel,
 						   buf, sizeof(buf), 0);
 		if (len < 0) {
-			tmate_debug("Error reading from channel: %s",
+			if (!ssh_is_connected(client->session))
+				tmate_fatal("Disconnected");
+
+			tmate_fatal("Error reading from channel: %s",
 				    ssh_get_error(client->session));
-			exit(1);
 		}
 
 		if (len == 0)
@@ -41,13 +43,7 @@ static void consume_channel(struct tmate_ssh_client *client)
 static void on_session_event(struct tmate_ssh_client *client)
 {
 	ssh_execute_message_callbacks(client->session);
-
 	consume_channel(client);
-
-	if (!ssh_is_connected(client->session)) {
-		tmate_debug("Disconnected");
-		exit(1);
-	}
 }
 
 static void __on_session_event(evutil_socket_t fd, short what, void *arg)
@@ -104,15 +100,12 @@ static void on_pty_event(struct tmate_ssh_client *client)
 			tmate_fatal("pty reached EOF");
 
 		written = ssh_channel_write(client->channel, buf, len);
-		if (written < 0) {
-			tmate_debug("Error writing to channel: %s",
+		if (written < 0)
+			tmate_fatal("Error writing to channel: %s",
 				    ssh_get_error(client->session));
-			exit(1);
-		}
-		if (len != written) {
+		if (len != written)
 			tmate_fatal("Cannot write %d bytes, wrote %d",
 				    (int)len, (int)written);
-		}
 	}
 }
 
