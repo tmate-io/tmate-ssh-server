@@ -174,7 +174,8 @@ static void handle_sigchld(void)
 		}
 
 		if (WIFSIGNALED(status)) {
-			child_dead = 1; child_exit_status = EXIT_FAILURE;
+			child_dead = 1;
+			child_exit_status = EXIT_FAILURE;
 		}
 
 		if (child_dead)
