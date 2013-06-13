@@ -61,6 +61,8 @@ int main(int argc, char **argv)
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
+	tmate_preload_trace_lib();
+
 	tmate_ssh_server_main(port);
 	return 0;
 }

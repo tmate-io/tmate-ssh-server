@@ -59,8 +59,8 @@ void tmate_print_trace(void)
 	char **strings;
 	size_t i;
 
-	size = backtrace (array, 20);
-	strings = backtrace_symbols (array, size);
+	size = backtrace(array, 20);
+	strings = backtrace_symbols(array, size);
 
 	tmate_info("============ %zd stack frames ============", size);
 
@@ -71,5 +71,11 @@ void tmate_print_trace(void)
 			tmate_info("%s", strings[i]);
 	}
 
-	free (strings);
+	free(strings);
+}
+
+void tmate_preload_trace_lib(void)
+{
+	void *array[0];
+	backtrace(array, 0);
 }

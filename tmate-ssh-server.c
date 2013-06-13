@@ -189,11 +189,18 @@ static void handle_sigalrm(void)
 	tmate_fatal("Connection grace period (%d) passed", SSH_GRACE_PERIOD);
 }
 
+static void handle_sigsegv(void)
+{
+	tmate_print_trace();
+	tmate_fatal("CRASH");
+}
+
 static void signal_handler(int sig)
 {
 	switch (sig) {
 	case SIGCHLD: handle_sigchld(); break;
 	case SIGALRM: handle_sigalrm(); break;
+	case SIGSEGV: handle_sigsegv(); break;
 	}
 }
 
@@ -201,6 +208,7 @@ static void setup_signals(void)
 {
 	signal(SIGCHLD, signal_handler);
 	signal(SIGALRM, signal_handler);
+	signal(SIGSEGV, signal_handler);
 }
 
 static void ssh_log_cb(ssh_session session, int priority,
