@@ -38,7 +38,7 @@ extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 
 /* tmate-decoder.c */
 
-#define TMATE_HLIMIT 1000
+#define TMATE_HLIMIT 2000
 #define TMATE_MAX_MESSAGE_SIZE (16*1024)
 
 extern char *tmate_left_status, *tmate_right_status;
@@ -50,6 +50,7 @@ enum tmate_commands {
 	TMATE_EXEC_CMD,
 	TMATE_FAILED_CMD,
 	TMATE_STATUS,
+	TMATE_SYNC_COPY_MODE,
 };
 
 #define TMATE_PANE_ACTIVE 1

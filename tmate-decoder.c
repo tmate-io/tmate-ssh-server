@@ -306,6 +306,77 @@ static void tmate_status(struct tmate_unpacker *uk)
 	}
 }
 
+extern void window_copy_redraw_screen(struct window_pane *);
+extern int window_copy_update_selection(struct window_pane *);
+
+static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
+{
+	struct tmate_unpacker cm_uk, sel_uk, input_uk;
+	struct window_copy_mode_data *data;
+	struct screen_write_ctx ctx;
+	struct window_pane *wp;
+	int pane_id;
+
+	pane_id = unpack_int(uk);
+	wp = window_pane_find_by_id(pane_id);
+	if (!wp)
+		tmate_fatal("can't find window pane=%d", pane_id);
+
+	unpack_array(uk, &cm_uk);
+
+	if (cm_uk.argc == 0) {
+		if (wp->mode) {
+			data = wp->modedata;
+			free((char *)data->inputprompt);
+			window_pane_reset_mode(wp);
+		}
+		return;
+	}
+
+	if (window_pane_set_mode(wp, &window_copy_mode) == 0)
+		window_copy_init_from_pane(wp);
+	data = wp->modedata;
+
+	data->oy = unpack_int(&cm_uk);
+	data->cx = unpack_int(&cm_uk);
+	data->cy = unpack_int(&cm_uk);
+
+	unpack_array(&cm_uk, &sel_uk);
+
+	if (sel_uk.argc) {
+		data->screen.sel.flag = 1;
+		data->selx = unpack_int(&sel_uk);
+		data->sely = unpack_int(&sel_uk);
+		data->rectflag = unpack_int(&sel_uk);
+	} else
+		data->screen.sel.flag = 0;
+
+	unpack_array(&cm_uk, &input_uk);
+
+	if (input_uk.argc) {
+		/*
+		 * XXX In the original tmux code, inputprompt is not a
+		 * malloced string, the two piece of code must not run at the
+		 * same time, otherwise, we'll either get a memory leak, or a
+		 * crash.
+		 */
+		data->inputtype = unpack_int(&input_uk);
+
+		free((char *)data->inputprompt);
+		data->inputprompt = unpack_string(&input_uk);
+
+		free(data->inputstr);
+		data->inputstr = unpack_string(&input_uk);
+	} else {
+		data->inputtype = WINDOW_COPY_OFF;
+		free((char *)data->inputprompt);
+		data->inputprompt = NULL;
+	}
+
+	window_copy_update_selection(wp);
+	window_copy_redraw_screen(wp);
+}
+
 static void handle_message(msgpack_object obj)
 {
 	struct tmate_unpacker _uk;
@@ -315,13 +386,14 @@ static void handle_message(msgpack_object obj)
 	init_unpacker(uk, obj);
 
 	switch (unpack_int(uk)) {
-	case TMATE_HEADER:	tmate_header(uk);	break;
-	case TMATE_SYNC_LAYOUT:	tmate_sync_layout(uk);	break;
-	case TMATE_PTY_DATA:	tmate_pty_data(uk);	break;
-	case TMATE_EXEC_CMD:	tmate_exec_cmd(uk);	break;
-	case TMATE_FAILED_CMD:	tmate_failed_cmd(uk);	break;
-	case TMATE_STATUS:	tmate_status(uk);	break;
-	default:		decoder_error();
+	case TMATE_HEADER:		tmate_header(uk);	break;
+	case TMATE_SYNC_LAYOUT:		tmate_sync_layout(uk);	break;
+	case TMATE_PTY_DATA:		tmate_pty_data(uk);	break;
+	case TMATE_EXEC_CMD:		tmate_exec_cmd(uk);	break;
+	case TMATE_FAILED_CMD:		tmate_failed_cmd(uk);	break;
+	case TMATE_STATUS:		tmate_status(uk);	break;
+	case TMATE_SYNC_COPY_MODE:	tmate_sync_copy_mode(uk); break;
+	default:			decoder_error();
 	}
 }
 
