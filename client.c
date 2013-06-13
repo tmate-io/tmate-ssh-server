@@ -324,6 +324,10 @@ client_send_identify(int flags)
 	char			       *term;
 	int				fd;
 
+#ifdef TMATE_SLAVE
+	strcpy(data.ip_address, tmate_client.ip_address);
+#endif
+
 	data.flags = flags;
 
 	if (getcwd(data.cwd, sizeof data.cwd) == NULL)

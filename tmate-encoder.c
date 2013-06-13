@@ -28,16 +28,63 @@ void tmate_encoder_init(struct tmate_encoder *encoder)
 
 #define pack(what, ...) msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__)
 
-void tmate_reply_header(unsigned long flags)
+void printflike1 tmate_notify(const char *fmt, ...)
 {
-	char remote_session[256];
+	va_list ap;
+	char msg[1024];
 
-	pack(array, 3);
-	pack(int, TMATE_REPLY_HEADER);
-	pack(int, flags);
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
 
-	sprintf(remote_session, "ssh %s@tmate.io", tmate_session_token);
-	pack(string, remote_session);
+	pack(array, 2);
+	pack(int, TMATE_NOTIFY);
+	pack(string, msg);
+}
+
+static int num_clients(void)
+{
+	unsigned int i, count = 0;
+
+	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
+		if (ARRAY_ITEM(&clients, i))
+			count++;
+	}
+
+	return count;
+}
+
+static void mate_notify_message(struct client *c, int join)
+{
+	char buf[100];
+	int count;
+	static int multi_client;
+
+	count = num_clients();
+	if (count > 1)
+		multi_client = 1;
+
+	if (multi_client)
+		sprintf(buf, " -- %d mate%s %sconnected",
+			count,
+			count == 1 ? " is" : "s are",
+			(join || !count) ? "" : "still ");
+
+	tmate_notify("%s mate has %s the session (%s)%s",
+		     multi_client ? "A" : "Your",
+		     join ? "join" : "left",
+		     c->ip_address,
+		     multi_client ? buf : "");
+}
+
+void tmate_notify_client_join(struct client *c)
+{
+	mate_notify_message(c, 1);
+}
+
+void tmate_notify_client_left(struct client *c)
+{
+	mate_notify_message(c, 0);
 }
 
 void tmate_client_resize(u_int sx, u_int sy)

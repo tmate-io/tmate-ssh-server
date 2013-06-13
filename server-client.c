@@ -109,6 +109,10 @@ server_client_create(int fd)
 
 	evtimer_set(&c->repeat_timer, server_client_repeat_timer, c);
 
+#ifdef TMATE_SLAVE
+	c->ip_address = NULL;
+#endif
+
 	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
 		if (ARRAY_ITEM(&clients, i) == NULL) {
 			ARRAY_SET(&clients, i, c);
@@ -154,6 +158,10 @@ server_client_lost(struct client *c)
 	}
 	log_debug("lost client %d", c->ibuf.fd);
 
+#ifdef TMATE_SLAVE
+	tmate_notify_client_left(c);
+#endif
+
 	/*
 	 * If CLIENT_TERMINAL hasn't been set, then tty_init hasn't been called
 	 * and tty_free might close an unrelated fd.
@@ -193,6 +201,11 @@ server_client_lost(struct client *c)
 	c->cmdq->dead = 1;
 	cmdq_free(c->cmdq);
 	c->cmdq = NULL;
+
+#ifdef TMATE_SLAVE
+	free(c->ip_address);
+	c->ip_address = NULL;
+#endif
 
 	environ_free(&c->environ);
 
@@ -1013,6 +1026,11 @@ server_client_msg_identify(
 
 	if (!(data->flags & IDENTIFY_CONTROL))
 		c->flags |= CLIENT_TERMINAL;
+
+#ifdef TMATE_SLAVE
+	c->ip_address = xstrdup(data->ip_address);
+	tmate_notify_client_join(c);
+#endif
 }
 
 /* Handle shell message. */

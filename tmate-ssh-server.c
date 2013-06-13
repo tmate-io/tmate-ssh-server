@@ -248,10 +248,11 @@ static int get_ip(int fd, char *dst, size_t len)
 	return 0;
 }
 
+struct tmate_ssh_client tmate_client;
+
 void tmate_ssh_server_main(int port)
 {
-	struct tmate_ssh_client _client;
-	struct tmate_ssh_client *client = &_client;
+	struct tmate_ssh_client *client = &tmate_client;
 	ssh_bind bind;
 	pid_t pid;
 

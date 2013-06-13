@@ -477,6 +477,10 @@ struct msg_identify_data {
 
 	char		term[TERMINAL_LENGTH];
 
+#ifdef TMATE_SLAVE
+	char		ip_address[64];
+#endif
+
 #define IDENTIFY_UTF8 0x1
 #define IDENTIFY_256COLOURS 0x2
 #define IDENTIFY_88COLOURS 0x4
@@ -1375,6 +1379,10 @@ struct client {
 
 	struct cmd_q	*cmdq;
 	int		 references;
+
+#ifdef TMATE_SLAVE
+	char		*ip_address;
+#endif
 };
 ARRAY_DECL(clients, struct client *);
 

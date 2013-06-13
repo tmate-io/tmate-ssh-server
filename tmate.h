@@ -17,8 +17,10 @@ do {							\
 
 /* tmate-encoder.c */
 
+#define TMATE_HOST "tmate.io"
+
 enum tmate_client_commands {
-	TMATE_REPLY_HEADER,
+	TMATE_NOTIFY,
 	TMATE_CLIENT_PANE_KEY,
 	TMATE_CLIENT_RESIZE,
 	TMATE_CLIENT_EXEC_CMD,
@@ -32,7 +34,10 @@ struct tmate_encoder {
 
 extern void tmate_encoder_init(struct tmate_encoder *encoder);
 
-extern void tmate_reply_header(unsigned long flags);
+extern void printflike1 tmate_notify(const char *fmt, ...);
+extern void tmate_notify_client_join(struct client *c);
+extern void tmate_notify_client_left(struct client *c);
+
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
 extern void tmate_client_cmd(int client_id, const char *cmd);
@@ -110,6 +115,7 @@ extern void tmate_flush_pty(struct tmate_ssh_client *client);
 
 #define SSH_BANNER "tmate"
 
+extern struct tmate_ssh_client tmate_client;
 extern void tmate_ssh_server_main(int port);
 
 /* tmate-slave.c */

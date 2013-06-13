@@ -102,8 +102,10 @@ static void tmate_header(struct tmate_unpacker *uk)
 	if (protocol != 1)
 		decoder_error();
 
-	tmate_debug("new master, protocol: %d", protocol);
-	tmate_reply_header(0);
+	tmate_debug("new master, protocol version: %d", protocol);
+
+	tmate_notify("Remote session: ssh %s@%s",
+		     tmate_session_token, TMATE_HOST);
 }
 
 extern u_int next_window_pane_id;
