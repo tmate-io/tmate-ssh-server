@@ -177,11 +177,10 @@ static void handle_sigchld(void)
 			child_dead = 1; child_exit_status = EXIT_FAILURE;
 		}
 
-		if (!child_dead)
-			continue;
-
-		tmate_info("Child reaped pid=%d exit=%d", pid, child_exit_status);
-	} while (pid > 0);
+		if (child_dead)
+			tmate_info("Child reaped pid=%d exit=%d",
+				   pid, child_exit_status);
+	}
 }
 
 static void handle_sigalrm(void)
@@ -191,8 +190,8 @@ static void handle_sigalrm(void)
 
 static void handle_sigsegv(void)
 {
-	tmate_print_trace();
 	tmate_fatal("CRASH");
+	tmate_print_trace();
 }
 
 static void signal_handler(int sig)
