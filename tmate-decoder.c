@@ -171,6 +171,9 @@ static void tmate_sync_windows(struct session *s,
 
 		wl = winlink_find_by_index(&s->windows, idx);
 		if (!wl) {
+			/* Avoid memory bloats with the scroll buffer */
+			options_set_number(&s->options,
+					   "history-limit", TMATE_HLIMIT);
 			wl = session_new(s, name, "", NULL, idx, &cause);
 			if (!wl)
 				tmate_fatal("can't create window idx=%d", idx);
