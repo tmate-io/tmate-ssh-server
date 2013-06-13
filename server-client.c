@@ -45,6 +45,10 @@ void	server_client_msg_identify(
 	    struct client *, struct msg_identify_data *, int);
 void	server_client_msg_shell(struct client *);
 
+#ifdef TMATE_SLAVE
+u_int	next_client_id;
+#endif
+
 /* Create a new client. */
 void
 server_client_create(int fd)
@@ -55,6 +59,11 @@ server_client_create(int fd)
 	setblocking(fd, 0);
 
 	c = xcalloc(1, sizeof *c);
+
+#ifdef TMATE_SLAVE
+	c->id = next_client_id++;
+#endif
+
 	c->references = 0;
 	imsg_init(&c->ibuf, fd);
 	server_update_event(c);
@@ -394,7 +403,7 @@ server_client_handle_key(struct client *c, int key)
 #ifdef TMATE_SLAVE
 		wp = window_pane_at_index(w, key - '0');
 		if (wp != NULL && window_pane_visible(wp))
-			tmate_client_set_active_pane(w->id, wp->id);
+			tmate_client_set_active_pane(c->id, key - '0', wp->id);
 #else
 		window_unzoom(w);
 		wp = window_pane_at_index(w, key - '0');

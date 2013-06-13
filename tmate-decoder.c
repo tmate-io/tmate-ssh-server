@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include "tmate.h"
 
 char *tmate_left_status, *tmate_right_status;
@@ -242,7 +243,7 @@ static void tmate_pty_data(struct tmate_unpacker *uk)
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
-static void tmate_cmd(struct tmate_unpacker *uk)
+static void tmate_exec_cmd(struct tmate_unpacker *uk)
 {
 	struct cmd_q *cmd_q;
 	struct cmd_list *cmdlist;
@@ -261,6 +262,28 @@ static void tmate_cmd(struct tmate_unpacker *uk)
 	cmdq_free(cmd_q);
 out:
 	free(cmd_str);
+}
+
+static void tmate_failed_cmd(struct tmate_unpacker *uk)
+{
+	struct client *c;
+	unsigned int i;
+	int client_id;
+	char *cause;
+
+	client_id = unpack_int(uk);
+	cause = unpack_string(uk);
+
+	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
+		c = ARRAY_ITEM(&clients, i);
+		if (c && c->id == client_id) {
+			*cause = toupper((u_char) *cause);
+			status_message_set(c, "%s", cause);
+			break;
+		}
+	}
+
+	free(cause);
 }
 
 static void tmate_status(struct tmate_unpacker *uk)
@@ -292,7 +315,8 @@ static void handle_message(msgpack_object obj)
 	case TMATE_HEADER:	tmate_header(uk);	break;
 	case TMATE_SYNC_LAYOUT:	tmate_sync_layout(uk);	break;
 	case TMATE_PTY_DATA:	tmate_pty_data(uk);	break;
-	case TMATE_CMD:		tmate_cmd(uk);		break;
+	case TMATE_EXEC_CMD:	tmate_exec_cmd(uk);	break;
+	case TMATE_FAILED_CMD:	tmate_failed_cmd(uk);	break;
 	case TMATE_STATUS:	tmate_status(uk);	break;
 	default:		decoder_error();
 	}

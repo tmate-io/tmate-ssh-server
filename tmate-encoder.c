@@ -81,17 +81,18 @@ int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
 	return 0;
 }
 
-void tmate_client_cmd(const char *cmd)
+void tmate_client_cmd(int client_id, const char *cmd)
 {
-	pack(array, 2);
-	pack(int, TMATE_CLIENT_CMD);
+	pack(array, 3);
+	pack(int, TMATE_CLIENT_EXEC_CMD);
+	pack(int, client_id);
 	pack(string, cmd);
 }
 
-void tmate_client_set_active_pane(int win_id, int pane_id)
+void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id)
 {
 	char cmd[1024];
 
-	sprintf(cmd, "select-pane -t %d.%d", win_id, pane_id);
-	tmate_client_cmd(cmd);
+	sprintf(cmd, "select-pane -t %d.%d", win_idx, pane_id);
+	tmate_client_cmd(client_id, cmd);
 }

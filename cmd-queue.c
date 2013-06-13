@@ -202,6 +202,7 @@ cmdq_continue(struct cmd_q *cmdq)
 	enum cmd_retval		 retval;
 	int			 empty, guard;
 	char			 s[1024];
+	int client_id;
 
 	notify_disable();
 
@@ -228,7 +229,8 @@ cmdq_continue(struct cmd_q *cmdq)
 
 #ifdef TMATE_SLAVE
 			if (!tmate_should_exec_cmd_locally(cmdq->cmd->entry)) {
-				tmate_client_cmd(s);
+				client_id = cmdq->client ? cmdq->client->id : -1;
+				tmate_client_cmd(client_id, s);
 				cmdq->cmd = TAILQ_NEXT(cmdq->cmd, qentry);
 				continue;
 			}

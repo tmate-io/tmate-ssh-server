@@ -18,7 +18,7 @@ enum tmate_client_commands {
 	TMATE_REPLY_HEADER,
 	TMATE_CLIENT_PANE_KEY,
 	TMATE_CLIENT_RESIZE,
-	TMATE_CLIENT_CMD,
+	TMATE_CLIENT_EXEC_CMD,
 };
 
 struct tmate_encoder {
@@ -32,8 +32,8 @@ extern void tmate_encoder_init(struct tmate_encoder *encoder);
 extern void tmate_reply_header(unsigned long flags);
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
-extern void tmate_client_cmd(const char *cmd);
-extern void tmate_client_set_active_pane(int win_id, int pane_id);
+extern void tmate_client_cmd(int client_id, const char *cmd);
+extern void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id);
 extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 
 /* tmate-decoder.c */
@@ -47,7 +47,8 @@ enum tmate_commands {
 	TMATE_HEADER,
 	TMATE_SYNC_LAYOUT,
 	TMATE_PTY_DATA,
-	TMATE_CMD,
+	TMATE_EXEC_CMD,
+	TMATE_FAILED_CMD,
 	TMATE_STATUS,
 };
 
