@@ -26,7 +26,7 @@ extern int client_connect(char *path, int start_server);
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-l logfile] [-p PORT] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-v]\n");
 }
 
 int main(int argc, char **argv)
@@ -34,14 +34,18 @@ int main(int argc, char **argv)
 	int opt;
 	int port = TMATE_DEFAULT_PORT;
 	char *log_path = NULL; /* stderr */
+	char *keys_dir = "keys";
 
-	while ((opt = getopt(argc, argv, "p:l:v")) != -1) {
+	while ((opt = getopt(argc, argv, "p:l:vk:")) != -1) {
 		switch (opt) {
 		case 'p':
 			port = atoi(optarg);
 			break;
 		case 'l':
 			log_path = optarg;
+			break;
+		case 'k':
+			keys_dir = optarg;
 			break;
 		case 'v':
 			debug_level++;
@@ -63,7 +67,7 @@ int main(int argc, char **argv)
 
 	tmate_preload_trace_lib();
 
-	tmate_ssh_server_main(port);
+	tmate_ssh_server_main(keys_dir, port);
 	return 0;
 }
 static void set_session_token(struct tmate_ssh_client *client,

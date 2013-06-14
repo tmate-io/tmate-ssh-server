@@ -258,16 +258,13 @@ static int get_ip(int fd, char *dst, size_t len)
 
 struct tmate_ssh_client tmate_client;
 
-void tmate_ssh_server_main(int port)
+static ssh_bind prepare_ssh(const char *keys_dir, int port)
 {
-	struct tmate_ssh_client *client = &tmate_client;
 	ssh_bind bind;
-	pid_t pid;
-
+	char buffer[PATH_MAX];
 	int verbosity = SSH_LOG_NOLOG;
 	//int verbosity = SSH_LOG_PACKET;
 
-	setup_signals();
 	ssh_callbacks_init(&ssh_session_callbacks);
 
 	bind = ssh_bind_new();
@@ -275,15 +272,31 @@ void tmate_ssh_server_main(int port)
 		tmate_fatal("Cannot initialize ssh");
 
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, SSH_BANNER);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &verbosity);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_DSAKEY, "keys/ssh_host_dsa_key");
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, "keys/ssh_host_rsa_key");
+
+	sprintf(buffer, "%s/ssh_host_dsa_key", keys_dir);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_DSAKEY, buffer);
+
+	sprintf(buffer, "%s/ssh_host_rsa_key", keys_dir);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, buffer);
 
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
 
 	tmate_info("Accepting connections on %d", port);
+
+	return bind;
+}
+
+void tmate_ssh_server_main(const char *keys_dir, int port)
+{
+	struct tmate_ssh_client *client = &tmate_client;
+	ssh_bind bind;
+	pid_t pid;
+
+	setup_signals();
+	bind = prepare_ssh(keys_dir, port);
 
 	for (;;) {
 		client->session = ssh_new();

@@ -113,10 +113,10 @@ extern void tmate_flush_pty(struct tmate_ssh_client *client);
 
 /* tmate-ssh-server.c */
 
-#define SSH_BANNER "tmate"
+#define TMATE_SSH_BANNER "tmate"
 
 extern struct tmate_ssh_client tmate_client;
-extern void tmate_ssh_server_main(int port);
+extern void tmate_ssh_server_main(const char *keys_dir, int port);
 
 /* tmate-slave.c */
 
