@@ -80,12 +80,22 @@ log_close(void)
 void
 log_vwrite(const char *msg, va_list ap)
 {
+	char time_str[100];
+	time_t now;
+	struct tm *tm;
+
 	char	*fmt;
 
 	if (log_file == NULL)
 		return;
 
-	if (asprintf(&fmt, "[%s] %s\n", tmate_session_token, msg) == -1)
+	/* XXX Should we do UTC instead of local time? */
+	now = time(NULL);
+	tm = localtime(&now);
+
+	strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm);
+
+	if (asprintf(&fmt, "%s [%s] %s\n", time_str, tmate_session_token, msg) == -1)
 		exit(1);
 	if (vfprintf(log_file, fmt, ap) == -1)
 		exit(1);
