@@ -83,8 +83,8 @@ static void set_session_token(struct tmate_ssh_client *client,
 	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-slave [%s] %s %s",
 		tmate_session_token,
-		client->ip_address,
-		client->role == TMATE_ROLE_SERVER ? "(server)" : "");
+		client->role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
+		client->ip_address);
 }
 
 static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"

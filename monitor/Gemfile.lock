@@ -1,0 +1,10 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    statsd-instrument (1.5.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  statsd-instrument
