@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
+#include <unistd.h>
 #ifdef HAVE_CURSES_H
 #include <curses.h>
 #else
@@ -19,6 +20,7 @@ int tmux_socket_fd;
 const char *tmate_session_token = "main";
 
 static char *cmdline;
+static char *cmdline_end;
 
 extern FILE *log_file;
 extern int server_create_socket(void);
@@ -29,7 +31,7 @@ static void usage(void)
 	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-v]\n");
 }
 
-int main(int argc, char **argv)
+int main(int argc, char **argv, char **envp)
 {
 	int opt;
 	int port = TMATE_DEFAULT_PORT;
@@ -57,6 +59,7 @@ int main(int argc, char **argv)
 	}
 
 	cmdline = *argv;
+	cmdline_end = *envp;
 
 	log_open(debug_level, log_path);
 
@@ -77,6 +80,7 @@ static void set_session_token(struct tmate_ssh_client *client,
 	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
 	strcat(socket_path, token);
 
+	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-slave [%s] %s %s",
 		tmate_session_token,
 		client->ip_address,
