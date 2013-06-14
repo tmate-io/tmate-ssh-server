@@ -16,6 +16,7 @@ StatsD.mode = 'production'
 loop do
   server_count = 0
   client_count = 0
+  ips = []
 
   Dir['/proc/*/cmdline'].map do |f|
     if File.open(f).read =~ /^tmate-slave \[(.+)\] \((.+)\) (.+)$/
@@ -25,11 +26,13 @@ loop do
 
       server_count += 1 if role == 'server'
       client_count += 1 if role == 'client'
+      ips << ip
     end
   end
 
-  StatsD.gauge('tmate.server_count', server_count)
-  StatsD.gauge('tmate.client_count', client_count)
+  StatsD.gauge('tmate.servers', server_count)
+  StatsD.gauge('tmate.clients', client_count)
+  StatsD.gauge('tmate.unique_ips', ips.uniq.count)
 
   sleep 10
 end
