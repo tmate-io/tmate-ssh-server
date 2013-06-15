@@ -72,7 +72,7 @@ static void mate_notify_message(struct client *c, int join)
 
 	tmate_notify("%s mate has %s the session (%s)%s",
 		     multi_client ? "A" : "Your",
-		     join ? "join" : "left",
+		     join ? "joined" : "left",
 		     c->ip_address,
 		     multi_client ? buf : "");
 }
