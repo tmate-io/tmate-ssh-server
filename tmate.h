@@ -17,7 +17,7 @@ do {							\
 
 /* tmate-encoder.c */
 
-#define TMATE_HOST "tmate.io"
+#define TMATE_HOST "a.tmate.io"
 
 enum tmate_client_commands {
 	TMATE_NOTIFY,
