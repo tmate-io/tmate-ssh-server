@@ -133,4 +133,6 @@ void tmate_ssh_client_pty_init(struct tmate_ssh_client *client)
 	ioctl(client->pty, TIOCSWINSZ, &client->winsize_pty);
 	register_session_fd_event(client);
 	register_pty_event(client);
+
+	tmate_start_keepalive_timer(client);
 }

@@ -36,7 +36,7 @@ int main(int argc, char **argv, char **envp)
 	int opt;
 	int port = TMATE_DEFAULT_PORT;
 	char *log_path = NULL; /* stderr */
-	char *keys_dir = "keys";
+	const char *keys_dir = "keys";
 
 	while ((opt = getopt(argc, argv, "p:l:vk:")) != -1) {
 		switch (opt) {

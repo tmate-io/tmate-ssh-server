@@ -96,4 +96,6 @@ void tmate_ssh_client_init(struct tmate_ssh_client *client,
 
 	register_session_fd_event(client);
 	register_input_stream_event(client);
+
+	tmate_start_keepalive_timer(client);
 }

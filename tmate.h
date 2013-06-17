@@ -97,6 +97,7 @@ struct tmate_ssh_client {
 	struct winsize winsize_pty;
 
 	struct event ev_ssh;
+	struct event ev_keepalive_timer;
 
 	/* only for client-pty */
 	int pty;
@@ -114,8 +115,10 @@ extern void tmate_flush_pty(struct tmate_ssh_client *client);
 /* tmate-ssh-server.c */
 
 #define TMATE_SSH_BANNER "tmate"
+#define TMATE_KEEPALIVE 60
 
 extern struct tmate_ssh_client tmate_client;
+extern void tmate_start_keepalive_timer(struct tmate_ssh_client *client);
 extern void tmate_ssh_server_main(const char *keys_dir, int port);
 
 /* tmate-slave.c */

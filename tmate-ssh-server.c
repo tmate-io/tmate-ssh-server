@@ -17,6 +17,24 @@
 #define REPLY_DEFAULT	1
 #define STEP_COMPLETE	2
 
+static void on_keepalive_timer(evutil_socket_t fd, short what, void *arg)
+{
+	struct tmate_ssh_client *client = arg;
+	ssh_send_keepalive(client->session);
+	tmate_start_keepalive_timer(client);
+}
+
+void tmate_start_keepalive_timer(struct tmate_ssh_client *client)
+{
+	struct timeval tv;
+	tv.tv_sec = TMATE_KEEPALIVE;
+	tv.tv_usec = 0;
+
+	evtimer_assign(&client->ev_keepalive_timer, ev_base,
+		       on_keepalive_timer, client);
+	evtimer_add(&client->ev_keepalive_timer, &tv);
+}
+
 typedef int (*bootstrap_step_cb)(struct tmate_ssh_client *client,
 				 ssh_message msg);
 
