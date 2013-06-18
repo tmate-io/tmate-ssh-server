@@ -76,6 +76,6 @@ void tmate_print_trace(void)
 
 void tmate_preload_trace_lib(void)
 {
-	void *array[0];
-	backtrace(array, 0);
+	void *array[1];
+	backtrace(array, 1);
 }
