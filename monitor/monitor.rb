@@ -13,6 +13,8 @@ StatsD.server = 'monitor:8125'
 StatsD.logger = Logger.new(STDERR)
 StatsD.mode = 'production'
 
+hostname = Socket.gethostname
+
 loop do
   server_count = 0
   client_count = 0
@@ -30,9 +32,9 @@ loop do
     end
   end
 
-  StatsD.gauge('tmate.servers', server_count)
-  StatsD.gauge('tmate.clients', client_count)
-  StatsD.gauge('tmate.unique_ips', ips.uniq.count)
+  StatsD.gauge("tmate.#{hostname}.servers", server_count)
+  StatsD.gauge("tmate.#{hostname}.clients", client_count)
+  StatsD.gauge("tmate.#{hostname}.unique_ips", ips.uniq.count)
 
   sleep 10
 end

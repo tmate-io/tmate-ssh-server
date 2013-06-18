@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <unistd.h>
 #include "tmate.h"
 
 char *tmate_left_status, *tmate_right_status;
@@ -97,6 +98,7 @@ static void unpack_array(struct tmate_unpacker *uk,
 
 static void tmate_header(struct tmate_unpacker *uk)
 {
+	char hostname[128];
 	int protocol = unpack_int(uk);
 
 	if (protocol != 1)
@@ -104,8 +106,11 @@ static void tmate_header(struct tmate_unpacker *uk)
 
 	tmate_debug("new master, protocol version: %d", protocol);
 
-	tmate_notify("Remote session: ssh %s@%s",
-		     tmate_session_token, TMATE_HOST);
+	if (gethostname(hostname, sizeof(hostname)) < 0)
+		tmate_fatal("cannot get hostname");
+
+	tmate_notify("Remote session: ssh %s@%s.%s",
+		     tmate_session_token, hostname, TMATE_DOMAIN);
 }
 
 extern u_int next_window_pane_id;
