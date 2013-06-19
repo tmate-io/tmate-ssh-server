@@ -211,8 +211,7 @@ server_start(int lockfd, char *lockfile)
 void
 server_loop(void)
 {
-	while (!server_shutdown) {
-	//while (!server_should_shutdown()) {
+	while (!server_should_shutdown()) {
 		event_loop(EVLOOP_ONCE);
 
 		server_window_loop();
@@ -237,6 +236,9 @@ server_should_shutdown(void)
 		if (ARRAY_ITEM(&clients, i) != NULL)
 			return (0);
 	}
+#ifdef TMATE_SLAVE
+	return server_shutdown;
+#endif
 	return (1);
 }
 

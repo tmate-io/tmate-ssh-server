@@ -4,6 +4,13 @@
 #include <libssh/callbacks.h>
 
 extern int server_shutdown;
+extern void server_send_shutdown(void);
+
+#define request_termination(str, ...) do {	\
+	tmate_info(str, ## __VA_ARGS__);	\
+	server_shutdown = 1;			\
+	server_send_shutdown();			\
+} while(0)
 
 static void consume_channel(struct tmate_ssh_client *client)
 {
@@ -12,17 +19,20 @@ static void consume_channel(struct tmate_ssh_client *client)
 
 	for (;;) {
 		tmate_decoder_get_buffer(client->decoder, &buf, &len);
-		if (len == 0)
-			tmate_fatal("Input buffer full");
+		if (len == 0) {
+			request_termination("Decoder buffer full");
+			break;
+		}
 
 		len = ssh_channel_read_nonblocking(client->channel,
 						   buf, len, 0);
 		if (len < 0) {
 			if (!ssh_is_connected(client->session))
-				tmate_fatal("Disconnected");
-
-			tmate_fatal("Error reading from channel: %s",
-				    ssh_get_error(client->session));
+				request_termination("Disconnected");
+			else
+				request_termination("Error reading from channel: %s",
+						    ssh_get_error(client->session));
+			break;
 		}
 		if (len == 0)
 			break;
@@ -55,6 +65,9 @@ static void flush_input_stream(struct tmate_ssh_client *client)
 	ssize_t len, written;
 	char *buf;
 
+	if (server_shutdown)
+		return;
+
 	for (;;) {
 		len = evbuffer_get_length(evb);
 		if (!len)
@@ -63,9 +76,11 @@ static void flush_input_stream(struct tmate_ssh_client *client)
 		buf = evbuffer_pullup(evb, -1);
 
 		written = ssh_channel_write(client->channel, buf, len);
-		if (written < 0)
-			tmate_fatal("Error writing to channel: %s",
-				    ssh_get_error(client->session));
+		if (written < 0) {
+			request_termination("Error writing to channel: %s",
+					    ssh_get_error(client->session));
+			break;
+		}
 
 		evbuffer_drain(evb, written);
 	}
