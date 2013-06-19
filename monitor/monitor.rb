@@ -5,20 +5,24 @@
 
 require 'rubygems'
 require 'bundler'
+require 'logger'
+require 'set'
+
 Bundler.require
 
-require 'logger'
-
 StatsD.server = 'monitor:8125'
-StatsD.logger = Logger.new(STDERR)
 StatsD.mode = 'production'
+StatsD.logger = Logger.new(STDERR)
 
 hostname = Socket.gethostname
+seen_tokens = Set.new
 
 loop do
-  server_count = 0
-  client_count = 0
-  ips = []
+  sessions = {}
+  new_sessions = 0
+  paired = 0
+  not_paired = 0
+
 
   Dir['/proc/*/cmdline'].map do |f|
     if File.open(f).read =~ /^tmate-slave \[(.+)\] \((.+)\) (.+)$/
@@ -26,15 +30,25 @@ loop do
       role = $2
       ip = $3
 
-      server_count += 1 if role == 'server'
-      client_count += 1 if role == 'client'
-      ips << ip
+      new_sessions += 1 unless seen_tokens.include?(token)
+      seen_tokens << token
+
+      sessions[token] ||= []
+      sessions[token] << ip
     end
   end
 
-  StatsD.gauge("tmate.#{hostname}.servers", server_count)
-  StatsD.gauge("tmate.#{hostname}.clients", client_count)
-  StatsD.gauge("tmate.#{hostname}.unique_ips", ips.uniq.count)
+  sessions.map do |token, ips|
+    if ips.uniq.count > 1
+      paired += 1
+    else
+      not_paired += 1
+    end
+  end
+
+  StatsD.increment("tmate.#{hostname}.sessions.total", new_sessions)
+  StatsD.gauge("tmate.#{hostname}.sessions.paired", paired)
+  StatsD.gauge("tmate.#{hostname}.sessions.not-paired", not_paired)
 
   sleep 10
 end
