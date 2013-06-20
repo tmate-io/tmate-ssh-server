@@ -137,9 +137,11 @@ extern struct tmate_encoder *tmate_encoder;
 extern int tmux_socket_fd;
 extern const char *tmate_session_token;
 
+extern void tmate_reopen_logfile(void);
 extern void tmate_spawn_slave(struct tmate_ssh_client *client);
 
 /* tmate-debug.c */
+
 extern void tmate_preload_trace_lib(void);
 extern void tmate_print_trace(void);
 

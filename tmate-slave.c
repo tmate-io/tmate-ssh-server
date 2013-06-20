@@ -19,6 +19,7 @@ struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
 
+static char *log_path; /* NULL means stderr */
 static char *cmdline;
 static char *cmdline_end;
 
@@ -31,11 +32,15 @@ static void usage(void)
 	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-v]\n");
 }
 
+void tmate_reopen_logfile(void)
+{
+	log_open(debug_level, log_path);
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
 	int port = TMATE_DEFAULT_PORT;
-	char *log_path = NULL; /* stderr */
 	const char *keys_dir = "keys";
 
 	while ((opt = getopt(argc, argv, "p:l:vk:")) != -1) {
@@ -61,7 +66,7 @@ int main(int argc, char **argv, char **envp)
 	cmdline = *argv;
 	cmdline_end = *envp;
 
-	log_open(debug_level, log_path);
+	tmate_reopen_logfile();
 
 	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||

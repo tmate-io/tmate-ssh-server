@@ -213,12 +213,18 @@ static void handle_sigsegv(void)
 	tmate_print_trace();
 }
 
+static void handle_sigusr1(void)
+{
+	tmate_reopen_logfile();
+}
+
 static void signal_handler(int sig)
 {
 	switch (sig) {
 	case SIGCHLD: handle_sigchld(); break;
 	case SIGALRM: handle_sigalrm(); break;
 	case SIGSEGV: handle_sigsegv(); break;
+	case SIGUSR1: handle_sigusr1(); break;
 	}
 }
 
@@ -227,6 +233,7 @@ static void setup_signals(void)
 	signal(SIGCHLD, signal_handler);
 	signal(SIGALRM, signal_handler);
 	signal(SIGSEGV, signal_handler);
+	signal(SIGUSR1, signal_handler);
 }
 
 static void ssh_log_cb(ssh_session session, int priority,

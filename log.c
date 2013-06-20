@@ -50,14 +50,26 @@ log_event_cb(unused int severity, const char *msg)
 void
 log_open(int level, const char *path)
 {
+	FILE *f;
+
 	if (path) {
-		log_file = fopen(path, "a");
-		if (log_file == NULL)
-			return;
+		f = fopen(path, "a");
+		if (!f) {
+			if (log_file) {
+				log_info("cannot reopen log file");
+				return;
+			}
+			fprintf(stderr, "cannot open log file %s\n", path);
+			exit(1);
+		}
 	} else {
-		log_file = fdopen(dup(STDERR_FILENO), "a");
+		f = fdopen(dup(STDERR_FILENO), "a");
 	}
 
+	if (log_file)
+		fclose(log_file);
+
+	log_file = f;
 	log_level = level;
 
 	setlinebuf(log_file);
