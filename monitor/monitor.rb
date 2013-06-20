@@ -15,11 +15,13 @@ StatsD.mode = 'production'
 StatsD.logger = Logger.new(STDERR)
 
 hostname = Socket.gethostname
-seen_tokens = Set.new
+seen_not_paired_tokens = Set.new
+seen_paired_tokens = Set.new
 
 loop do
   sessions = {}
-  new_sessions = 0
+  new_not_paired_sessions = 0
+  new_paired_sessions = 0
   paired = 0
   not_paired = 0
 
@@ -30,9 +32,6 @@ loop do
       role = $2
       ip = $3
 
-      new_sessions += 1 unless seen_tokens.include?(token)
-      seen_tokens << token
-
       sessions[token] ||= []
       sessions[token] << ip
     end
@@ -40,13 +39,22 @@ loop do
 
   sessions.map do |token, ips|
     if ips.uniq.count > 1
+      new_not_paired_sessions += 1 unless seen_not_paired_tokens.include?(token)
+      seen_not_paired_tokens << token
+      new_paired_sessions += 1 unless seen_paired_tokens.include?(token)
+      seen_paired_tokens << token
+
       paired += 1
     else
+      new_not_paired_sessions += 1 unless seen_not_paired_tokens.include?(token)
+      seen_not_paired_tokens << token
+
       not_paired += 1
     end
   end
 
-  StatsD.increment("tmate.#{hostname}.sessions.total", new_sessions)
+  StatsD.increment("tmate.#{hostname}.sessions.not-paired.total", new_not_paired_sessions)
+  StatsD.increment("tmate.#{hostname}.sessions.paired.total", new_paired_sessions)
   StatsD.gauge("tmate.#{hostname}.sessions.paired", paired)
   StatsD.gauge("tmate.#{hostname}.sessions.not-paired", not_paired)
 
