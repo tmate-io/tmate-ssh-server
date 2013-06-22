@@ -109,6 +109,9 @@ static void tmate_header(struct tmate_unpacker *uk)
 	if (gethostname(hostname, sizeof(hostname)) < 0)
 		tmate_fatal("cannot get hostname");
 
+	tmate_notify("Remote session read only: ssh ro-%s@%s.%s (clear your screen if you share this)",
+		     tmate_session_token_ro, hostname, TMATE_DOMAIN);
+
 	tmate_notify("Remote session: ssh %s@%s.%s",
 		     tmate_session_token, hostname, TMATE_DOMAIN);
 }

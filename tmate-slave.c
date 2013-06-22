@@ -20,6 +20,7 @@
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
+const char *tmate_session_token_ro = "ro-main";
 
 static char *log_path; /* NULL means stderr */
 static char *cmdline;
@@ -97,19 +98,6 @@ int main(int argc, char **argv, char **envp)
 	tmate_ssh_server_main(keys_dir, port);
 	return 0;
 }
-static void set_session_token(struct tmate_ssh_client *client,
-			      const char *token)
-{
-	tmate_session_token = xstrdup(token);
-	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
-	strcat(socket_path, token);
-
-	memset(cmdline, 0, cmdline_end - cmdline);
-	sprintf(cmdline, "tmate-slave [%s] %s %s",
-		tmate_session_token,
-		client->role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
-		client->ip_address);
-}
 
 static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
 				   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -126,11 +114,37 @@ static char *get_random_token(void)
 		token[i] = tmate_token_digits[token[i] % NUM_DIGITS];
 	token[i] = 0;
 
+	return token;
+}
+
+static void set_session_token(struct tmate_ssh_client *client,
+			      const char *token)
+{
+	tmate_session_token = xstrdup(token);
+	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
+	strcat(socket_path, token);
+
+	memset(cmdline, 0, cmdline_end - cmdline);
+	sprintf(cmdline, "tmate-slave [%s] %s %s",
+		tmate_session_token,
+		client->role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
+		client->ip_address);
+}
+static void create_session_ro_symlink(void)
+{
+	char session_ro_path[MAXPATHLEN];
+
+	tmate_session_token_ro = get_random_token();
 #ifdef DEVENV
-	strcpy(token, "SUPERSECURETOKENFORDEVENV");
+	strcpy((char *)tmate_session_token_ro, "READONLYTOKENFORDEVENV000");
 #endif
 
-	return token;
+	strcpy(session_ro_path, TMATE_WORKDIR "/sessions/");
+	strcat(session_ro_path, tmate_session_token_ro);
+
+	unlink(session_ro_path);
+	if (symlink(tmate_session_token, session_ro_path) < 0)
+		tmate_fatal("Cannot create read-only symlink");
 }
 
 static int validate_token(const char *token)
@@ -254,6 +268,10 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	struct tmate_decoder decoder;
 
 	token = get_random_token();
+#ifdef DEVENV
+	strcpy(token, "SUPERSECURETOKENFORDEVENV");
+#endif
+
 	set_session_token(client, token);
 	free(token);
 
@@ -262,6 +280,8 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	tmux_socket_fd = server_create_socket();
 	if (tmux_socket_fd < 0)
 		tmate_fatal("Cannot create to the tmux socket");
+
+	create_session_ro_symlink();
 
 	/*
 	 * Needed to initialize the database used in tty-term.c.
@@ -286,10 +306,18 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 
 static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 {
-	char *argv[] = {(char *)"attach", NULL};
+	char *argv_rw[] = {(char *)"attach", NULL};
+	char *argv_ro[] = {(char *)"attach", (char *)"-r", NULL};
+	char **argv = argv_rw;
+	int argc = 1;
 	char *token = client->username;
+	struct stat fstat;
 	int slave_pty;
 	int ret;
+
+	/* the "ro-" part is just sugar, we don't care about it */
+	if (!memcmp("ro-", token, 3))
+		token += 3;
 
 	if (validate_token(token) < 0) {
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
@@ -305,6 +333,22 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 		random_sleep(); /* for timing attacks */
 		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
 		tmate_fatal("Expired token");
+	}
+
+	/*
+	 * If we are connecting through a symlink, it means that we are a
+	 * readonly client.
+	 * 1) We mark the client as CLIENT_READONLY on the server
+	 * 2) We prevent any input (aside from the window size) to go through
+	 *    to the server.
+	 */
+	client->readonly = 0;
+	if (lstat(socket_path, &fstat) < 0)
+		tmate_fatal("Cannot fstat()");
+	if (S_ISLNK(fstat.st_mode)) {
+		client->readonly = 1;
+		argv = argv_ro;
+		argc = 2;
 	}
 
 	if (openpty(&client->pty, &slave_pty, NULL, NULL, NULL) < 0)
@@ -324,7 +368,7 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	tmate_ssh_client_pty_init(client);
 
-	ret = client_main(1, argv, IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
+	ret = client_main(argc, argv, IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
 	tmate_flush_pty(client);
 	exit(ret);
 }

@@ -21,6 +21,7 @@
 #include <stdlib.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Attach existing session to the current terminal.

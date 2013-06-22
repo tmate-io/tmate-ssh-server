@@ -26,6 +26,9 @@ static void consume_channel(struct tmate_ssh_client *client)
 		if (len == 0)
 			return;
 
+		if (client->readonly)
+			continue;
+
 		ptr = buf;
 		setblocking(client->pty, 1);
 		while (len > 0) {

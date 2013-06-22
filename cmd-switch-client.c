@@ -60,6 +60,10 @@ cmd_switch_client_key_binding(struct cmd *self, int key)
 enum cmd_retval
 cmd_switch_client_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	cmdq_error(cmdq, "client switch is not supported");
+	return (CMD_RETURN_ERROR);
+#else
 	struct args	*args = self->args;
 	struct client	*c;
 	struct session	*s;
@@ -111,4 +115,5 @@ cmd_switch_client_exec(struct cmd *self, struct cmd_q *cmdq)
 	s->curw->flags &= ~WINLINK_ALERTFLAGS;
 
 	return (CMD_RETURN_NORMAL);
+#endif
 }

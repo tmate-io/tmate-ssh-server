@@ -102,6 +102,7 @@ struct tmate_ssh_client {
 	/* only for client-pty */
 	int pty;
 	struct event ev_pty;
+	int readonly;
 };
 extern void tmate_ssh_client_init(struct tmate_ssh_client *client,
 				  struct tmate_encoder *encoder,
@@ -136,6 +137,7 @@ extern void tmate_ssh_server_main(const char *keys_dir, int port);
 extern struct tmate_encoder *tmate_encoder;
 extern int tmux_socket_fd;
 extern const char *tmate_session_token;
+extern const char *tmate_session_token_ro;
 
 extern void tmate_get_random_bytes(void *buffer, ssize_t len);
 extern long tmate_get_random_long(void);

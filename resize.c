@@ -61,6 +61,10 @@ recalculate_sizes(void)
 			c = ARRAY_ITEM(&clients, j);
 			if (c == NULL || c->flags & CLIENT_SUSPENDED)
 				continue;
+#ifdef TMATE_SLAVE
+			if (c->flags & CLIENT_READONLY)
+				continue;
+#endif
 			if (c->session == s) {
 				if (c->tty.sx < ssx)
 					ssx = c->tty.sx;
