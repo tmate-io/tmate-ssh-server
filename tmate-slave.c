@@ -13,6 +13,8 @@
 #include <ncurses.h>
 #endif
 #include <term.h>
+#include <time.h>
+#include <fcntl.h>
 #include "tmate.h"
 
 struct tmate_encoder *tmate_encoder;
@@ -22,6 +24,7 @@ const char *tmate_session_token = "main";
 static char *log_path; /* NULL means stderr */
 static char *cmdline;
 static char *cmdline_end;
+static int dev_urandom_fd;
 
 extern FILE *log_file;
 extern int server_create_socket(void);
@@ -35,6 +38,19 @@ static void usage(void)
 void tmate_reopen_logfile(void)
 {
 	log_open(debug_level, log_path);
+}
+
+void tmate_get_random_bytes(void *buffer, ssize_t len)
+{
+	if (read(dev_urandom_fd, buffer, len) != len)
+		tmate_fatal("Cannot read from /dev/urandom");
+}
+
+long tmate_get_random_long(void)
+{
+	long val;
+	tmate_get_random_bytes(&val, sizeof(val));
+	return val;
 }
 
 int main(int argc, char **argv, char **envp)
@@ -67,6 +83,9 @@ int main(int argc, char **argv, char **envp)
 	cmdline_end = *envp;
 
 	tmate_reopen_logfile();
+
+	if ((dev_urandom_fd = open("/dev/urandom", O_RDONLY)) < 0)
+		tmate_fatal("Cannot open /dev/urandom");
 
 	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||
@@ -102,7 +121,7 @@ static char *get_random_token(void)
 	int i;
 	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
 
-	ssh_get_random(token, TMATE_TOKEN_LEN, 0);
+	tmate_get_random_bytes(token, TMATE_TOKEN_LEN);
 	for (i = 0; i < TMATE_TOKEN_LEN; i++)
 		token[i] = tmate_token_digits[token[i] % NUM_DIGITS];
 	token[i] = 0;
@@ -132,7 +151,10 @@ static int validate_token(const char *token)
 
 static void random_sleep(void)
 {
-	usleep(50000 + (rand() % 50000));
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 50000000 + (tmate_get_random_long() % 150000000);
+	nanosleep(&ts, NULL);
 }
 
 static void ssh_echo(struct tmate_ssh_client *ssh_client,

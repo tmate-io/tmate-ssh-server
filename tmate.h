@@ -137,6 +137,9 @@ extern struct tmate_encoder *tmate_encoder;
 extern int tmux_socket_fd;
 extern const char *tmate_session_token;
 
+extern void tmate_get_random_bytes(void *buffer, ssize_t len);
+extern long tmate_get_random_long(void);
+
 extern void tmate_reopen_logfile(void);
 extern void tmate_spawn_slave(struct tmate_ssh_client *client);
 
