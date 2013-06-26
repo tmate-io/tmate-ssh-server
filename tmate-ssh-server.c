@@ -152,6 +152,9 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	ssh_channel channel = NULL;
 	ssh_message msg;
 
+	/* new process group, we don't want to die with our parent (upstart) */
+	setpgid(0, 0);
+
 	int flag = 1;
 	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
 		   &flag, sizeof(flag));
@@ -178,27 +181,14 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 
 static void handle_sigchld(void)
 {
-	int status, child_dead, child_exit_status;
-	pid_t pid;
+	siginfo_t si;
 
 	/* TODO cleanup the socket when the client dies */
-
-	while ((pid = waitpid(0, &status, WNOHANG)) > 0) {
-		child_dead = 0;
-
-		if (WIFEXITED(status)) {
-			child_dead = 1;
-			child_exit_status = WEXITSTATUS(status);
-		}
-
-		if (WIFSIGNALED(status)) {
-			child_dead = 1;
-			child_exit_status = EXIT_FAILURE;
-		}
-
-		if (child_dead)
-			tmate_info("Child reaped pid=%d exit=%d",
-				   pid, child_exit_status);
+	while (waitid(P_ALL, 0, &si, WEXITED | WNOHANG) >= 0 && si.si_pid) {
+		tmate_info("Child %d %s (%d)",
+			   si.si_pid,
+			   si.si_code == CLD_EXITED ? "exited" : "killed",
+			   si.si_status);
 	}
 }
 
