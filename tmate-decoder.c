@@ -315,6 +315,7 @@ static void tmate_status(struct tmate_unpacker *uk)
 
 extern void window_copy_redraw_screen(struct window_pane *);
 extern int window_copy_update_selection(struct window_pane *);
+extern void window_copy_init_for_output(struct window_pane *);
 
 static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 {
@@ -323,6 +324,7 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 	struct screen_write_ctx ctx;
 	struct window_pane *wp;
 	int pane_id;
+	int base_backing = 1;
 
 	pane_id = unpack_int(uk);
 	wp = window_pane_find_by_id(pane_id);
@@ -340,8 +342,15 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 		return;
 	}
 
-	if (window_pane_set_mode(wp, &window_copy_mode) == 0)
-		window_copy_init_from_pane(wp);
+	if (tmate_client.protocol >= 2)
+		base_backing = unpack_int(&cm_uk);
+
+	if (window_pane_set_mode(wp, &window_copy_mode) == 0) {
+		if (base_backing)
+			window_copy_init_from_pane(wp);
+		else
+			window_copy_init_for_output(wp);
+	}
 	data = wp->modedata;
 
 	data->oy = unpack_int(&cm_uk);
@@ -389,6 +398,22 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 	window_copy_redraw_screen(wp);
 }
 
+static void tmate_write_copy_mode(struct tmate_unpacker *uk)
+{
+	struct window_pane *wp;
+	int id;
+	char *str;
+
+	id = unpack_int(uk);
+	wp = window_pane_find_by_id(id);
+	if (!wp)
+		tmate_fatal("can't find pane id=%d", id);
+
+	str = unpack_string(uk);
+	window_copy_add(wp, "%s", str);
+	free(str);
+}
+
 static void handle_message(msgpack_object obj)
 {
 	struct tmate_unpacker _uk;
@@ -405,6 +430,7 @@ static void handle_message(msgpack_object obj)
 	case TMATE_FAILED_CMD:		tmate_failed_cmd(uk);	break;
 	case TMATE_STATUS:		tmate_status(uk);	break;
 	case TMATE_SYNC_COPY_MODE:	tmate_sync_copy_mode(uk); break;
+	case TMATE_WRITE_COPY_MODE:	tmate_write_copy_mode(uk); break;
 	default:			decoder_error();
 	}
 }
