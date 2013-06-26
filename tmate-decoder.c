@@ -99,12 +99,9 @@ static void unpack_array(struct tmate_unpacker *uk,
 static void tmate_header(struct tmate_unpacker *uk)
 {
 	char hostname[128];
-	int protocol = unpack_int(uk);
+	tmate_client.protocol = unpack_int(uk);
 
-	if (protocol != 1)
-		decoder_error();
-
-	tmate_debug("new master, protocol version: %d", protocol);
+	tmate_debug("new master, protocol version: %d", tmate_client.protocol);
 
 	if (gethostname(hostname, sizeof(hostname)) < 0)
 		tmate_fatal("cannot get hostname");
@@ -356,7 +353,12 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 	if (sel_uk.argc) {
 		data->screen.sel.flag = 1;
 		data->selx = unpack_int(&sel_uk);
-		data->sely = unpack_int(&sel_uk);
+		if (tmate_client.protocol >= 2) {
+			data->sely = -unpack_int(&sel_uk) + screen_hsize(data->backing)
+							  + screen_size_y(data->backing)
+							  - 1;
+		} else
+			data->sely = unpack_int(&sel_uk);
 		data->rectflag = unpack_int(&sel_uk);
 	} else
 		data->screen.sel.flag = 0;

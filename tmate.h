@@ -99,6 +99,9 @@ struct tmate_ssh_client {
 	struct event ev_ssh;
 	struct event ev_keepalive_timer;
 
+	/* only for tmux client */
+	int protocol;
+
 	/* only for client-pty */
 	int pty;
 	struct event ev_pty;
