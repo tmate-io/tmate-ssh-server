@@ -199,8 +199,9 @@ static void handle_sigalrm(void)
 
 static void handle_sigsegv(void)
 {
-	tmate_fatal("CRASH");
+	tmate_info("CRASH, printing stack trace");
 	tmate_print_trace();
+	tmate_fatal("CRASHED");
 }
 
 static void handle_sigusr1(void)

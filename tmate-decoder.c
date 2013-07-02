@@ -410,6 +410,10 @@ static void tmate_write_copy_mode(struct tmate_unpacker *uk)
 		tmate_fatal("can't find pane id=%d", id);
 
 	str = unpack_string(uk);
+
+	if (window_pane_set_mode(wp, &window_copy_mode) == 0)
+		window_copy_init_for_output(wp);
+
 	window_copy_add(wp, "%s", str);
 	free(str);
 }
