@@ -336,8 +336,10 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	 * We won't have access to it once in the jail.
 	 */
 	setup_ncurse(STDOUT_FILENO, "screen-256color");
-	close_fds_except((int[]){tmux_socket_fd, ssh_get_fd(client->session),
-				 fileno(log_file)}, 7);
+
+	close_fds_except((int[]){tmux_socket_fd,
+				 ssh_get_fd(client->session),
+				 fileno(log_file)}, 3);
 
 #ifdef TMATE_RECORD_REPLAY
 	tmate_session_log_fd = open("session-log.log",
