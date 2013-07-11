@@ -438,7 +438,8 @@ static void handle_message(struct tmate_decoder *decoder, msgpack_object obj)
 
 	cmd = unpack_int(uk);
 
-#if 1
+#if 0
+	/* Really verbose tracers */
 	if (cmd != TMATE_PTY_DATA) {
 		msgpack_object_print(stderr, obj);
 		fprintf(stderr, "\n");
