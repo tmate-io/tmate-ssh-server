@@ -7,7 +7,7 @@
 
 #include "tmux.h"
 
-#define TMATE_RECORD_REPLAY /* useful to debug crashes */
+// #define TMATE_RECORD_REPLAY /* useful to debug crashes */
 
 #define tmate_debug(str, ...) log_debug("[tmate] " str, ##__VA_ARGS__)
 #define tmate_info(str, ...)   log_info("[tmate] " str, ##__VA_ARGS__)
