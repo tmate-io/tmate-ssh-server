@@ -67,6 +67,8 @@ enum tmate_commands {
 #define TMATE_PANE_ACTIVE 1
 
 struct tmate_decoder {
+	int protocol;
+
 	struct msgpack_unpacker unpacker;
 };
 
@@ -117,9 +119,6 @@ struct tmate_ssh_client {
 
 	struct event ev_ssh;
 	struct event ev_keepalive_timer;
-
-	/* only for tmux client */
-	int protocol;
 
 	/* only for client-pty */
 	int pty;

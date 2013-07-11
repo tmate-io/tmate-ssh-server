@@ -96,12 +96,13 @@ static void unpack_array(struct tmate_unpacker *uk,
 	     (tmp_uk)->argc > 0 && (init_unpacker(nested_uk, (tmp_uk)->argv[0]), 1); \
 	     (tmp_uk)->argv++, (tmp_uk)->argc--)
 
-static void tmate_header(struct tmate_unpacker *uk)
+static void tmate_header(struct tmate_decoder *decoder,
+			 struct tmate_unpacker *uk)
 {
 	char hostname[128];
-	tmate_client.protocol = unpack_int(uk);
+	decoder->protocol = unpack_int(uk);
 
-	tmate_debug("new master, protocol version: %d", tmate_client.protocol);
+	tmate_debug("new master, protocol version: %d", decoder->protocol);
 
 	if (gethostname(hostname, sizeof(hostname)) < 0)
 		tmate_fatal("cannot get hostname");
@@ -211,7 +212,8 @@ static void tmate_sync_windows(struct session *s,
 	server_redraw_window(wl->window);
 }
 
-static void tmate_sync_layout(struct tmate_unpacker *uk)
+static void tmate_sync_layout(struct tmate_decoder *decoder,
+			      struct tmate_unpacker *uk)
 {
 	struct session *s;
 	char *cause;
@@ -233,7 +235,8 @@ static void tmate_sync_layout(struct tmate_unpacker *uk)
 	tmate_sync_windows(s, uk);
 }
 
-static void tmate_pty_data(struct tmate_unpacker *uk)
+static void tmate_pty_data(struct tmate_decoder *decoder,
+			   struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;
 	const char *buf;
@@ -253,7 +256,8 @@ static void tmate_pty_data(struct tmate_unpacker *uk)
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
-static void tmate_exec_cmd(struct tmate_unpacker *uk)
+static void tmate_exec_cmd(struct tmate_decoder *decoder,
+			   struct tmate_unpacker *uk)
 {
 	struct cmd_q *cmd_q;
 	struct cmd_list *cmdlist;
@@ -274,7 +278,8 @@ out:
 	free(cmd_str);
 }
 
-static void tmate_failed_cmd(struct tmate_unpacker *uk)
+static void tmate_failed_cmd(struct tmate_decoder *decoder,
+			     struct tmate_unpacker *uk)
 {
 	struct client *c;
 	unsigned int i;
@@ -296,7 +301,8 @@ static void tmate_failed_cmd(struct tmate_unpacker *uk)
 	free(cause);
 }
 
-static void tmate_status(struct tmate_unpacker *uk)
+static void tmate_status(struct tmate_decoder *decoder,
+			 struct tmate_unpacker *uk)
 {
 	struct client *c;
 	unsigned int i;
@@ -317,7 +323,8 @@ extern void window_copy_redraw_screen(struct window_pane *);
 extern int window_copy_update_selection(struct window_pane *);
 extern void window_copy_init_for_output(struct window_pane *);
 
-static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
+static void tmate_sync_copy_mode(struct tmate_decoder *decoder,
+				 struct tmate_unpacker *uk)
 {
 	struct tmate_unpacker cm_uk, sel_uk, input_uk;
 	struct window_copy_mode_data *data;
@@ -342,7 +349,7 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 		return;
 	}
 
-	if (tmate_client.protocol >= 2)
+	if (decoder->protocol >= 2)
 		base_backing = unpack_int(&cm_uk);
 
 	if (window_pane_set_mode(wp, &window_copy_mode) == 0) {
@@ -362,7 +369,7 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 	if (sel_uk.argc) {
 		data->screen.sel.flag = 1;
 		data->selx = unpack_int(&sel_uk);
-		if (tmate_client.protocol >= 2) {
+		if (decoder->protocol >= 2) {
 			data->sely = -unpack_int(&sel_uk) + screen_hsize(data->backing)
 							  + screen_size_y(data->backing)
 							  - 1;
@@ -398,7 +405,8 @@ static void tmate_sync_copy_mode(struct tmate_unpacker *uk)
 	window_copy_redraw_screen(wp);
 }
 
-static void tmate_write_copy_mode(struct tmate_unpacker *uk)
+static void tmate_write_copy_mode(struct tmate_decoder *decoder,
+				  struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;
 	int id;
@@ -418,7 +426,7 @@ static void tmate_write_copy_mode(struct tmate_unpacker *uk)
 	free(str);
 }
 
-static void handle_message(msgpack_object obj)
+static void handle_message(struct tmate_decoder *decoder, msgpack_object obj)
 {
 	struct tmate_unpacker _uk;
 	struct tmate_unpacker *uk = &_uk;
@@ -426,15 +434,24 @@ static void handle_message(msgpack_object obj)
 
 	init_unpacker(uk, obj);
 
-	switch (unpack_int(uk)) {
-	case TMATE_HEADER:		tmate_header(uk);	break;
-	case TMATE_SYNC_LAYOUT:		tmate_sync_layout(uk);	break;
-	case TMATE_PTY_DATA:		tmate_pty_data(uk);	break;
-	case TMATE_EXEC_CMD:		tmate_exec_cmd(uk);	break;
-	case TMATE_FAILED_CMD:		tmate_failed_cmd(uk);	break;
-	case TMATE_STATUS:		tmate_status(uk);	break;
-	case TMATE_SYNC_COPY_MODE:	tmate_sync_copy_mode(uk); break;
-	case TMATE_WRITE_COPY_MODE:	tmate_write_copy_mode(uk); break;
+	cmd = unpack_int(uk);
+
+#if 1
+	if (cmd != TMATE_PTY_DATA) {
+		msgpack_object_print(stderr, obj);
+		fprintf(stderr, "\n");
+	}
+#endif
+
+	switch (cmd) {
+	case TMATE_HEADER:		tmate_header(decoder, uk);		break;
+	case TMATE_SYNC_LAYOUT:		tmate_sync_layout(decoder, uk);		break;
+	case TMATE_PTY_DATA:		tmate_pty_data(decoder, uk);		break;
+	case TMATE_EXEC_CMD:		tmate_exec_cmd(decoder, uk);		break;
+	case TMATE_FAILED_CMD:		tmate_failed_cmd(decoder, uk);		break;
+	case TMATE_STATUS:		tmate_status(decoder, uk);		break;
+	case TMATE_SYNC_COPY_MODE:	tmate_sync_copy_mode(decoder, uk);	break;
+	case TMATE_WRITE_COPY_MODE:	tmate_write_copy_mode(decoder, uk);	break;
 	default:			decoder_error();
 	}
 }
@@ -447,7 +464,7 @@ void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len)
 
 	msgpack_unpacked_init(&result);
 	while (msgpack_unpacker_next(&decoder->unpacker, &result)) {
-		handle_message(result.data);
+		handle_message(decoder, result.data);
 	}
 	msgpack_unpacked_destroy(&result);
 
