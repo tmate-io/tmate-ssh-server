@@ -927,7 +927,7 @@ int ssh_message_auth_interactive_request(ssh_message msg, const char *name,
     r = buffer_add_ssh_string(msg->session->out_buffer, tmp);
     ssh_string_free(tmp);
     if (r < 0) {
-        goto error;
+        return SSH_ERROR;
     }
 
     /* echo[i] */
@@ -1003,9 +1003,6 @@ int ssh_message_auth_interactive_request(ssh_message msg, const char *name,
   }
 
   return r;
-error:
-  if(tmp) ssh_string_free(tmp);
-  return SSH_ERROR;
 }
 
 int ssh_message_auth_reply_success(ssh_message msg, int partial) {
