@@ -7,6 +7,8 @@
 
 #include "tmux.h"
 
+#define TMATE_RECORD_REPLAY /* useful to debug crashes */
+
 #define tmate_debug(str, ...) log_debug("[tmate] " str, ##__VA_ARGS__)
 #define tmate_info(str, ...)   log_info("[tmate] " str, ##__VA_ARGS__)
 #define tmate_fatal(str, ...)				\
@@ -73,6 +75,22 @@ extern void tmate_decoder_get_buffer(struct tmate_decoder *decoder,
 				     char **buf, size_t *len);
 extern void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len);
 
+#ifdef TMATE_RECORD_REPLAY
+/* tmate-replayer.c */
+
+struct tmate_replayer {
+	struct tmate_decoder *decoder;
+	int log_fd;
+
+	struct event ev_read_timer;
+};
+
+extern void tmate_replayer_init(struct tmate_replayer *replayer,
+				struct tmate_decoder *decoder,
+				int log_fd);
+#endif
+
+
 /* tmate-ssh-client.c */
 
 typedef struct ssh_session_struct* ssh_session;
@@ -121,6 +139,10 @@ extern void tmate_flush_pty(struct tmate_ssh_client *client);
 
 #define TMATE_SSH_BANNER "tmate"
 #define TMATE_KEEPALIVE 60
+
+#ifdef TMATE_RECORD_REPLAY
+extern int tmate_session_log_fd;
+#endif
 
 extern struct tmate_ssh_client tmate_client;
 extern void tmate_start_keepalive_timer(struct tmate_ssh_client *client);

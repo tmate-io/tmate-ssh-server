@@ -26,7 +26,11 @@ void tmate_encoder_init(struct tmate_encoder *encoder)
 	msgpack_pack_raw_body(pk, str, __strlen);	\
 } while(0)
 
-#define pack(what, ...) msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__)
+/* tmate_encoder may be NULL when replaying a session */
+#define pack(what, ...) do {						\
+	if (tmate_encoder)						\
+		msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__);	\
+} while(0)
 
 void printflike1 tmate_notify(const char *fmt, ...)
 {

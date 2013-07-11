@@ -22,6 +22,11 @@ int tmux_socket_fd;
 const char *tmate_session_token = "main";
 const char *tmate_session_token_ro = "ro-main";
 
+#ifdef TMATE_RECORD_REPLAY
+int tmate_session_log_fd;
+static void tmate_replay_slave_server(const char *replay_file);
+#endif
+
 static char *log_path; /* NULL means stderr */
 static char *cmdline;
 static char *cmdline_end;
@@ -33,7 +38,7 @@ extern int client_connect(char *path, int start_server);
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-r logfile] [-v]\n");
 }
 
 void tmate_reopen_logfile(void)
@@ -59,8 +64,11 @@ int main(int argc, char **argv, char **envp)
 	int opt;
 	int port = TMATE_DEFAULT_PORT;
 	const char *keys_dir = "keys";
+#ifdef TMATE_RECORD_REPLAY
+	const char *replay_file = NULL;
+#endif
 
-	while ((opt = getopt(argc, argv, "p:l:vk:")) != -1) {
+	while ((opt = getopt(argc, argv, "p:l:vk:r:")) != -1) {
 		switch (opt) {
 		case 'p':
 			port = atoi(optarg);
@@ -74,6 +82,13 @@ int main(int argc, char **argv, char **envp)
 		case 'v':
 			debug_level++;
 			break;
+		case 'r':
+#ifdef TMATE_RECORD_REPLAY
+			replay_file = optarg;
+#else
+			fprintf(stderr, "Record/Replay not enabled\n");
+#endif
+			break;
 		default:
 			usage();
 			return 1;
@@ -85,15 +100,22 @@ int main(int argc, char **argv, char **envp)
 
 	tmate_reopen_logfile();
 
+	tmate_preload_trace_lib();
+
 	if ((dev_urandom_fd = open("/dev/urandom", O_RDONLY)) < 0)
 		tmate_fatal("Cannot open /dev/urandom");
+
+#ifdef TMATE_RECORD_REPLAY
+	if (replay_file) {
+		tmate_replay_slave_server(replay_file);
+		return 0;
+	}
+#endif
 
 	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
-
-	tmate_preload_trace_lib();
 
 	tmate_ssh_server_main(keys_dir, port);
 	return 0;
@@ -257,9 +279,35 @@ static void jail(void)
 static void setup_ncurse(int fd, const char *name)
 {
 	int error;
-	if (setupterm(name, fd, &error) != OK)
+	if (setupterm((char *)name, fd, &error) != OK)
 		tmate_fatal("Cannot setup terminal");
 }
+
+#ifdef TMATE_RECORD_REPLAY
+static void tmate_replay_slave_server(const char *replay_file)
+{
+	struct tmate_decoder decoder;
+	struct tmate_replayer replayer;
+
+	tmate_debug("Replaying slave server with %s", replay_file);
+
+	tmux_socket_fd = server_create_socket();
+	if (tmux_socket_fd < 0)
+		tmate_fatal("Cannot create to the tmux socket");
+
+	tmate_session_log_fd = open(replay_file, O_RDONLY);
+	if (tmate_session_log_fd < 0)
+		tmate_fatal("cannot open session-dump.log");
+
+	ev_base = osdep_event_init();
+
+	tmate_decoder_init(&decoder);
+	tmate_replayer_init(&replayer, &decoder, tmate_session_log_fd);
+
+	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
+	/* never reached */
+}
+#endif
 
 static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 {
@@ -290,6 +338,14 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	setup_ncurse(STDOUT_FILENO, "screen-256color");
 	close_fds_except((int[]){tmux_socket_fd, ssh_get_fd(client->session),
 				 fileno(log_file)}, 7);
+
+#ifdef TMATE_RECORD_REPLAY
+	tmate_session_log_fd = open("session-log.log",
+				    O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	if (tmate_session_log_fd < 0)
+		tmate_fatal("cannot open session-dump.log");
+#endif
+
 	jail();
 
 	ev_base = osdep_event_init();
