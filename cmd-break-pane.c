@@ -41,6 +41,9 @@ const struct cmd_entry cmd_break_pane_entry = {
 enum cmd_retval
 cmd_break_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct winlink		*wl;
 	struct session		*s;
@@ -112,4 +115,5 @@ cmd_break_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 		format_free(ft);
 	}
 	return (CMD_RETURN_NORMAL);
+#endif
 }

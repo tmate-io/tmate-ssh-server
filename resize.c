@@ -140,7 +140,9 @@ recalculate_sizes(void)
 		is_zoomed = w->flags & WINDOW_ZOOMED;
 		if (is_zoomed)
 			window_unzoom(w);
+#ifndef TMATE_SLAVE
 		layout_resize(w, ssx, ssy);
+#endif
 		window_resize(w, ssx, ssy);
 		if (is_zoomed && window_pane_visible(w->active))
 			window_zoom(w->active);

@@ -85,6 +85,9 @@ cmd_select_layout_key_binding(struct cmd *self, int key)
 enum cmd_retval
 cmd_select_layout_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args	*args = self->args;
 	struct winlink	*wl;
 	const char	*layoutname;
@@ -132,4 +135,5 @@ cmd_select_layout_exec(struct cmd *self, struct cmd_q *cmdq)
 		cmdq_info(cmdq, "arranging in: %s", layoutname);
 	}
 	return (CMD_RETURN_NORMAL);
+#endif
 }

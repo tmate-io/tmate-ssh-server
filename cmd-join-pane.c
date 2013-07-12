@@ -76,6 +76,9 @@ cmd_join_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 enum cmd_retval
 join_pane(struct cmd *self, struct cmd_q *cmdq, int not_same_window)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct session		*dst_s;
 	struct winlink		*src_wl, *dst_wl;
@@ -170,4 +173,5 @@ join_pane(struct cmd *self, struct cmd_q *cmdq, int not_same_window)
 
 	notify_window_layout_changed(dst_w);
 	return (CMD_RETURN_NORMAL);
+#endif
 }

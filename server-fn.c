@@ -380,7 +380,9 @@ server_destroy_pane(struct window_pane *wp)
 #endif
 
 	server_unzoom_window(w);
+#ifndef TMATE_SLAVE
 	layout_close_pane(wp);
+#endif
 	window_remove_pane(w, wp);
 
 	if (TAILQ_EMPTY(&w->panes))

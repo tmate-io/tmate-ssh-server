@@ -930,8 +930,10 @@ struct window_pane {
 
 	struct window	*window;
 
+#ifndef TMATE_SLAVE
 	struct layout_cell *layout_cell;
 	struct layout_cell *saved_layout_cell;
+#endif
 
 	u_int		 sx;
 	u_int		 sy;
@@ -1002,8 +1004,11 @@ struct window {
 	struct window_panes panes;
 
 	int		 lastlayout;
+
+#ifndef TMATE_SLAVE
 	struct layout_cell *layout_root;
 	struct layout_cell *saved_layout_root;
+#endif
 
 	u_int		 sx;
 	u_int		 sy;

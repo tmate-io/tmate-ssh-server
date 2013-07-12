@@ -88,6 +88,9 @@ cmd_resize_pane_key_binding(struct cmd *self, int key)
 enum cmd_retval
 cmd_resize_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct winlink		*wl;
 	struct window		*w;
@@ -154,4 +157,5 @@ cmd_resize_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 	server_redraw_window(wl->window);
 
 	return (CMD_RETURN_NORMAL);
+#endif
 }

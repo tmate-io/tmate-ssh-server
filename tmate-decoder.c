@@ -152,10 +152,8 @@ static void tmate_sync_window_panes(struct window *w,
 	}
 
 	TAILQ_FOREACH_SAFE(wp, &w->panes, entry, wp_tmp) {
-		if (wp->flags & PANE_KILL) {
-			layout_close_pane(wp);
+		if (wp->flags & PANE_KILL)
 			window_remove_pane(w, wp);
-		}
 	}
 
 	active_pane_id = unpack_int(w_uk);

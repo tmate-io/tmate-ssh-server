@@ -352,7 +352,11 @@ format_winlink(struct format_tree *ft, struct session *s, struct winlink *wl)
 	struct window	*w = wl->window;
 	char		*layout, *flags;
 
+#ifdef TMATE_SLAVE
+	layout = xstrdup("no layout");
+#else
 	layout = layout_dump(w);
+#endif
 	flags = window_printable_flags(s, wl);
 
 	format_add(ft, "window_id", "@%u", w->id);

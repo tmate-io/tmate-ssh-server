@@ -22,6 +22,8 @@
 
 #include "tmux.h"
 
+#ifndef TMATE_SLAVE
+
 /*
  * The window layout is a tree of cells each of which can be one of: a
  * left-right container for a list of cells, a top-bottom container for a list
@@ -782,3 +784,5 @@ layout_close_pane(struct window_pane *wp)
 	}
 	notify_window_layout_changed(wp->window);
 }
+
+#endif

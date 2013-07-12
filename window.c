@@ -282,8 +282,10 @@ window_create1(u_int sx, u_int sy)
 	TAILQ_INIT(&w->panes);
 	w->active = NULL;
 
+#ifndef TMATE_SLAVE
 	w->lastlayout = -1;
 	w->layout_root = NULL;
+#endif
 
 	w->sx = sx;
 	w->sy = sy;
@@ -315,7 +317,9 @@ window_create(const char *name, const char *cmd, const char *shell,
 
 	w = window_create1(sx, sy);
 	wp = window_add_pane(w, hlimit);
+#ifndef TMATE_SLAVE
 	layout_init(w, wp);
+#endif
 
 	if (window_pane_spawn(wp, cmd, shell, cwd, env, tio, cause) != 0) {
 		window_destroy(w);
@@ -345,8 +349,10 @@ window_destroy(struct window *w)
 	while (!ARRAY_EMPTY(&windows) && ARRAY_LAST(&windows) == NULL)
 		ARRAY_TRUNC(&windows, 1);
 
+#ifndef TMATE_SLAVE
 	if (w->layout_root != NULL)
 		layout_free(w);
+#endif
 
 	if (event_initialized(&w->name_timer))
 		evtimer_del(&w->name_timer);
@@ -479,6 +485,7 @@ window_zoom(struct window_pane *wp)
 	if (w->active != wp)
 		window_set_active_pane(w, wp);
 
+#ifndef TMATE_SLAVE
 	TAILQ_FOREACH(wp1, &w->panes, entry) {
 		wp1->saved_layout_cell = wp1->layout_cell;
 		wp1->layout_cell = NULL;
@@ -486,6 +493,7 @@ window_zoom(struct window_pane *wp)
 
 	w->saved_layout_root = w->layout_root;
 	layout_init(w, wp);
+#endif
 	w->flags |= WINDOW_ZOOMED;
 
 	return (0);
@@ -500,6 +508,8 @@ window_unzoom(struct window *w)
 		return (-1);
 
 	w->flags &= ~WINDOW_ZOOMED;
+
+#ifndef TMATE_SLAVE
 	layout_free(w);
 	w->layout_root = w->saved_layout_root;
 
@@ -508,6 +518,7 @@ window_unzoom(struct window *w)
 		wp->saved_layout_cell = NULL;
 	}
 	layout_fix_panes(w, w->sx, w->sy);
+#endif
 
 	return (0);
 }
@@ -684,7 +695,9 @@ window_pane_create(struct window *w, u_int sx, u_int sy, u_int hlimit)
 
 	wp->mode = NULL;
 
+#ifndef TMATE_SLAVE
 	wp->layout_cell = NULL;
+#endif
 
 	wp->xoff = 0;
 	wp->yoff = 0;

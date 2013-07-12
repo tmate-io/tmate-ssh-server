@@ -48,6 +48,9 @@ cmd_rotate_window_key_binding(struct cmd *self, int key)
 enum cmd_retval
 cmd_rotate_window_exec(struct cmd *self, struct cmd_q *cmdq)
 {
+#ifdef TMATE_SLAVE
+	return (CMD_RETURN_ERROR);
+#else
 	struct args		*args = self->args;
 	struct winlink		*wl;
 	struct window		*w;
@@ -116,4 +119,5 @@ cmd_rotate_window_exec(struct cmd *self, struct cmd_q *cmdq)
 	}
 
 	return (CMD_RETURN_NORMAL);
+#endif
 }

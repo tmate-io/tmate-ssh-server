@@ -22,6 +22,8 @@
 
 #include "tmux.h"
 
+#ifndef TMATE_SLAVE
+
 /*
  * Set window layouts - predefined methods to arrange windows. These are one-off
  * and generate a layout tree.
@@ -567,3 +569,4 @@ layout_set_tiled(struct window *w)
 
 	server_redraw_window(w);
 }
+#endif
