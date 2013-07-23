@@ -148,6 +148,7 @@ static int init_client_step(struct tmate_ssh_client *client,
 static void client_bootstrap(struct tmate_ssh_client *client)
 {
 	int auth = 0;
+	int grace_period = SSH_GRACE_PERIOD;
 	ssh_session session = client->session;
 	ssh_channel channel = NULL;
 	ssh_message msg;
@@ -161,6 +162,7 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 
 	alarm(SSH_GRACE_PERIOD);
 
+	ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &grace_period);
 	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
 
 	tmate_debug("Exchanging DH keys");
