@@ -100,9 +100,17 @@ static void tmate_header(struct tmate_decoder *decoder,
 			 struct tmate_unpacker *uk)
 {
 	char hostname[128];
-	decoder->protocol = unpack_int(uk);
+	char *client_version = xstrdup("< 1.8.6");
 
-	tmate_debug("new master, protocol version: %d", decoder->protocol);
+	decoder->protocol = unpack_int(uk);
+	if (decoder->protocol >= 3) {
+		free(client_version);
+		client_version = unpack_string(uk);
+	}
+
+	tmate_debug("new master, client version: %s, protocol version: %d",
+		    client_version, decoder->protocol);
+	free(client_version);
 
 	if (gethostname(hostname, sizeof(hostname)) < 0)
 		tmate_fatal("cannot get hostname");
