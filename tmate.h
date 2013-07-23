@@ -19,6 +19,7 @@ do {							\
 
 /* tmate-encoder.c */
 
+#define TMATE_LATEST_VERSION "1.8.6"
 #define TMATE_DOMAIN "tmate.io"
 
 enum tmate_client_commands {
@@ -31,12 +32,14 @@ enum tmate_client_commands {
 struct tmate_encoder {
 	struct evbuffer *buffer;
 	struct event ev_readable;
+	struct event ev_notify_timer;
 	msgpack_packer pk;
 };
 
 extern void tmate_encoder_init(struct tmate_encoder *encoder);
 
 extern void printflike1 tmate_notify(const char *fmt, ...);
+extern void printflike2 tmate_notify_later(int timeout, const char *fmt, ...);
 extern void tmate_notify_client_join(struct client *c);
 extern void tmate_notify_client_left(struct client *c);
 

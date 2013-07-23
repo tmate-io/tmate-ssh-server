@@ -32,6 +32,13 @@ void tmate_encoder_init(struct tmate_encoder *encoder)
 		msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__);	\
 } while(0)
 
+static void __tmate_notify(const char *msg)
+{
+	pack(array, 2);
+	pack(int, TMATE_NOTIFY);
+	pack(string, msg);
+}
+
 void printflike1 tmate_notify(const char *fmt, ...)
 {
 	va_list ap;
@@ -41,9 +48,36 @@ void printflike1 tmate_notify(const char *fmt, ...)
 	vsnprintf(msg, sizeof(msg), fmt, ap);
 	va_end(ap);
 
-	pack(array, 2);
-	pack(int, TMATE_NOTIFY);
-	pack(string, msg);
+	__tmate_notify(msg);
+}
+
+static void __tmate_notify_later(evutil_socket_t fd, short what, void *arg)
+{
+	char *msg = arg;
+	__tmate_notify(msg);
+}
+
+void printflike2 tmate_notify_later(int timeout, const char *fmt, ...)
+{
+	struct timeval tv;
+	va_list ap;
+	char *msg;
+
+	tv.tv_sec = timeout;
+	tv.tv_usec = 0;
+
+	va_start(ap, fmt);
+	xvasprintf(&msg, fmt, ap);
+	va_end(ap);
+
+	/*
+	 * FIXME leaks like crazy when calling tmate_notify_later()
+	 * multiple times.
+	 */
+
+	evtimer_assign(&tmate_encoder->ev_notify_timer, ev_base,
+		       __tmate_notify_later, msg);
+	evtimer_add(&tmate_encoder->ev_notify_timer, &tv);
 }
 
 static int num_clients(void)

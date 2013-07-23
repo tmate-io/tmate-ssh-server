@@ -110,6 +110,10 @@ static void tmate_header(struct tmate_decoder *decoder,
 
 	tmate_debug("new master, client version: %s, protocol version: %d",
 		    client_version, decoder->protocol);
+
+	if (strcmp(client_version, TMATE_LATEST_VERSION))
+		tmate_notify_later(10, "A new version is available, please upgrade :)");
+
 	free(client_version);
 
 	if (gethostname(hostname, sizeof(hostname)) < 0)
