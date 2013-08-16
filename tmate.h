@@ -19,7 +19,7 @@ do {							\
 
 /* tmate-encoder.c */
 
-#define TMATE_LATEST_VERSION "1.8.7"
+#define TMATE_LATEST_VERSION "1.8.8"
 #define TMATE_DOMAIN "tmate.io"
 
 enum tmate_client_commands {
