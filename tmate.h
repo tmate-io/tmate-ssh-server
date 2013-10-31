@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 #include <msgpack.h>
+#include <libssh/libssh.h>
 #include <event.h>
 
 #include "tmux.h"
@@ -97,9 +98,6 @@ extern void tmate_replayer_init(struct tmate_replayer *replayer,
 
 
 /* tmate-ssh-client.c */
-
-typedef struct ssh_session_struct* ssh_session;
-typedef struct ssh_channel_struct* ssh_channel;
 
 #define TMATE_ROLE_SERVER 1
 #define TMATE_ROLE_CLIENT 2
