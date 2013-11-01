@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include "tmate.h"
 
+int tmate_port = TMATE_DEFAULT_PORT;
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
@@ -62,7 +63,6 @@ long tmate_get_random_long(void)
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
-	int port = TMATE_DEFAULT_PORT;
 	const char *keys_dir = "keys";
 #ifdef TMATE_RECORD_REPLAY
 	const char *replay_file = NULL;
@@ -71,7 +71,7 @@ int main(int argc, char **argv, char **envp)
 	while ((opt = getopt(argc, argv, "p:l:vk:r:")) != -1) {
 		switch (opt) {
 		case 'p':
-			port = atoi(optarg);
+			tmate_port = atoi(optarg);
 			break;
 		case 'l':
 			log_path = optarg;
@@ -117,7 +117,7 @@ int main(int argc, char **argv, char **envp)
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
-	tmate_ssh_server_main(keys_dir, port);
+	tmate_ssh_server_main(keys_dir, tmate_port);
 	return 0;
 }
 
