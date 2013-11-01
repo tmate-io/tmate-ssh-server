@@ -331,8 +331,12 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 			   client->ip_address, sizeof(client->ip_address)) < 0)
 			tmate_fatal("Error getting IP address from connection");
 
-		if ((pid = namespace_fork()) < 0)
-			tmate_fatal("Can't fork in new namespace");
+		if ((pid = namespace_fork()) < 0) {
+			if (getuid() == 0)
+				tmate_fatal("Can't fork in new namespace, are you running a recent kernel?");
+			else
+				tmate_fatal("Can't fork in new namespace, run me with root priviledges");
+		}
 
 		if (pid) {
 			tmate_info("Child spawned pid=%d, ip=%s",
