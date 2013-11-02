@@ -147,7 +147,6 @@ extern void tmate_start_keepalive_timer(struct tmate_ssh_client *client);
 extern void tmate_ssh_server_main(const char *keys_dir, int port);
 
 /* tmate-slave.c */
-#define TMATE_DEFAULT_DOMAIN "tmate.io"
 #ifdef DEVENV
 #define TMATE_DEFAULT_PORT 2200
 #else
