@@ -41,7 +41,7 @@ extern int client_connect(char *path, int start_server);
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-r logfile] [-h HOST] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p port] [-r logfile] [-h host] [-v]\n");
 }
 
 void tmate_reopen_logfile(void)
