@@ -101,11 +101,11 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	// get hostname and set tmate_host
-	char hostname[255];
-	if (gethostname(hostname, sizeof(hostname)) < 0) {
-		tmate_fatal("cannot get hostname");
-	}
 	if (!tmate_host) {
+		char hostname[255];
+		if (gethostname(hostname, sizeof(hostname)) < 0) {
+			tmate_fatal("cannot get hostname");
+		}
 		tmate_host = xstrdup(hostname);
 	}
 
