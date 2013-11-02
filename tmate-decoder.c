@@ -99,7 +99,6 @@ static void unpack_array(struct tmate_unpacker *uk,
 static void tmate_header(struct tmate_decoder *decoder,
 			 struct tmate_unpacker *uk)
 {
-	char hostname[128];
 	char port_arg[16] = {0};
 	char *client_version = xstrdup("< 1.8.6");
 
@@ -117,17 +116,14 @@ static void tmate_header(struct tmate_decoder *decoder,
 
 	free(client_version);
 
-	if (gethostname(hostname, sizeof(hostname)) < 0)
-		tmate_fatal("cannot get hostname");
-
 	if (tmate_port != 22)
 		sprintf(port_arg, " -p%d", tmate_port);
 
-	tmate_notify("Remote session read only: ssh%s ro-%s@%s.%s (clear your screen if you share this)",
-		     port_arg, tmate_session_token_ro, hostname, TMATE_DOMAIN);
+	tmate_notify("Remote session read only: ssh%s ro-%s@%s (clear your screen if you share this)",
+		     port_arg, tmate_session_token_ro, tmate_host);
 
-	tmate_notify("Remote session: ssh%s %s@%s.%s",
-		     port_arg, tmate_session_token, hostname, TMATE_DOMAIN);
+	tmate_notify("Remote session: ssh%s %s@%s",
+		     port_arg, tmate_session_token, tmate_host);
 }
 
 extern u_int next_window_pane_id;
