@@ -18,7 +18,7 @@
 #include "tmate.h"
 
 int tmate_port = TMATE_DEFAULT_PORT;
-char *tmate_domain = NULL;
+char *tmate_host = NULL;
 
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
@@ -92,12 +92,21 @@ int main(int argc, char **argv, char **envp)
 #endif
 			break;
 		case 'h':
-			tmate_domain = xstrdup(optarg);
+			tmate_host = xstrdup(optarg);
 			break;
 		default:
 			usage();
 			return 1;
 		}
+	}
+
+	// get hostname and set tmate_host
+	char hostname[255];
+	if (gethostname(hostname, sizeof(hostname)) < 0) {
+		tmate_fatal("cannot get hostname");
+	}
+	if (!tmate_host) {
+		tmate_host = xstrdup(hostname);
 	}
 
 	cmdline = *argv;
