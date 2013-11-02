@@ -124,10 +124,10 @@ static void tmate_header(struct tmate_decoder *decoder,
 		sprintf(port_arg, " -p%d", tmate_port);
 
 	tmate_notify("Remote session read only: ssh%s ro-%s@%s.%s (clear your screen if you share this)",
-		     port_arg, tmate_session_token_ro, hostname, TMATE_DOMAIN);
+		     port_arg, tmate_session_token_ro, hostname, tmate_domain);
 
 	tmate_notify("Remote session: ssh%s %s@%s.%s",
-		     port_arg, tmate_session_token, hostname, TMATE_DOMAIN);
+		     port_arg, tmate_session_token, hostname, tmate_domain);
 }
 
 extern u_int next_window_pane_id;

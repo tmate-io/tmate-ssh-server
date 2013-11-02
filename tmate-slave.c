@@ -18,6 +18,8 @@
 #include "tmate.h"
 
 int tmate_port = TMATE_DEFAULT_PORT;
+char *tmate_domain = TMATE_DOMAIN;
+
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
@@ -39,7 +41,7 @@ extern int client_connect(char *path, int start_server);
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-r logfile] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-l logfile] [-p PORT] [-r logfile] [-h HOST] [-v]\n");
 }
 
 void tmate_reopen_logfile(void)
@@ -68,7 +70,7 @@ int main(int argc, char **argv, char **envp)
 	const char *replay_file = NULL;
 #endif
 
-	while ((opt = getopt(argc, argv, "p:l:vk:r:")) != -1) {
+	while ((opt = getopt(argc, argv, "p:l:vk:r:h:")) != -1) {
 		switch (opt) {
 		case 'p':
 			tmate_port = atoi(optarg);
@@ -88,6 +90,9 @@ int main(int argc, char **argv, char **envp)
 #else
 			fprintf(stderr, "Record/Replay not enabled\n");
 #endif
+			break;
+		case 'h':
+			tmate_domain = xstrdup(optarg);
 			break;
 		default:
 			usage();
