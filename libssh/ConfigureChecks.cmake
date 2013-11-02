@@ -93,6 +93,7 @@ endif (NOT WITH_GCRYPT)
 
 # FUNCTIONS
 
+check_function_exists(isblank HAVE_ISBLANK)
 check_function_exists(strncpy HAVE_STRNCPY)
 check_function_exists(vsnprintf HAVE_VSNPRINTF)
 check_function_exists(snprintf HAVE_SNPRINTF)

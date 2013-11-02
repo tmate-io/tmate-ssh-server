@@ -105,14 +105,18 @@ static int callback_receive_banner(const void *data, size_t len, void *user) {
   		ssh_pcap_context_write(session->pcap_ctx,SSH_PCAP_DIR_IN,buffer,i+1,i+1);
   	}
 #endif
-  	if(buffer[i]=='\r')
-  		buffer[i]='\0';
-  	if(buffer[i]=='\n'){
-  		buffer[i]='\0';
-  		str=strdup(buffer);
-  		/* number of bytes read */
-  		ret=i+1;
-  		session->serverbanner=str;
+    if(buffer[i]=='\r') {
+        buffer[i]='\0';
+    }
+    if (buffer[i]=='\n') {
+        buffer[i] = '\0';
+        str = strdup(buffer);
+        if (str == NULL) {
+            return SSH_ERROR;
+        }
+        /* number of bytes read */
+        ret = i + 1;
+        session->serverbanner = str;
   		session->session_state=SSH_SESSION_STATE_BANNER_RECEIVED;
   		SSH_LOG(SSH_LOG_PACKET,"Received banner: %s",str);
 		session->ssh_connection_callback(session);

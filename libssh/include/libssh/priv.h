@@ -67,7 +67,9 @@
 
 #  define strcasecmp _stricmp
 #  define strncasecmp _strnicmp
-#  define isblank(ch) ((ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r')
+#  if ! defined(HAVE_ISBLANK)
+#   define isblank(ch) ((ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r')
+#  endif
 
 #  define usleep(X) Sleep(((X)+1000)/1000)
 

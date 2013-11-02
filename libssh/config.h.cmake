@@ -79,6 +79,9 @@
 /* Define to 1 if you have the `_vsnprintf_s' function. */
 #cmakedefine HAVE__VSNPRINTF_S 1
 
+/* Define to 1 if you have the `isblank' function. */
+#cmakedefine HAVE_ISBLANK 1
+
 /* Define to 1 if you have the `strncpy' function. */
 #cmakedefine HAVE_STRNCPY 1
 
