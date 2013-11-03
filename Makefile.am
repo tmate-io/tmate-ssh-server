@@ -254,9 +254,11 @@ tmate_slave_LDADD = \
 *.c: $(tmate_slave_LDADD)
 
 libssh/build/src/libssh.a:
-	cd libssh/build && cmake .. -DWITH_SFTP=OFF -DWITH_SERVER=ON -DWITH_PCAP=OFF -DWITH_STATIC_LIB=ON -DWITH_GSSAPI=OFF
+	cd libssh/build; ([ -f Makefile ] || cmake .. -DWITH_SFTP=OFF -DWITH_SERVER=ON -DWITH_PCAP=OFF -DWITH_STATIC_LIB=ON -DWITH_GSSAPI=OFF)
 	+make -C libssh/build ssh_static
 
 msgpack/src/.libs/libmsgpackc.a:
-	cd msgpack && ./bootstrap && ./configure
+	cd msgpack; ([ -f Makefile ] || (./bootstrap && ./configure))
 	+make -C msgpack/src libmsgpackc.la
+
+.PHONY: libssh/build/src/libssh.a msgpack/src/.libs/libmsgpackc.a
