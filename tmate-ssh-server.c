@@ -14,9 +14,6 @@
 
 #define SSH_GRACE_PERIOD 60
 
-#define REPLY_DEFAULT	1
-#define STEP_COMPLETE	2
-
 static void on_keepalive_timer(evutil_socket_t fd, short what, void *arg)
 {
 	struct tmate_ssh_client *client = arg;
@@ -35,122 +32,97 @@ void tmate_start_keepalive_timer(struct tmate_ssh_client *client)
 	evtimer_add(&client->ev_keepalive_timer, &tv);
 }
 
-typedef int (*bootstrap_step_cb)(struct tmate_ssh_client *client,
-				 ssh_message msg);
-
-static void bootstrap_step(struct tmate_ssh_client *client,
-			   bootstrap_step_cb step)
+static int pty_request(ssh_session session, ssh_channel channel,
+		       const char *term, int width, int height,
+		       int pxwidth, int pwheight, void *userdata)
 {
-	ssh_message msg;
+	struct tmate_ssh_client *client = userdata;
 
-	for (;;) {
-		msg = ssh_message_get(client->session);
+	client->winsize_pty.ws_col = width;
+	client->winsize_pty.ws_row = height;
 
-		switch (step(client, msg)) {
-		case STEP_COMPLETE:
-			return;
-		case REPLY_DEFAULT:
-			ssh_message_reply_default(msg);
-		}
-
-		ssh_message_free(msg);
-	}
+	return 0;
 }
 
-static int user_auth_step(struct tmate_ssh_client *client,
-			  ssh_message msg)
+static int shell_request(ssh_session session, ssh_channel channel,
+			 void *userdata)
 {
-	if (!msg)
-		tmate_fatal("Authentification error");
+	struct tmate_ssh_client *client = userdata;
 
-	if (ssh_message_type(msg) != SSH_REQUEST_AUTH)
-		return REPLY_DEFAULT;
+	client->role = TMATE_ROLE_CLIENT;
 
-	if (ssh_message_subtype(msg) != SSH_AUTH_METHOD_PUBLICKEY) {
-		ssh_message_auth_set_methods(msg, SSH_AUTH_METHOD_PUBLICKEY);
-		return REPLY_DEFAULT;
-	}
-
-	switch (ssh_message_auth_publickey_state(msg)) {
-	case SSH_PUBLICKEY_STATE_NONE:
-		ssh_message_auth_reply_pk_ok_simple(msg);
-		return 0;
-
-	case SSH_PUBLICKEY_STATE_VALID:
-		client->username = xstrdup(ssh_message_auth_user(msg));
-		if (ssh_pki_export_pubkey_base64(ssh_message_auth_pubkey(msg),
-						 &client->pubkey) != SSH_OK)
-			tmate_fatal("error getting public key");
-
-		ssh_message_auth_reply_success(msg, 0);
-		return STEP_COMPLETE;
-	default:
-		return REPLY_DEFAULT;
-	}
+	return 0;
 }
 
-static int channel_open_step(struct tmate_ssh_client *client,
-			     ssh_message msg)
+static int subsystem_request(ssh_session session, ssh_channel channel,
+			     const char *subsystem, void *userdata)
 {
-	if (!msg)
+	struct tmate_ssh_client *client = userdata;
+
+	if (!strcmp(subsystem, "tmate"))
+		client->role = TMATE_ROLE_SERVER;
+
+	return 0;
+}
+
+static struct ssh_channel_callbacks_struct ssh_channel_cb = {
+    .channel_pty_request_function = pty_request,
+    .channel_shell_request_function = shell_request,
+    .channel_subsystem_request_function = subsystem_request,
+};
+
+static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
+{
+	struct tmate_ssh_client *client = userdata;
+
+	if (!client->username) {
+		/* The authentication did not go through yet */
+		return NULL;
+	}
+
+	if (client->channel) {
+		/* We already have a channel, returning NULL means we are unhappy */
+		return NULL;
+	}
+
+	client->channel = ssh_channel_new(session);
+	if (!client->channel)
 		tmate_fatal("Error getting channel");
 
-	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL_OPEN &&
-	    ssh_message_subtype(msg) == SSH_CHANNEL_SESSION) {
-		client->channel = ssh_message_channel_request_open_reply_accept(msg);
-		if (!client->channel)
-			tmate_fatal("Error getting channel");
+	ssh_channel_cb.userdata = client;
+	ssh_callbacks_init(&ssh_channel_cb);
+	ssh_set_channel_callbacks(client->channel, &ssh_channel_cb);
 
-		return STEP_COMPLETE;
-	}
-
-	return REPLY_DEFAULT;
+	return client->channel;
 }
 
-static int init_client_step(struct tmate_ssh_client *client,
-			    ssh_message msg)
+static int auth_pubkey_cb(ssh_session session, const char *user,
+			  struct ssh_key_struct *pubkey,
+			  char signature_state, void *userdata)
 {
-	if (!msg)
-		tmate_fatal("Error getting subsystem");
+	struct tmate_ssh_client *client = userdata;
 
-	/* pty request */
-	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
-		client->winsize_pty.ws_col = ssh_message_channel_request_pty_width(msg);
-		client->winsize_pty.ws_row = ssh_message_channel_request_pty_height(msg);
-		ssh_message_channel_request_reply_success(msg);
-		return 0;
+	if (signature_state == SSH_PUBLICKEY_STATE_VALID) {
+		client->username = xstrdup(user);
+
+		if (ssh_pki_export_pubkey_base64(pubkey, &client->pubkey) != SSH_OK)
+			tmate_fatal("error getting public key");
 	}
 
-	/* tmate subsystem request (master) */
-	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM &&
-	    !strcmp(ssh_message_channel_request_subsystem(msg), "tmate")) {
-		client->role = TMATE_ROLE_SERVER;
-	}
-
-	/* shell request (slave client) */
-	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
-	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
-		client->role = TMATE_ROLE_CLIENT;
-	}
-
-	if (client->role) {
-		alarm(0);
-		ssh_message_channel_request_reply_success(msg);
-		tmate_spawn_slave(client);
-		/* never reached */
-	}
-
-	return REPLY_DEFAULT;
+	return SSH_AUTH_SUCCESS;
 }
+
+static struct ssh_server_callbacks_struct ssh_server_cb = {
+	.auth_pubkey_function = auth_pubkey_cb,
+	.channel_open_request_session_function = channel_open_request_cb,
+};
 
 static void client_bootstrap(struct tmate_ssh_client *client)
 {
 	int auth = 0;
 	int grace_period = SSH_GRACE_PERIOD;
+	ssh_event mainloop;
 	ssh_session session = client->session;
-	ssh_channel channel = NULL;
 	ssh_message msg;
 
 	/* new process group, we don't want to die with our parent (upstart) */
@@ -160,24 +132,31 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
 		   &flag, sizeof(flag));
 
-	alarm(SSH_GRACE_PERIOD);
+	alarm(grace_period);
+
+	ssh_server_cb.userdata = client;
+	ssh_callbacks_init(&ssh_server_cb);
+	ssh_set_server_callbacks(client->session, &ssh_server_cb);
 
 	ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &grace_period);
 	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
+
+	ssh_set_auth_methods(client->session, SSH_AUTH_METHOD_PUBLICKEY);
 
 	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
 		tmate_fatal("Error doing the key exchange");
 
-	tmate_debug("Authenticating with public key");
-	bootstrap_step(client, user_auth_step);
+	mainloop = ssh_event_new();
+	ssh_event_add_session(mainloop, session);
 
-	tmate_debug("Opening channel");
-	bootstrap_step(client, channel_open_step);
+	while (!client->role) {
+		if (ssh_event_dopoll(mainloop, -1) == SSH_ERROR)
+			tmate_fatal("Error polling ssh socket: %s", ssh_get_error(session));
+	}
 
-	tmate_debug("Getting client type");
-	bootstrap_step(client, init_client_step);
-
+	alarm(0);
+	tmate_spawn_slave(client);
 	/* never reached */
 }
 
