@@ -335,7 +335,9 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	set_session_token(client, token);
 	free(token);
 
-	tmate_debug("Spawning slave server for %s", client->ip_address);
+	tmate_debug("Spawning slave server for %s at %s (%s)",
+		    client->username, client->ip_address, client->pubkey);
+
 
 	tmux_socket_fd = server_create_socket();
 	if (tmux_socket_fd < 0)
@@ -396,7 +398,8 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	set_session_token(client, token);
 
-	tmate_debug("Spawning slave client for %s", client->ip_address);
+	tmate_debug("Spawning slave client for %s (%s)",
+		    client->ip_address, client->pubkey);
 
 	tmux_socket_fd = client_connect(socket_path, 0);
 	if (tmux_socket_fd < 0) {
