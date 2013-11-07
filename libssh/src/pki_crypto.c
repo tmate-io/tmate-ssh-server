@@ -25,6 +25,8 @@
 #ifndef _PKI_CRYPTO_H
 #define _PKI_CRYPTO_H
 
+#include "libssh/priv.h"
+
 #include <openssl/pem.h>
 #include <openssl/dsa.h>
 #include <openssl/err.h>
@@ -37,8 +39,6 @@
 #include <openssl/ecdsa.h>
 #endif
 
-
-#include "libssh/priv.h"
 #include "libssh/libssh.h"
 #include "libssh/buffer.h"
 #include "libssh/session.h"

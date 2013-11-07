@@ -20,6 +20,9 @@
 /* Define to 1 if you have the <pty.h> header file. */
 #cmakedefine HAVE_PTY_H 1
 
+/* Define to 1 if you have the <util.h> header file. */
+#cmakedefine HAVE_UTIL_H 1
+
 /* Define to 1 if you have the <termios.h> header file. */
 #cmakedefine HAVE_TERMIOS_H 1
 
@@ -126,7 +129,6 @@
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #cmakedefine HAVE_PTHREAD 1
 
-
 /**************************** OPTIONS ****************************/
 
 #cmakedefine HAVE_GCC_THREAD_LOCAL_STORAGE 1
@@ -157,6 +159,9 @@
 
 /* Define to 1 if you want to enable calltrace debug output */
 #cmakedefine DEBUG_CALLTRACE 1
+
+/* Define to 1 if you want to enable NaCl support */
+#cmakedefine WITH_NACL 1
 
 /*************************** ENDIAN *****************************/
 

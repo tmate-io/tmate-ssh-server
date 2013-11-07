@@ -533,7 +533,7 @@ pending:
       if (timeout == 0) {
           timeout = 10 * 1000;
       }
-      SSH_LOG(SSH_LOG_PACKET,"ssh_connect: Actual timeout : %d", timeout);
+      SSH_LOG(SSH_LOG_PACKET,"Actual timeout : %d", timeout);
       ret = ssh_handle_packets_termination(session, timeout, ssh_connect_termination, session);
       if (ret == SSH_ERROR || !ssh_connect_termination(session)) {
           ssh_set_error(session, SSH_FATAL,
@@ -550,7 +550,7 @@ pending:
           session->session_state = SSH_SESSION_STATE_ERROR;
       }
   }
-  SSH_LOG(SSH_LOG_PACKET,"ssh_connect: Actual state : %d",session->session_state);
+  SSH_LOG(SSH_LOG_PACKET,"current state : %d",session->session_state);
   if(!ssh_is_blocking(session) && !ssh_connect_termination(session)){
     return SSH_AGAIN;
   }

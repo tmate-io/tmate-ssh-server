@@ -309,10 +309,8 @@ static int ssh_execute_server_callbacks(ssh_session session, ssh_message msg){
 
     if (session->server_callbacks != NULL){
         rc = ssh_execute_server_request(session, msg);
-    }
-
-    /* This one is in fact a client callback... */
-    else if (session->common.callbacks != NULL) {
+    } else if (session->common.callbacks != NULL) {
+        /* This one is in fact a client callback... */
         rc = ssh_execute_client_request(session, msg);
     }
 

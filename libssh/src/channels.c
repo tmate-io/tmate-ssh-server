@@ -3348,17 +3348,18 @@ error:
 }
 
 /**
- * @brief Send the exit status to the remote process (as described in RFC 4254, section 6.10).
+ * @brief Send the exit status to the remote process
  *
- * Sends the exit status to the remote process.
+ * Sends the exit status to the remote process (as described in RFC 4254,
+ * section 6.10).
  * Only SSH-v2 is supported (I'm not sure about SSH-v1).
  *
  * @param[in]  channel  The channel to send exit status.
  *
- * @param[in]  sig      The exit status to send
+ * @param[in]  exit_status  The exit status to send
  *
- * @return              SSH_OK on success, SSH_ERROR if an error occurred
- *                      (including attempts to send exit status via SSH-v1 session).
+ * @return     SSH_OK on success, SSH_ERROR if an error occurred.
+ *             (including attempts to send exit status via SSH-v1 session).
  */
 int ssh_channel_request_send_exit_status(ssh_channel channel, int exit_status) {
   ssh_buffer buffer = NULL;

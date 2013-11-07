@@ -1254,7 +1254,7 @@ static int ssh_bind_options_set_algo(ssh_bind sshbind, int algo,
 /**
  * @brief This function can set all possible ssh bind options.
  *
- * @param  session      An allocated ssh option structure.
+ * @param  sshbind      An allocated ssh bind structure.
  *
  * @param  type         The option type to set. This could be one of the
  *                      following:
