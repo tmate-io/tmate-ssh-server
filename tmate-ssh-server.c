@@ -208,16 +208,6 @@ static void setup_signals(void)
 	signal(SIGUSR1, signal_handler);
 }
 
-static void ssh_log_cb(ssh_session session, int priority,
-		    const char *message, void *userdata)
-{
-	tmate_debug("[%d] %s", priority, message);
-}
-
-static struct ssh_callbacks_struct ssh_session_callbacks = {
-	.log_function = ssh_log_cb
-};
-
 static pid_t namespace_fork(void)
 {
 	/* XXX we are breaking getpid() libc cache. Bad libc. */
@@ -255,6 +245,12 @@ static int get_ip(int fd, char *dst, size_t len)
 
 struct tmate_ssh_client tmate_client;
 
+static void ssh_log_function(int priority, const char *function,
+			     const char *buffer, void *userdata)
+{
+	tmate_debug("[%d] [%s] %s", priority, function, buffer);
+}
+
 static ssh_bind prepare_ssh(const char *keys_dir, int port)
 {
 	ssh_bind bind;
@@ -262,7 +258,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	int verbosity = SSH_LOG_NOLOG;
 	//int verbosity = SSH_LOG_PACKET;
 
-	ssh_callbacks_init(&ssh_session_callbacks);
+	ssh_set_log_callback(ssh_log_function);
 
 	bind = ssh_bind_new();
 	if (!bind)
@@ -300,8 +296,6 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 		client->channel = NULL;
 		if (!client->session)
 			tmate_fatal("Cannot initialize session");
-
-		ssh_set_callbacks(client->session, &ssh_session_callbacks);
 
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
