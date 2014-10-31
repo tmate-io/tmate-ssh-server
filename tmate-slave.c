@@ -20,6 +20,7 @@
 int tmate_port = TMATE_DEFAULT_PORT;
 char *tmate_host;
 
+struct tmate_decoder *tmate_decoder;
 struct tmate_encoder *tmate_encoder;
 int tmux_socket_fd;
 const char *tmate_session_token = "main";
@@ -369,6 +370,7 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	tmate_encoder_init(&encoder);
 	tmate_decoder_init(&decoder);
 	tmate_encoder = &encoder;
+	tmate_decoder = &decoder;
 
 	tmate_ssh_client_init(client, &encoder, &decoder);
 

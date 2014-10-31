@@ -125,6 +125,26 @@ void tmate_notify_client_left(struct client *c)
 	mate_notify_message(c, 0);
 }
 
+void tmate_send_client_ready(void)
+{
+	if (tmate_decoder && tmate_decoder->protocol < 4)
+		return;
+
+	pack(array, 1);
+	pack(int, TMATE_CLIENT_READY);
+}
+
+void tmate_send_env(const char *name, const char *value)
+{
+	if (tmate_decoder && tmate_decoder->protocol < 4)
+		return;
+
+	pack(array, 3);
+	pack(int, TMATE_CLIENT_ENV);
+	pack(string, name);
+	pack(string, value);
+}
+
 void tmate_client_resize(u_int sx, u_int sy)
 {
 	pack(array, 3);

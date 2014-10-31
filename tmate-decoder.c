@@ -101,6 +101,7 @@ static void tmate_header(struct tmate_decoder *decoder,
 {
 	char port_arg[16] = {0};
 	char *client_version = xstrdup("< 1.8.6");
+	char tmp[512];
 
 	decoder->protocol = unpack_int(uk);
 	if (decoder->protocol >= 3) {
@@ -111,19 +112,25 @@ static void tmate_header(struct tmate_decoder *decoder,
 	tmate_debug("new master, client version: %s, protocol version: %d",
 		    client_version, decoder->protocol);
 
+#if 0
 	if (strcmp(client_version, TMATE_LATEST_VERSION))
 		tmate_notify_later(10, "A new version is available, please upgrade :)");
+#endif
 
 	free(client_version);
 
 	if (tmate_port != 22)
 		sprintf(port_arg, " -p%d", tmate_port);
 
-	tmate_notify("Remote session read only: ssh%s ro-%s@%s (clear your screen if you share this)",
-		     port_arg, tmate_session_token_ro, tmate_host);
+	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, tmate_session_token_ro, tmate_host);
+	tmate_notify("Remote session read only: %s (clear your screen if you share this)", tmp);
+	tmate_send_env("tmate_ssh_ro", tmp);
 
-	tmate_notify("Remote session: ssh%s %s@%s",
-		     port_arg, tmate_session_token, tmate_host);
+	sprintf(tmp, "ssh%s %s@%s", port_arg, tmate_session_token, tmate_host);
+	tmate_notify("Remote session: %s", tmp);
+	tmate_send_env("tmate_ssh", tmp);
+
+	tmate_send_client_ready();
 }
 
 extern u_int next_window_pane_id;

@@ -20,13 +20,15 @@ do {							\
 
 /* tmate-encoder.c */
 
-#define TMATE_LATEST_VERSION "1.8.9"
+#define TMATE_LATEST_VERSION "1.8.10"
 
 enum tmate_client_commands {
 	TMATE_NOTIFY,
 	TMATE_CLIENT_PANE_KEY,
 	TMATE_CLIENT_RESIZE,
 	TMATE_CLIENT_EXEC_CMD,
+	TMATE_CLIENT_ENV,
+	TMATE_CLIENT_READY,
 };
 
 struct tmate_encoder {
@@ -48,6 +50,8 @@ extern void tmate_client_pane_key(int pane_id, int key);
 extern void tmate_client_cmd(int client_id, const char *cmd);
 extern void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id);
 extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
+extern void tmate_send_env(const char *name, const char *value);
+extern void tmate_send_client_ready(void);
 
 /* tmate-decoder.c */
 
@@ -161,6 +165,7 @@ extern void tmate_ssh_server_main(const char *keys_dir, int port);
 
 extern int tmate_port;
 extern struct tmate_encoder *tmate_encoder;
+extern struct tmate_decoder *tmate_decoder;
 extern int tmux_socket_fd;
 extern char *tmate_host;
 extern const char *tmate_session_token;
