@@ -102,14 +102,18 @@ static int auth_pubkey_cb(ssh_session session, const char *user,
 {
 	struct tmate_ssh_client *client = userdata;
 
-	if (signature_state == SSH_PUBLICKEY_STATE_VALID) {
+	switch (signature_state) {
+	case SSH_PUBLICKEY_STATE_VALID:
 		client->username = xstrdup(user);
 
 		if (ssh_pki_export_pubkey_base64(pubkey, &client->pubkey) != SSH_OK)
 			tmate_fatal("error getting public key");
+		return SSH_AUTH_SUCCESS;
+	case SSH_PUBLICKEY_STATE_NONE:
+		return SSH_AUTH_SUCCESS;
+	default:
+		return SSH_AUTH_DENIED;
 	}
-
-	return SSH_AUTH_SUCCESS;
 }
 
 static struct ssh_server_callbacks_struct ssh_server_cb = {
