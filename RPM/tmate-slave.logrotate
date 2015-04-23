@@ -1,4 +1,4 @@
-# Logrotate file for tmate-slavw
+# Logrotate file for tmate-slave
  
 /var/log/tmate-slave {
 	missingok
