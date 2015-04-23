@@ -1,0 +1,1 @@
+OPTIONS="-k /etc/tmate-slave/keys -l /var/log/tmate-slave.log -p 22000"

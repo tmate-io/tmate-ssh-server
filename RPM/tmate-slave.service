@@ -1,0 +1,10 @@
+[Unit]
+Description=tmux slave server
+After=network.target 
+
+[Service]
+EnvironmentFile=/etc/sysconfig/tmate-slave
+ExecStart=/usr/bin/tmate-slave $OPTIONS
+
+[Install]
+WantedBy=multi-user.target

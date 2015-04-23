@@ -1,0 +1,10 @@
+# Logrotate file for tmate-slavw
+ 
+/var/log/tmate-slave {
+	missingok
+	compress
+	notifempty
+	daily
+	rotate 5
+	copytruncate
+}
