@@ -1,6 +1,7 @@
 #ifndef TMATE_H
 #define TMATE_H
 
+#include <sys/syslog.h>
 #include <sys/types.h>
 #include <msgpack.h>
 #include <libssh/libssh.h>
@@ -8,15 +9,18 @@
 
 #include "tmux.h"
 
-// #define TMATE_RECORD_REPLAY /* useful to debug crashes */
+extern void init_logging(const char *program_name, bool use_syslog, int log_level);
+extern void printflike2 tmate_log(int level, const char *msg, ...);
 
-#define tmate_debug(str, ...) log_debug("[tmate] " str, ##__VA_ARGS__)
-#define tmate_info(str, ...)   log_info("[tmate] " str, ##__VA_ARGS__)
-#define tmate_fatal(str, ...)				\
-do {							\
-	log_info("[tmate] FATAL " str, ##__VA_ARGS__);	\
-	exit(-1);					\
-} while (0)
+#define tmate_debug(str, ...)	tmate_log(LOG_DEBUG, str, ##__VA_ARGS__)
+#define tmate_info(str, ...)	tmate_log(LOG_INFO, str, ##__VA_ARGS__)
+#define tmate_notice(str, ...)	tmate_log(LOG_NOTICE, str, ##__VA_ARGS__)
+#define tmate_warn(str, ...)	tmate_log(LOG_WARNING, str, ##__VA_ARGS__)
+#define tmate_fatal(str, ...)					\
+({								\
+	tmate_log(LOG_CRIT, "fatal: " str, ##__VA_ARGS__);	\
+ 	exit(1);						\
+})
 
 /* tmate-encoder.c */
 
@@ -84,22 +88,6 @@ extern void tmate_decoder_get_buffer(struct tmate_decoder *decoder,
 				     char **buf, size_t *len);
 extern void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len);
 
-#ifdef TMATE_RECORD_REPLAY
-/* tmate-replayer.c */
-
-struct tmate_replayer {
-	struct tmate_decoder *decoder;
-	int log_fd;
-
-	struct event ev_read_timer;
-};
-
-extern void tmate_replayer_init(struct tmate_replayer *replayer,
-				struct tmate_decoder *decoder,
-				int log_fd);
-#endif
-
-
 /* tmate-ssh-client.c */
 
 #define TMATE_ROLE_SERVER 1
@@ -153,11 +141,27 @@ extern void tmate_ssh_server_main(const char *keys_dir, int port);
 
 /* tmate-slave.c */
 
+struct tmate_settings {
+	const char *keys_dir;
+	int ssh_port;
+	const char *master_hostname;
+	int master_port;
+	const char *tmate_host;
+	int log_level;
+	bool use_syslog;
+};
+extern struct tmate_settings tmate_settings;
+
 #ifdef DEVENV
-#define TMATE_DEFAULT_PORT 2200
+#define TMATE_SSH_DEFAULT_PORT 2200
 #else
-#define TMATE_DEFAULT_PORT 22
+#define TMATE_SSH_DEFAULT_PORT 22
 #endif
+
+#define TMATE_SSH_DEFAULT_KEYS_DIR "keys"
+
+#define TMATE_DEFAULT_MASTER_HOST NULL
+#define TMATE_DEFAULT_MASTER_PORT 7000
 
 #define TMATE_TOKEN_LEN 25
 #define TMATE_WORKDIR "/tmp/tmate"

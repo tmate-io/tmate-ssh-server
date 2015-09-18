@@ -181,7 +181,6 @@ dist_tmate_slave_SOURCES = \
 	tmate-debug.c \
 	tmate-decoder.c \
 	tmate-encoder.c \
-	tmate-replayer.c \
 	tmate-slave.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-client.c \

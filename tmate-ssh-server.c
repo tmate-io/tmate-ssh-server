@@ -129,6 +129,8 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	ssh_session session = client->session;
 	ssh_message msg;
 
+	tmate_notice("Bootstrapping ssh client ip=%s", client->ip_address);
+
 	/* new process group, we don't want to die with our parent (upstart) */
 	setpgid(0, 0);
 
@@ -149,7 +151,8 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 
 	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
-		tmate_fatal("Error doing the key exchange");
+		tmate_fatal("Error doing the key exchange: %s",
+				    ssh_get_error(session));
 
 	mainloop = ssh_event_new();
 	ssh_event_add_session(mainloop, session);
@@ -189,18 +192,12 @@ static void handle_sigsegv(void)
 	tmate_fatal("CRASHED");
 }
 
-static void handle_sigusr1(void)
-{
-	tmate_reopen_logfile();
-}
-
 static void signal_handler(int sig)
 {
 	switch (sig) {
 	case SIGCHLD: handle_sigchld(); break;
 	case SIGALRM: handle_sigalrm(); break;
 	case SIGSEGV: handle_sigsegv(); break;
-	case SIGUSR1: handle_sigusr1(); break;
 	}
 }
 
@@ -209,7 +206,6 @@ static void setup_signals(void)
 	signal(SIGCHLD, signal_handler);
 	signal(SIGALRM, signal_handler);
 	signal(SIGSEGV, signal_handler);
-	signal(SIGUSR1, signal_handler);
 }
 
 static pid_t namespace_fork(void)
@@ -260,7 +256,6 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	ssh_bind bind;
 	char buffer[PATH_MAX];
 	int verbosity = SSH_LOG_NOLOG;
-	//int verbosity = SSH_LOG_PACKET;
 
 	ssh_set_log_callback(ssh_log_function);
 
@@ -272,16 +267,16 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &verbosity);
 
-	sprintf(buffer, "%s/ssh_host_dsa_key", keys_dir);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_DSAKEY, buffer);
-
 	sprintf(buffer, "%s/ssh_host_rsa_key", keys_dir);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, buffer);
+
+	sprintf(buffer, "%s/ssh_host_ecdsa_key", keys_dir);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_ECDSAKEY, buffer);
 
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
 
-	tmate_info("Accepting connections on %d", port);
+	tmate_notice("Accepting connections on %d", port);
 
 	return bind;
 }
@@ -321,7 +316,7 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 			ssh_free(client->session);
 		} else {
 			ssh_bind_free(bind);
-			tmate_session_token = ".........................";
+			tmate_session_token = "init";
 			client_bootstrap(client);
 		}
 	}

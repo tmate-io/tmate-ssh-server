@@ -119,14 +119,14 @@ static void tmate_header(struct tmate_decoder *decoder,
 
 	free(client_version);
 
-	if (tmate_port != 22)
-		sprintf(port_arg, " -p%d", tmate_port);
+	if (tmate_settings.ssh_port != 22)
+		sprintf(port_arg, " -p%d", tmate_settings.ssh_port);
 
-	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, tmate_session_token_ro, tmate_host);
+	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, tmate_session_token_ro, tmate_settings.tmate_host);
 	tmate_notify("Remote session read only: %s (clear your screen if you share this)", tmp);
 	tmate_send_env("tmate_ssh_ro", tmp);
 
-	sprintf(tmp, "ssh%s %s@%s", port_arg, tmate_session_token, tmate_host);
+	sprintf(tmp, "ssh%s %s@%s", port_arg, tmate_session_token, tmate_settings.tmate_host);
 	tmate_notify("Remote session: %s", tmp);
 	tmate_send_env("tmate_ssh", tmp);
 

@@ -12,25 +12,6 @@ extern void server_send_shutdown(void);
 	server_send_shutdown();			\
 } while(0)
 
-#ifdef TMATE_RECORD_REPLAY
-static void record_session_data(const char *buf, size_t len)
-{
-	ssize_t ret;
-
-	while (len > 0) {
-		ret = write(tmate_session_log_fd, buf, len);
-		if (ret < 0)
-			tmate_fatal("cannot save recording of the session");
-
-		buf += ret;
-		len -= ret;
-	}
-}
-#else
-static inline void record_session_data(const char *buf, size_t len)
-{}
-#endif
-
 static void consume_channel(struct tmate_ssh_client *client)
 {
 	char *buf;
@@ -55,8 +36,6 @@ static void consume_channel(struct tmate_ssh_client *client)
 		}
 		if (len == 0)
 			break;
-
-		record_session_data(buf, len);
 
 		tmate_decoder_commit(client->decoder, len);
 	}
