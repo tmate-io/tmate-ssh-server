@@ -1,36 +1,6 @@
 #include "tmate.h"
 
-static int msgpack_write(void *data, const char *buf, unsigned int len)
-{
-	struct tmate_encoder *encoder = data;
-
-	evbuffer_add(encoder->buffer, buf, len);
-
-	if ((encoder->ev_readable.ev_flags & EVLIST_INSERTED) &&
-	    !(encoder->ev_readable.ev_flags & EVLIST_ACTIVE)) {
-		event_active(&encoder->ev_readable, EV_READ, 0);
-	}
-
-	return 0;
-}
-
-void tmate_encoder_init(struct tmate_encoder *encoder)
-{
-	encoder->buffer = evbuffer_new();
-	msgpack_packer_init(&encoder->pk, encoder, &msgpack_write);
-}
-
-#define msgpack_pack_string(pk, str) do {		\
-	int __strlen = strlen(str);			\
-	msgpack_pack_raw(pk, __strlen);			\
-	msgpack_pack_raw_body(pk, str, __strlen);	\
-} while(0)
-
-/* tmate_encoder may be NULL when replaying a session */
-#define pack(what, ...) do {						\
-	if (tmate_encoder)						\
-		msgpack_pack_##what(&tmate_encoder->pk, __VA_ARGS__);	\
-} while(0)
+#define pack(what, ...) _pack(&tmate_session->client_encoder, what, __VA_ARGS__)
 
 static void __tmate_notify(const char *msg)
 {
@@ -75,9 +45,9 @@ void printflike2 tmate_notify_later(int timeout, const char *fmt, ...)
 	 * multiple times.
 	 */
 
-	evtimer_assign(&tmate_encoder->ev_notify_timer, ev_base,
+	evtimer_assign(&tmate_session->ev_notify_timer, ev_base,
 		       __tmate_notify_later, msg);
-	evtimer_add(&tmate_encoder->ev_notify_timer, &tv);
+	evtimer_add(&tmate_session->ev_notify_timer, &tv);
 }
 
 static int num_clients(void)
@@ -127,7 +97,7 @@ void tmate_notify_client_left(struct client *c)
 
 void tmate_send_client_ready(void)
 {
-	if (tmate_decoder && tmate_decoder->protocol < 4)
+	if (tmate_session->client_protocol_version < 4)
 		return;
 
 	pack(array, 1);
@@ -136,7 +106,7 @@ void tmate_send_client_ready(void)
 
 void tmate_send_env(const char *name, const char *value)
 {
-	if (tmate_decoder && tmate_decoder->protocol < 4)
+	if (tmate_session->client_protocol_version < 4)
 		return;
 
 	pack(array, 3);

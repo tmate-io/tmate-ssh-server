@@ -162,7 +162,7 @@ server_start(int lockfd, char *lockfile)
 #endif
 
 #ifdef TMATE_SLAVE
-	server_fd = tmux_socket_fd;
+	server_fd = tmate_session->tmux_socket_fd;
 #else
 	server_fd = server_create_socket();
 	server_client_create(pair[1]);

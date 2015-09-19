@@ -179,8 +179,9 @@ dist_tmate_slave_SOURCES = \
 	signal.c \
 	status.c \
 	tmate-debug.c \
-	tmate-decoder.c \
-	tmate-encoder.c \
+	tmate-client-decoder.c \
+	tmate-client-encoder.c \
+	tmate-msgpack.c \
 	tmate-slave.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-client.c \

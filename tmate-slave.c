@@ -16,13 +16,10 @@
 #include <time.h>
 #include <fcntl.h>
 #include <sys/syslog.h>
+#include <sched.h>
 #include "tmate.h"
 
-struct tmate_decoder *tmate_decoder;
-struct tmate_encoder *tmate_encoder;
-int tmux_socket_fd;
-const char *tmate_session_token;
-const char *tmate_session_token_ro;
+struct tmate_session _tmate_session, *tmate_session = &_tmate_session;
 
 extern FILE *log_file;
 
@@ -33,7 +30,7 @@ static int dev_urandom_fd;
 extern int server_create_socket(void);
 extern int client_connect(char *path, int start_server);
 
-struct tmate_settings tmate_settings = {
+struct tmate_settings _tmate_settings = {
 	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
 	.ssh_port        = TMATE_SSH_DEFAULT_PORT,
 	.master_hostname = TMATE_DEFAULT_MASTER_HOST,
@@ -42,6 +39,8 @@ struct tmate_settings tmate_settings = {
 	.log_level       = LOG_NOTICE,
 	.use_syslog      = false,
 };
+
+struct tmate_settings *tmate_settings = &_tmate_settings;
 
 static void usage(void)
 {
@@ -61,6 +60,18 @@ long tmate_get_random_long(void)
 	return val;
 }
 
+extern int server_shutdown;
+extern int server_fd;
+extern void server_send_shutdown(void);
+void request_server_termination(void)
+{
+	if (server_fd) {
+		server_shutdown = 1;
+		server_send_shutdown();
+	} else
+		exit(1);
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
@@ -68,25 +79,25 @@ int main(int argc, char **argv, char **envp)
 	while ((opt = getopt(argc, argv, "k:p:lvm:q:")) != -1) {
 		switch (opt) {
 		case 'p':
-			tmate_settings.ssh_port = atoi(optarg);
+			tmate_settings->ssh_port = atoi(optarg);
 			break;
 		case 'k':
-			tmate_settings.keys_dir = xstrdup(optarg);
+			tmate_settings->keys_dir = xstrdup(optarg);
 			break;
 		case 's':
-			tmate_settings.use_syslog = true;
+			tmate_settings->use_syslog = true;
 			break;
 		case 'v':
-			tmate_settings.log_level++;
+			tmate_settings->log_level++;
 			break;
 		case 'm':
-			tmate_settings.master_hostname = xstrdup(optarg);
+			tmate_settings->master_hostname = xstrdup(optarg);
 			break;
 		case 'q':
-			tmate_settings.master_port = atoi(optarg);
+			tmate_settings->master_port = atoi(optarg);
 			break;
 		case 'h':
-			tmate_settings.tmate_host = xstrdup(optarg);
+			tmate_settings->tmate_host = xstrdup(optarg);
 			break;
 		default:
 			usage();
@@ -94,18 +105,18 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-	if (!tmate_settings.tmate_host) {
+	if (!tmate_settings->tmate_host) {
 		char hostname[255];
 		if (gethostname(hostname, sizeof(hostname)) < 0)
 			tmate_fatal("cannot get hostname");
-		tmate_settings.tmate_host = xstrdup(hostname);
+		tmate_settings->tmate_host = xstrdup(hostname);
 	}
 
 	cmdline = *argv;
 	cmdline_end = *envp;
 
 	init_logging("tmate-ssh",
-		     tmate_settings.use_syslog, tmate_settings.log_level);
+		     tmate_settings->use_syslog, tmate_settings->log_level);
 
 	tmate_preload_trace_lib();
 
@@ -117,7 +128,8 @@ int main(int argc, char **argv, char **envp)
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
-	tmate_ssh_server_main(tmate_settings.keys_dir, tmate_settings.ssh_port);
+	tmate_ssh_server_main(tmate_session,
+			      tmate_settings->keys_dir, tmate_settings->ssh_port);
 	return 0;
 }
 
@@ -139,33 +151,33 @@ static char *get_random_token(void)
 	return token;
 }
 
-static void set_session_token(struct tmate_ssh_client *client,
+static void set_session_token(struct tmate_session *session,
 			      const char *token)
 {
-	tmate_session_token = xstrdup(token);
+	session->session_token = xstrdup(token);
 	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
 	strcat(socket_path, token);
 
 	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-slave [%s] %s %s",
-		tmate_session_token,
-		client->role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
-		client->ip_address);
+		session->session_token,
+		session->ssh_client.role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
+		session->ssh_client.ip_address);
 }
-static void create_session_ro_symlink(void)
+static void create_session_ro_symlink(struct tmate_session *session)
 {
 	char session_ro_path[MAXPATHLEN];
 
-	tmate_session_token_ro = get_random_token();
+	session->session_token_ro = get_random_token();
 #ifdef DEVENV
-	strcpy((char *)tmate_session_token_ro, "READONLYTOKENFORDEVENV000");
+	strcpy((char *)session->session_token_ro, "READONLYTOKENFORDEVENV000");
 #endif
 
 	strcpy(session_ro_path, TMATE_WORKDIR "/sessions/");
-	strcat(session_ro_path, tmate_session_token_ro);
+	strcat(session_ro_path, session->session_token_ro);
 
 	unlink(session_ro_path);
-	if (symlink(tmate_session_token, session_ro_path) < 0)
+	if (symlink(session->session_token, session_ro_path) < 0)
 		tmate_fatal("Cannot create read-only symlink");
 }
 
@@ -250,15 +262,17 @@ static void jail(void)
 	uid = pw->pw_uid;
 	gid = pw->pw_gid;
 
-	/*
-	 * We are already in a new PID namespace (from the server fork).
-	 */
+	if (getuid() != 0)
+		tmate_fatal("Need root priviledges");
 
 	if (chroot(TMATE_WORKDIR "/jail") < 0)
 		tmate_fatal("Cannot chroot()");
 
 	if (chdir("/") < 0)
 		tmate_fatal("Cannot chdir()");
+
+	if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0)
+		tmate_fatal("Cannot create new namespace");
 
 	if (setgroups(1, (gid_t[]){gid}) < 0)
 		tmate_fatal("Cannot setgroups()");
@@ -272,8 +286,8 @@ static void jail(void)
 	if (nice(1) < 0)
 		tmate_fatal("Cannot nice()");
 
-	tmate_debug("Dropped priviledges to %s (%d,%d)",
-		    TMATE_JAIL_USER, uid, gid);
+	tmate_debug("Dropped priviledges to %s (%d,%d), jailed in %s",
+		    TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
 }
 
 static void setup_ncurse(int fd, const char *name)
@@ -283,8 +297,10 @@ static void setup_ncurse(int fd, const char *name)
 		tmate_fatal("Cannot setup terminal");
 }
 
-static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
+static void tmate_spawn_slave_server(struct tmate_session *session)
 {
+	struct tmate_ssh_client *client = &session->ssh_client;
+
 	char *token;
 	struct tmate_encoder encoder;
 	struct tmate_decoder decoder;
@@ -294,17 +310,17 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	strcpy(token, "SUPERSECURETOKENFORDEVENV");
 #endif
 
-	set_session_token(client, token);
+	set_session_token(session, token);
 	free(token);
 
 	tmate_debug("Spawning slave server for %s at %s (%s)",
 		    client->username, client->ip_address, client->pubkey);
 
-	tmux_socket_fd = server_create_socket();
-	if (tmux_socket_fd < 0)
+	session->tmux_socket_fd = server_create_socket();
+	if (session->tmux_socket_fd < 0)
 		tmate_fatal("Cannot create to the tmux socket");
 
-	create_session_ro_symlink();
+	create_session_ro_symlink(session);
 
 	/*
 	 * Needed to initialize the database used in tty-term.c.
@@ -312,27 +328,23 @@ static void tmate_spawn_slave_server(struct tmate_ssh_client *client)
 	 */
 	setup_ncurse(STDOUT_FILENO, "screen-256color");
 
-	close_fds_except((int[]){tmux_socket_fd,
-				 ssh_get_fd(client->session),
+	close_fds_except((int[]){session->tmux_socket_fd,
+				 ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1}, 3);
 
 	jail();
 
-	ev_base = osdep_event_init();
+	event_reinit(ev_base);
 
-	tmate_encoder_init(&encoder);
-	tmate_decoder_init(&decoder);
-	tmate_encoder = &encoder;
-	tmate_decoder = &decoder;
-
-	tmate_ssh_client_init(client, &encoder, &decoder);
+	tmate_daemon_init(session);
 
 	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
 	/* never reached */
 }
 
-static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
+static void tmate_spawn_slave_client(struct tmate_session *session)
 {
+	struct tmate_ssh_client *client = &session->ssh_client;
 	char *argv_rw[] = {(char *)"attach", NULL};
 	char *argv_ro[] = {(char *)"attach", (char *)"-r", NULL};
 	char **argv = argv_rw;
@@ -351,13 +363,13 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 		tmate_fatal("Invalid token");
 	}
 
-	set_session_token(client, token);
+	set_session_token(session, token);
 
 	tmate_debug("Spawning slave client for %s (%s)",
 		    client->ip_address, client->pubkey);
 
-	tmux_socket_fd = client_connect(socket_path, 0);
-	if (tmux_socket_fd < 0) {
+	session->tmux_socket_fd = client_connect(socket_path, 0);
+	if (session->tmux_socket_fd < 0) {
 		random_sleep(); /* for making timing attacks harder */
 		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
 		tmate_fatal("Expired token");
@@ -370,16 +382,16 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 	 * 2) We prevent any input (aside from the window size) to go through
 	 *    to the server.
 	 */
-	client->readonly = 0;
+	session->readonly = false;
 	if (lstat(socket_path, &fstat) < 0)
 		tmate_fatal("Cannot fstat()");
 	if (S_ISLNK(fstat.st_mode)) {
-		client->readonly = 1;
+		session->readonly = true;
 		argv = argv_ro;
 		argc = 2;
 	}
 
-	if (openpty(&client->pty, &slave_pty, NULL, NULL, NULL) < 0)
+	if (openpty(&session->pty, &slave_pty, NULL, NULL, NULL) < 0)
 		tmate_fatal("Cannot allocate pty");
 
 	dup2(slave_pty, STDIN_FILENO);
@@ -388,23 +400,24 @@ static void tmate_spawn_slave_client(struct tmate_ssh_client *client)
 
 	setup_ncurse(slave_pty, "screen-256color");
 	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
-				 tmux_socket_fd, ssh_get_fd(client->session),
-				 client->pty, log_file ? fileno(log_file) : -1}, 7);
+				 session->tmux_socket_fd,
+				 ssh_get_fd(session->ssh_client.session),
+				 session->pty, log_file ? fileno(log_file) : -1}, 7);
 	jail();
+	event_reinit(ev_base);
 
-	ev_base = osdep_event_init();
-
-	tmate_ssh_client_pty_init(client);
+	tmate_ssh_client_pty_init(session);
 
 	ret = client_main(argc, argv, IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
-	tmate_flush_pty(client);
+	tmate_flush_pty(session);
 	exit(ret);
 }
 
-void tmate_spawn_slave(struct tmate_ssh_client *client)
+void tmate_spawn_slave(struct tmate_session *session)
 {
-	if (client->role == TMATE_ROLE_SERVER)
-		tmate_spawn_slave_server(client);
+
+	if (session->ssh_client.role == TMATE_ROLE_SERVER)
+		tmate_spawn_slave_server(session);
 	else
-		tmate_spawn_slave_client(client);
+		tmate_spawn_slave_client(session);
 }

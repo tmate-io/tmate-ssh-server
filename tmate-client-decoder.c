@@ -6,111 +6,21 @@ char *tmate_left_status, *tmate_right_status;
 
 static struct session *main_session;
 
-struct tmate_unpacker {
-	msgpack_object *argv;
-	int argc;
-};
-
-static void decoder_error(void)
-{
-#ifdef DEBUG
-	tmate_print_trace();
-#endif
-	tmate_fatal("Received a bad message");
-}
-
-static void init_unpacker(struct tmate_unpacker *uk,
-			  msgpack_object obj)
-{
-	if (obj.type != MSGPACK_OBJECT_ARRAY)
-		decoder_error();
-
-	uk->argv = obj.via.array.ptr;
-	uk->argc = obj.via.array.size;
-}
-
-static int64_t unpack_int(struct tmate_unpacker *uk)
-{
-	int64_t val;
-
-	if (uk->argc == 0)
-		decoder_error();
-
-	if (uk->argv[0].type != MSGPACK_OBJECT_POSITIVE_INTEGER &&
-	    uk->argv[0].type != MSGPACK_OBJECT_NEGATIVE_INTEGER)
-		decoder_error();
-
-	val = uk->argv[0].via.i64;
-
-	uk->argv++;
-	uk->argc--;
-
-	return val;
-}
-
-static void unpack_raw(struct tmate_unpacker *uk,
-		       const char **buf, size_t *len)
-{
-	if (uk->argc == 0)
-		decoder_error();
-
-	if (uk->argv[0].type != MSGPACK_OBJECT_RAW)
-		decoder_error();
-
-	*len = uk->argv[0].via.raw.size;
-	*buf = uk->argv[0].via.raw.ptr;
-
-	uk->argv++;
-	uk->argc--;
-}
-
-static char *unpack_string(struct tmate_unpacker *uk)
-{
-	const char *buf;
-	char *alloc_buf;
-	size_t len;
-
-	unpack_raw(uk, &buf, &len);
-
-	alloc_buf = xmalloc(len + 1);
-	memcpy(alloc_buf, buf, len);
-	alloc_buf[len] = '\0';
-
-	return alloc_buf;
-}
-
-static void unpack_array(struct tmate_unpacker *uk,
-			 struct tmate_unpacker *nested)
-{
-	if (uk->argc == 0)
-		decoder_error();
-
-	init_unpacker(nested, uk->argv[0]);
-
-	uk->argv++;
-	uk->argc--;
-}
-
-#define unpack_each(nested_uk, tmp_uk, uk)	\
-	for (unpack_array(uk, tmp_uk);		\
-	     (tmp_uk)->argc > 0 && (init_unpacker(nested_uk, (tmp_uk)->argv[0]), 1); \
-	     (tmp_uk)->argv++, (tmp_uk)->argc--)
-
-static void tmate_header(struct tmate_decoder *decoder,
+static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	char port_arg[16] = {0};
 	char *client_version = xstrdup("< 1.8.6");
 	char tmp[512];
 
-	decoder->protocol = unpack_int(uk);
-	if (decoder->protocol >= 3) {
+	session->client_protocol_version = unpack_int(uk);
+	if (session->client_protocol_version >= 3) {
 		free(client_version);
 		client_version = unpack_string(uk);
 	}
 
 	tmate_debug("new master, client version: %s, protocol version: %d",
-		    client_version, decoder->protocol);
+		    client_version, session->client_protocol_version);
 
 #if 0
 	if (strcmp(client_version, TMATE_LATEST_VERSION))
@@ -119,14 +29,14 @@ static void tmate_header(struct tmate_decoder *decoder,
 
 	free(client_version);
 
-	if (tmate_settings.ssh_port != 22)
-		sprintf(port_arg, " -p%d", tmate_settings.ssh_port);
+	if (tmate_settings->ssh_port != 22)
+		sprintf(port_arg, " -p%d", tmate_settings->ssh_port);
 
-	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, tmate_session_token_ro, tmate_settings.tmate_host);
+	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, session->session_token_ro, tmate_settings->tmate_host);
 	tmate_notify("Remote session read only: %s (clear your screen if you share this)", tmp);
 	tmate_send_env("tmate_ssh_ro", tmp);
 
-	sprintf(tmp, "ssh%s %s@%s", port_arg, tmate_session_token, tmate_settings.tmate_host);
+	sprintf(tmp, "ssh%s %s@%s", port_arg, session->session_token, tmate_settings->tmate_host);
 	tmate_notify("Remote session: %s", tmp);
 	tmate_send_env("tmate_ssh", tmp);
 
@@ -231,7 +141,7 @@ static void tmate_sync_windows(struct session *s,
 	server_redraw_window(wl->window);
 }
 
-static void tmate_sync_layout(struct tmate_decoder *decoder,
+static void tmate_sync_layout(struct tmate_session *session,
 			      struct tmate_unpacker *uk)
 {
 	struct session *s;
@@ -254,7 +164,7 @@ static void tmate_sync_layout(struct tmate_decoder *decoder,
 	tmate_sync_windows(s, uk);
 }
 
-static void tmate_pty_data(struct tmate_decoder *decoder,
+static void tmate_pty_data(struct tmate_session *session,
 			   struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;
@@ -263,7 +173,7 @@ static void tmate_pty_data(struct tmate_decoder *decoder,
 	int id;
 
 	id = unpack_int(uk);
-	unpack_raw(uk, &buf, &len);
+	unpack_buffer(uk, &buf, &len);
 
 	wp = window_pane_find_by_id(id);
 	if (!wp)
@@ -275,7 +185,7 @@ static void tmate_pty_data(struct tmate_decoder *decoder,
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
-static void tmate_exec_cmd(struct tmate_decoder *decoder,
+static void tmate_exec_cmd(struct tmate_session *session,
 			   struct tmate_unpacker *uk)
 {
 	struct cmd_q *cmd_q;
@@ -297,7 +207,7 @@ out:
 	free(cmd_str);
 }
 
-static void tmate_failed_cmd(struct tmate_decoder *decoder,
+static void tmate_failed_cmd(struct tmate_session *session,
 			     struct tmate_unpacker *uk)
 {
 	struct client *c;
@@ -320,7 +230,7 @@ static void tmate_failed_cmd(struct tmate_decoder *decoder,
 	free(cause);
 }
 
-static void tmate_status(struct tmate_decoder *decoder,
+static void tmate_status(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	struct client *c;
@@ -342,7 +252,7 @@ extern void window_copy_redraw_screen(struct window_pane *);
 extern int window_copy_update_selection(struct window_pane *);
 extern void window_copy_init_for_output(struct window_pane *);
 
-static void tmate_sync_copy_mode(struct tmate_decoder *decoder,
+static void tmate_sync_copy_mode(struct tmate_session *session,
 				 struct tmate_unpacker *uk)
 {
 	struct tmate_unpacker cm_uk, sel_uk, input_uk;
@@ -368,7 +278,7 @@ static void tmate_sync_copy_mode(struct tmate_decoder *decoder,
 		return;
 	}
 
-	if (decoder->protocol >= 2)
+	if (session->client_protocol_version >= 2)
 		base_backing = unpack_int(&cm_uk);
 
 	if (window_pane_set_mode(wp, &window_copy_mode) == 0) {
@@ -388,7 +298,7 @@ static void tmate_sync_copy_mode(struct tmate_decoder *decoder,
 	if (sel_uk.argc) {
 		data->screen.sel.flag = 1;
 		data->selx = unpack_int(&sel_uk);
-		if (decoder->protocol >= 2) {
+		if (session->client_protocol_version >= 2) {
 			data->sely = -unpack_int(&sel_uk) + screen_hsize(data->backing)
 							  + screen_size_y(data->backing)
 							  - 1;
@@ -424,7 +334,7 @@ static void tmate_sync_copy_mode(struct tmate_decoder *decoder,
 	window_copy_redraw_screen(wp);
 }
 
-static void tmate_write_copy_mode(struct tmate_decoder *decoder,
+static void tmate_write_copy_mode(struct tmate_session *session,
 				  struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;
@@ -445,70 +355,21 @@ static void tmate_write_copy_mode(struct tmate_decoder *decoder,
 	free(str);
 }
 
-static void handle_message(struct tmate_decoder *decoder, msgpack_object obj)
+void tmate_dispatch_daemon_message(struct tmate_session *session,
+				   struct tmate_unpacker *uk)
 {
-	struct tmate_unpacker _uk;
-	struct tmate_unpacker *uk = &_uk;
-	int cmd;
+#define dispatch(c, f) case c: f(session, uk); break
 
-	init_unpacker(uk, obj);
-
-	cmd = unpack_int(uk);
-
-#if 0
-	/* Really verbose tracers */
-	if (cmd != TMATE_PTY_DATA) {
-		msgpack_object_print(stderr, obj);
-		fprintf(stderr, "\n");
-	}
-#endif
-
+	int cmd = unpack_int(uk);
 	switch (cmd) {
-	case TMATE_HEADER:		tmate_header(decoder, uk);		break;
-	case TMATE_SYNC_LAYOUT:		tmate_sync_layout(decoder, uk);		break;
-	case TMATE_PTY_DATA:		tmate_pty_data(decoder, uk);		break;
-	case TMATE_EXEC_CMD:		tmate_exec_cmd(decoder, uk);		break;
-	case TMATE_FAILED_CMD:		tmate_failed_cmd(decoder, uk);		break;
-	case TMATE_STATUS:		tmate_status(decoder, uk);		break;
-	case TMATE_SYNC_COPY_MODE:	tmate_sync_copy_mode(decoder, uk);	break;
-	case TMATE_WRITE_COPY_MODE:	tmate_write_copy_mode(decoder, uk);	break;
-	default:			decoder_error();
+	dispatch(TMATE_HEADER,		tmate_header);
+	dispatch(TMATE_SYNC_LAYOUT,	tmate_sync_layout);
+	dispatch(TMATE_PTY_DATA,	tmate_pty_data);
+	dispatch(TMATE_EXEC_CMD,	tmate_exec_cmd);
+	dispatch(TMATE_FAILED_CMD,	tmate_failed_cmd);
+	dispatch(TMATE_STATUS,		tmate_status);
+	dispatch(TMATE_SYNC_COPY_MODE,	tmate_sync_copy_mode);
+	dispatch(TMATE_WRITE_COPY_MODE,	tmate_write_copy_mode);
+	default:			tmate_fatal("Bad message type: %d", cmd);
 	}
-}
-
-void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len)
-{
-	msgpack_unpacked result;
-
-	msgpack_unpacker_buffer_consumed(&decoder->unpacker, len);
-
-	msgpack_unpacked_init(&result);
-	while (msgpack_unpacker_next(&decoder->unpacker, &result)) {
-		handle_message(decoder, result.data);
-	}
-	msgpack_unpacked_destroy(&result);
-
-	if (msgpack_unpacker_message_size(&decoder->unpacker) >
-						TMATE_MAX_MESSAGE_SIZE) {
-		tmate_fatal("Message too big");
-	}
-}
-
-void tmate_decoder_get_buffer(struct tmate_decoder *decoder,
-			      char **buf, size_t *len)
-{
-	/* rewind the buffer if possible */
-	if (msgpack_unpacker_buffer_capacity(&decoder->unpacker) <
-						TMATE_MAX_MESSAGE_SIZE) {
-		msgpack_unpacker_expand_buffer(&decoder->unpacker, 0);
-	}
-
-	*buf = msgpack_unpacker_buffer(&decoder->unpacker);
-	*len = msgpack_unpacker_buffer_capacity(&decoder->unpacker);
-}
-
-void tmate_decoder_init(struct tmate_decoder *decoder)
-{
-	if (!msgpack_unpacker_init(&decoder->unpacker, 2*TMATE_MAX_MESSAGE_SIZE))
-		tmate_fatal("cannot initialize the unpacker");
 }

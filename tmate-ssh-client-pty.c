@@ -1,62 +1,40 @@
-#include <libssh/libssh.h>
 #include <libssh/server.h>
-#include <libssh/callbacks.h>
 #include <errno.h>
 #include "tmate.h"
 
 extern void client_write_server(enum msgtype type, void *buf, size_t len);
 
-static void consume_channel(struct tmate_ssh_client *client)
+static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
+			       void *_data, uint32_t total_len,
+			       int is_stderr, void *userdata)
 {
-	ssize_t len, written;
-	char buf[4096];
-	char *ptr;
+	struct tmate_session *session = userdata;
+	char *data = _data;
+	size_t written = 0;
+	ssize_t len;
 
-	for (;;) {
-		len = ssh_channel_read_nonblocking(client->channel,
-						   buf, sizeof(buf), 0);
-		if (len < 0) {
-			if (!ssh_is_connected(client->session))
-				tmate_fatal("Disconnected");
+	if (session->readonly)
+		return total_len;
 
-			tmate_fatal("Error reading from channel: %s",
-				    ssh_get_error(client->session));
-		}
+	setblocking(session->pty, 1);
+	while (total_len) {
+		len = write(session->pty, data, total_len);
+		if (len < 0)
+			tmate_fatal("Error writing to pty");
 
-		if (len == 0)
-			return;
-
-		if (client->readonly)
-			continue;
-
-		ptr = buf;
-		setblocking(client->pty, 1);
-		while (len > 0) {
-			written = write(client->pty, ptr, len);
-			if (written < 0)
-				tmate_fatal("Error writing to pty");
-
-			ptr += written;
-			len -= written;
-		}
-		setblocking(client->pty, 0);
+		total_len -= len;
+		written += len;
+		data += len;
 	}
+	setblocking(session->pty, 0);
+
+	return written;
 }
 
-static void on_session_event(struct tmate_ssh_client *client)
+static int on_ssh_message_callback(ssh_session _session, ssh_message msg, void *arg)
 {
-	ssh_execute_message_callbacks(client->session);
-	consume_channel(client);
-}
+	struct tmate_session *session = arg;
 
-static void __on_session_event(evutil_socket_t fd, short what, void *arg)
-{
-	on_session_event(arg);
-}
-
-static int message_callback(struct tmate_ssh_client *client,
-			    ssh_message msg)
-{
 	if (ssh_message_type(msg) == SSH_REQUEST_CHANNEL &&
 	    ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_WINDOW_CHANGE) {
 		struct winsize ws;
@@ -64,7 +42,7 @@ static int message_callback(struct tmate_ssh_client *client,
 		ws.ws_col = ssh_message_channel_request_pty_width(msg);
 		ws.ws_row = ssh_message_channel_request_pty_height(msg);
 
-		ioctl(client->pty, TIOCSWINSZ, &ws);
+		ioctl(session->pty, TIOCSWINSZ, &ws);
 		client_write_server(MSG_RESIZE, NULL, 0);
 
 		return 1;
@@ -72,27 +50,13 @@ static int message_callback(struct tmate_ssh_client *client,
 	return 0;
 }
 
-static int __message_callback(ssh_session session, ssh_message msg, void *arg)
-{
-	return message_callback(arg, msg);
-}
-
-static void register_session_fd_event(struct tmate_ssh_client *client)
-{
-	ssh_set_message_callback(client->session, __message_callback, client);
-
-	event_assign(&client->ev_ssh, ev_base, ssh_get_fd(client->session),
-		     EV_READ | EV_PERSIST, __on_session_event, client);
-	event_add(&client->ev_ssh, NULL);
-}
-
-static void on_pty_event(struct tmate_ssh_client *client)
+static void on_pty_event(struct tmate_session *session)
 {
 	ssize_t len, written;
 	char buf[4096];
 
 	for (;;) {
-		len = read(client->pty, buf, sizeof(buf));
+		len = read(session->pty, buf, sizeof(buf));
 		if (len < 0) {
 			if (errno == EAGAIN)
 				return;
@@ -102,10 +66,10 @@ static void on_pty_event(struct tmate_ssh_client *client)
 		if (len == 0)
 			tmate_fatal("pty reached EOF");
 
-		written = ssh_channel_write(client->channel, buf, len);
+		written = ssh_channel_write(session->ssh_client.channel, buf, len);
 		if (written < 0)
 			tmate_fatal("Error writing to channel: %s",
-				    ssh_get_error(client->session));
+				    ssh_get_error(session->ssh_client.session));
 		if (len != written)
 			tmate_fatal("Cannot write %d bytes, wrote %d",
 				    (int)len, (int)written);
@@ -117,25 +81,29 @@ static void __on_pty_event(evutil_socket_t fd, short what, void *arg)
 	on_pty_event(arg);
 }
 
-void tmate_flush_pty(struct tmate_ssh_client *client)
+void tmate_flush_pty(struct tmate_session *session)
 {
-	on_pty_event(client);
-	close(client->pty);
+	on_pty_event(session);
+	close(session->pty);
 }
 
-static void register_pty_event(struct tmate_ssh_client *client)
+void tmate_ssh_client_pty_init(struct tmate_session *session)
 {
-	setblocking(client->pty, 0);
-	event_assign(&client->ev_pty, ev_base, client->pty,
-		     EV_READ | EV_PERSIST, __on_pty_event, client);
-	event_add(&client->ev_pty, NULL);
-}
+	struct tmate_ssh_client *client = &session->ssh_client;
 
-void tmate_ssh_client_pty_init(struct tmate_ssh_client *client)
-{
-	ioctl(client->pty, TIOCSWINSZ, &client->winsize_pty);
-	register_session_fd_event(client);
-	register_pty_event(client);
+	ioctl(session->pty, TIOCSWINSZ, &session->ssh_client.winsize_pty);
 
-	tmate_start_keepalive_timer(client);
+	memset(&client->channel_cb, 0, sizeof(client->channel_cb));
+	ssh_callbacks_init(&client->channel_cb);
+	client->channel_cb.userdata = session;
+	client->channel_cb.channel_data_function = on_ssh_channel_read,
+	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
+
+	ssh_set_message_callback(session->ssh_client.session,
+				 on_ssh_message_callback, session);
+
+	setblocking(session->pty, 0);
+	event_assign(&session->ev_pty, ev_base, session->pty,
+		     EV_READ | EV_PERSIST, __on_pty_event, session);
+	event_add(&session->ev_pty, NULL);
 }

@@ -4,28 +4,24 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <sys/wait.h>
-#include <sys/syscall.h>
-#include <sched.h>
 #include <stdio.h>
 #include <event.h>
 #include <arpa/inet.h>
 
 #include "tmate.h"
 
-#define SSH_GRACE_PERIOD 60
-
+static void start_keepalive_timer(struct tmate_ssh_client *client);
 static void on_keepalive_timer(evutil_socket_t fd, short what, void *arg)
 {
 	struct tmate_ssh_client *client = arg;
+
 	ssh_send_keepalive(client->session);
-	tmate_start_keepalive_timer(client);
+	start_keepalive_timer(client);
 }
 
-void tmate_start_keepalive_timer(struct tmate_ssh_client *client)
+static void start_keepalive_timer(struct tmate_ssh_client *client)
 {
-	struct timeval tv;
-	tv.tv_sec = TMATE_KEEPALIVE;
-	tv.tv_usec = 0;
+	struct timeval tv = { TMATE_SSH_KEEPALIVE, 0 };
 
 	evtimer_assign(&client->ev_keepalive_timer, ev_base,
 		       on_keepalive_timer, client);
@@ -65,12 +61,6 @@ static int subsystem_request(ssh_session session, ssh_channel channel,
 	return 0;
 }
 
-static struct ssh_channel_callbacks_struct ssh_channel_cb = {
-    .channel_pty_request_function = pty_request,
-    .channel_shell_request_function = shell_request,
-    .channel_subsystem_request_function = subsystem_request,
-};
-
 static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
@@ -89,9 +79,13 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 	if (!client->channel)
 		tmate_fatal("Error getting channel");
 
-	ssh_channel_cb.userdata = client;
-	ssh_callbacks_init(&ssh_channel_cb);
-	ssh_set_channel_callbacks(client->channel, &ssh_channel_cb);
+	memset(&client->channel_cb, 0, sizeof(client->channel_cb));
+	ssh_callbacks_init(&client->channel_cb);
+	client->channel_cb.userdata = client;
+	client->channel_cb.channel_pty_request_function = pty_request,
+	client->channel_cb.channel_shell_request_function = shell_request,
+	client->channel_cb.channel_subsystem_request_function = subsystem_request,
+	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
 
 	return client->channel;
 }
@@ -121,15 +115,38 @@ static struct ssh_server_callbacks_struct ssh_server_cb = {
 	.channel_open_request_session_function = channel_open_request_cb,
 };
 
-static void client_bootstrap(struct tmate_ssh_client *client)
+static void on_ssh_read(evutil_socket_t fd, short what, void *arg)
 {
+	struct tmate_ssh_client *client = arg;
+	ssh_execute_message_callbacks(client->session);
+
+	if (!ssh_is_connected(client->session)) {
+		tmate_warn("SSH Disconnected");
+
+		/* For graceful tmux client termination */
+		request_server_termination();
+	}
+}
+
+static void register_on_ssh_read(struct tmate_ssh_client *client)
+{
+	event_assign(&client->ev_ssh, ev_base, ssh_get_fd(client->session),
+		     EV_READ | EV_PERSIST, on_ssh_read, client);
+	event_add(&client->ev_ssh, NULL);
+}
+
+static void client_bootstrap(struct tmate_session *_session)
+{
+	struct tmate_ssh_client *client = &_session->ssh_client;
 	int auth = 0;
-	int grace_period = SSH_GRACE_PERIOD;
+	int grace_period = TMATE_SSH_GRACE_PERIOD;
 	ssh_event mainloop;
 	ssh_session session = client->session;
 	ssh_message msg;
 
 	tmate_notice("Bootstrapping ssh client ip=%s", client->ip_address);
+
+	ev_base = osdep_event_init();
 
 	/* new process group, we don't want to die with our parent (upstart) */
 	setpgid(0, 0);
@@ -163,7 +180,11 @@ static void client_bootstrap(struct tmate_ssh_client *client)
 	}
 
 	alarm(0);
-	tmate_spawn_slave(client);
+
+	start_keepalive_timer(client);
+	register_on_ssh_read(client);
+
+	tmate_spawn_slave(_session);
 	/* never reached */
 }
 
@@ -182,13 +203,13 @@ static void handle_sigchld(void)
 
 static void handle_sigalrm(void)
 {
-	tmate_fatal("Connection grace period (%d) passed", SSH_GRACE_PERIOD);
+	tmate_fatal("Connection grace period (%d) passed", TMATE_SSH_GRACE_PERIOD);
 }
 
 static void handle_sigsegv(void)
 {
 	tmate_info("CRASH, printing stack trace");
-	tmate_print_trace();
+	tmate_print_stack_trace();
 	tmate_fatal("CRASHED");
 }
 
@@ -206,14 +227,6 @@ static void setup_signals(void)
 	signal(SIGCHLD, signal_handler);
 	signal(SIGALRM, signal_handler);
 	signal(SIGSEGV, signal_handler);
-}
-
-static pid_t namespace_fork(void)
-{
-	/* XXX we are breaking getpid() libc cache. Bad libc. */
-	unsigned long flags;
-	flags = CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET;
-	return syscall(SYS_clone, flags | SIGCHLD, NULL, NULL, NULL);
 }
 
 static int get_ip(int fd, char *dst, size_t len)
@@ -242,8 +255,6 @@ static int get_ip(int fd, char *dst, size_t len)
 
 	return 0;
 }
-
-struct tmate_ssh_client tmate_client;
 
 static void ssh_log_function(int priority, const char *function,
 			     const char *buffer, void *userdata)
@@ -281,9 +292,10 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	return bind;
 }
 
-void tmate_ssh_server_main(const char *keys_dir, int port)
+void tmate_ssh_server_main(struct tmate_session *session,
+			   const char *keys_dir, int port)
 {
-	struct tmate_ssh_client *client = &tmate_client;
+	struct tmate_ssh_client *client = &session->ssh_client;
 	ssh_bind bind;
 	pid_t pid;
 
@@ -293,6 +305,9 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 	for (;;) {
 		client->session = ssh_new();
 		client->channel = NULL;
+		client->winsize_pty.ws_col = 80;
+		client->winsize_pty.ws_row = 24;
+
 		if (!client->session)
 			tmate_fatal("Cannot initialize session");
 
@@ -303,12 +318,8 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 			   client->ip_address, sizeof(client->ip_address)) < 0)
 			tmate_fatal("Error getting IP address from connection");
 
-		if ((pid = namespace_fork()) < 0) {
-			if (getuid() == 0)
-				tmate_fatal("Can't fork in new namespace, are you running a recent kernel?");
-			else
-				tmate_fatal("Can't fork in new namespace, run me with root priviledges");
-		}
+		if ((pid = fork()) < 0)
+			tmate_fatal("Can't fork");
 
 		if (pid) {
 			tmate_info("Child spawned pid=%d, ip=%s",
@@ -316,8 +327,8 @@ void tmate_ssh_server_main(const char *keys_dir, int port)
 			ssh_free(client->session);
 		} else {
 			ssh_bind_free(bind);
-			tmate_session_token = "init";
-			client_bootstrap(client);
+			session->session_token = "init";
+			client_bootstrap(session);
 		}
 	}
 }

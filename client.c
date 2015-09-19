@@ -207,7 +207,7 @@ client_main(int argc, char **argv, int flags)
 	}
 
 #ifdef TMATE_SLAVE
-	fd = tmux_socket_fd;
+	fd = tmate_session->tmux_socket_fd;
 #else
 
 	/*
@@ -325,7 +325,7 @@ client_send_identify(int flags)
 	int				fd;
 
 #ifdef TMATE_SLAVE
-	strcpy(data.ip_address, tmate_client.ip_address);
+	strcpy(data.ip_address, tmate_session->ssh_client.ip_address);
 #endif
 
 	data.flags = flags;

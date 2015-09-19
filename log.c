@@ -73,11 +73,13 @@ log_vwrite(int level, const char *msg, va_list ap)
 {
 	char	*fmt = NULL;
 
+	const char *token = tmate_session->session_token;
+
 	if (log_settings.log_level < level)
 		return;
 
-	if (tmate_session_token) {
-		if (asprintf(&fmt, "[%s] %s", tmate_session_token, msg) < 0)
+	if (token) {
+		if (asprintf(&fmt, "[%s] %s", token, msg) < 0)
 			exit(1);
 		msg = fmt;
 	}

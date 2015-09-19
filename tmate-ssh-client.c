@@ -1,116 +1,77 @@
 #include "tmate.h"
-#include <libssh/libssh.h>
-#include <libssh/server.h>
-#include <libssh/callbacks.h>
 
-extern int server_shutdown;
-extern void server_send_shutdown(void);
-
-#define request_termination(str, ...) do {	\
-	tmate_info(str, ## __VA_ARGS__);	\
-	server_shutdown = 1;			\
-	server_send_shutdown();			\
-} while(0)
-
-static void consume_channel(struct tmate_ssh_client *client)
+static void on_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
+	struct tmate_session *session = userdata;
+	tmate_dispatch_daemon_message(session, uk);
+}
+
+static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
+			       void *_data, uint32_t total_len,
+			       int is_stderr, void *userdata)
+{
+	struct tmate_session *session = userdata;
+	char *data = _data;
+	size_t written = 0;
 	char *buf;
-	ssize_t len;
+	size_t len;
 
-	for (;;) {
-		tmate_decoder_get_buffer(client->decoder, &buf, &len);
-		if (len == 0) {
-			request_termination("Decoder buffer full");
-			break;
-		}
+	while (total_len) {
+		tmate_decoder_get_buffer(&session->client_decoder, &buf, &len);
 
-		len = ssh_channel_read_nonblocking(client->channel,
-						   buf, len, 0);
-		if (len < 0) {
-			if (!ssh_is_connected(client->session))
-				request_termination("Disconnected");
-			else
-				request_termination("Error reading from channel: %s",
-						    ssh_get_error(client->session));
-			break;
-		}
 		if (len == 0)
-			break;
+			tmate_fatal("No more room in client decoder. Message too big?");
 
-		tmate_decoder_commit(client->decoder, len);
+		if (len > total_len)
+			len = total_len;
+
+		memcpy(buf, data, len);
+
+		tmate_decoder_commit(&session->client_decoder, len);
+
+		total_len -= len;
+		written += len;
+		data += len;
 	}
+
+	return written;
 }
 
-static void on_session_event(struct tmate_ssh_client *client)
+static void on_encoder_write(void *userdata, struct evbuffer *buffer)
 {
-	ssh_execute_message_callbacks(client->session);
-	consume_channel(client);
-}
-
-static void __on_session_event(evutil_socket_t fd, short what, void *arg)
-{
-	on_session_event(arg);
-}
-
-static void register_session_fd_event(struct tmate_ssh_client *client)
-{
-	event_assign(&client->ev_ssh, ev_base, ssh_get_fd(client->session),
-		     EV_READ | EV_PERSIST, __on_session_event, client);
-	event_add(&client->ev_ssh, NULL);
-}
-
-static void flush_input_stream(struct tmate_ssh_client *client)
-{
-	struct evbuffer *evb = client->encoder->buffer;
+	struct tmate_session *session = userdata;
 	ssize_t len, written;
 	char *buf;
 
-	if (server_shutdown)
-		return;
-
-	for (;;) {
-		len = evbuffer_get_length(evb);
+	for(;;) {
+		len = evbuffer_get_length(buffer);
 		if (!len)
 			break;
 
-		buf = evbuffer_pullup(evb, -1);
+		buf = evbuffer_pullup(buffer, -1);
 
-		written = ssh_channel_write(client->channel, buf, len);
+		written = ssh_channel_write(session->ssh_client.channel, buf, len);
 		if (written < 0) {
-			request_termination("Error writing to channel: %s",
-					    ssh_get_error(client->session));
+			tmate_warn("Error writing to channel: %s",
+				    ssh_get_error(session->ssh_client.session));
+			request_server_termination();
 			break;
 		}
 
-		evbuffer_drain(evb, written);
+		evbuffer_drain(buffer, written);
 	}
 }
 
-static void __flush_input_stream(evutil_socket_t fd, short what, void *arg)
+void tmate_daemon_init(struct tmate_session *session)
 {
-	flush_input_stream(arg);
-}
+	struct tmate_ssh_client *client = &session->ssh_client;
 
-static void register_input_stream_event(struct tmate_ssh_client *client)
-{
-	event_assign(&client->encoder->ev_readable, ev_base, -1,
-		     EV_READ | EV_PERSIST, __flush_input_stream, client);
-	event_add(&client->encoder->ev_readable, NULL);
-}
+	memset(&client->channel_cb, 0, sizeof(client->channel_cb));
+	ssh_callbacks_init(&client->channel_cb);
+	client->channel_cb.userdata = session;
+	client->channel_cb.channel_data_function = on_ssh_channel_read,
+	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
 
-
-void tmate_ssh_client_init(struct tmate_ssh_client *client,
-			   struct tmate_encoder *encoder,
-			   struct tmate_decoder *decoder)
-{
-	client->winsize_pty.ws_col = 80;
-	client->winsize_pty.ws_row = 24;
-
-	client->encoder = encoder;
-	client->decoder = decoder;
-
-	register_session_fd_event(client);
-	register_input_stream_event(client);
-
-	tmate_start_keepalive_timer(client);
+	tmate_encoder_init(&session->client_encoder, on_encoder_write, session);
+	tmate_decoder_init(&session->client_decoder, on_decoder_read, session);
 }
