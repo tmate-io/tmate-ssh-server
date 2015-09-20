@@ -8,10 +8,14 @@
 
 /* TODO document each msg */
 
-enum tmate_control_msg_types {
+enum tmate_control_out_msg_types {
 	TMATE_CTL_AUTH,
 	TMATE_CTL_DEAMON_OUT_MSG,
 	TMATE_CTL_KEYFRAME,
+};
+
+enum tmate_control_in_msg_types {
+	TMATE_CTL_DEAMON_FWD_MSG,
 };
 
 enum tmate_daemon_out_msg_types {

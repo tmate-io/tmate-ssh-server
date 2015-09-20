@@ -172,3 +172,8 @@ void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id)
 	sprintf(cmd, "select-pane -t %d.%d", win_idx, pane_id);
 	tmate_client_cmd(client_id, cmd);
 }
+
+void tmate_send_mc_obj(msgpack_object *obj)
+{
+	pack(object, *obj);
+}

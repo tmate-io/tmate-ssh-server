@@ -359,10 +359,9 @@ static void tmate_write_copy_mode(struct tmate_session *session,
 void tmate_dispatch_daemon_message(struct tmate_session *session,
 				   struct tmate_unpacker *uk)
 {
-#define dispatch(c, f) case c: f(session, uk); break
-
 	int cmd = unpack_int(uk);
 	switch (cmd) {
+#define dispatch(c, f) case c: f(session, uk); break
 	dispatch(TMATE_OUT_HEADER,		tmate_header);
 	dispatch(TMATE_OUT_SYNC_LAYOUT,		tmate_sync_layout);
 	dispatch(TMATE_OUT_PTY_DATA,		tmate_pty_data);

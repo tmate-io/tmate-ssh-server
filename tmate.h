@@ -88,11 +88,12 @@ extern void tmate_decoder_get_buffer(struct tmate_decoder *decoder, char **buf, 
 extern void tmate_decoder_commit(struct tmate_decoder *decoder, size_t len);
 
 struct tmate_unpacker {
-	msgpack_object *argv;
 	int argc;
+	msgpack_object *argv;
 };
 
 extern void init_unpacker(struct tmate_unpacker *uk, msgpack_object obj);
+extern void tmate_decoder_error(void);
 extern int64_t unpack_int(struct tmate_unpacker *uk);
 extern void unpack_buffer(struct tmate_unpacker *uk, const char **buf, size_t *len);
 extern char *unpack_string(struct tmate_unpacker *uk);
@@ -119,6 +120,7 @@ extern void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id
 extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 extern void tmate_send_env(const char *name, const char *value);
 extern void tmate_send_client_ready(void);
+extern void tmate_send_mc_obj(msgpack_object *obj);
 
 /* tmate-daemon-decoder.c */
 
@@ -239,6 +241,9 @@ extern void request_server_termination(void);
 extern void tmate_spawn_slave(struct tmate_session *session);
 
 /* tmate-master.c */
+
+extern void tmate_dispatch_master_message(struct tmate_session *session,
+					  struct tmate_unpacker *uk);
 
 extern void tmate_send_master_keyframe(struct tmate_session *session);
 extern void tmate_send_master_daemon_msg(struct tmate_session *session,

@@ -6,6 +6,25 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
+static void ctl_daemon_fwd_msg(struct tmate_session *session,
+			       struct tmate_unpacker *uk)
+{
+	if (uk->argc != 1)
+		tmate_decoder_error();
+	tmate_send_mc_obj(&uk->argv[0]);
+}
+
+void tmate_dispatch_master_message(struct tmate_session *session,
+				   struct tmate_unpacker *uk)
+{
+	int cmd = unpack_int(uk);
+	switch (cmd) {
+#define dispatch(c, f) case c: f(session, uk); break
+	dispatch(TMATE_CTL_DEAMON_FWD_MSG,	ctl_daemon_fwd_msg);
+	default: tmate_fatal("Bad master message type: %d", cmd);
+	}
+}
+
 #define pack(what, ...) _pack(&tmate_session->master_encoder, what, __VA_ARGS__)
 
 void tmate_send_master_keyframe(struct tmate_session *session)

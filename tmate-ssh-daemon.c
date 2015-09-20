@@ -3,8 +3,8 @@
 
 static void on_master_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
-	/* struct tmate_session *session = userdata; */
-	tmate_info("Received master data!");
+	struct tmate_session *session = userdata;
+	tmate_dispatch_master_message(session, uk);
 }
 
 static void on_master_read(struct bufferevent *bev, void *_session)
@@ -18,7 +18,7 @@ static void on_master_read(struct bufferevent *bev, void *_session)
 	master_in = bufferevent_get_input(session->bev_master);
 
 	while (evbuffer_get_length(master_in)) {
-		tmate_decoder_get_buffer(&session->daemon_decoder, &buf, &len);
+		tmate_decoder_get_buffer(&session->master_decoder, &buf, &len);
 
 		if (len == 0)
 			tmate_fatal("No more room in client decoder. Message too big?");
@@ -26,6 +26,8 @@ static void on_master_read(struct bufferevent *bev, void *_session)
 		written = evbuffer_remove(master_in, buf, len);
 		if (written < 0)
 			tmate_fatal("Cannot read master buffer");
+
+		tmate_decoder_commit(&session->master_decoder, written);
 	}
 }
 
@@ -49,7 +51,6 @@ static void on_master_encoder_write(void *userdata, struct evbuffer *buffer)
 
 	if (evbuffer_add_buffer(master_out, buffer) < 0)
 		tmate_fatal("Cannot write to master buffer");
-
 }
 
 static void on_master_event(struct bufferevent *bev, short events, void *_session)

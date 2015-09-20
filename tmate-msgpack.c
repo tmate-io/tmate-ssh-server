@@ -44,7 +44,7 @@ void tmate_encoder_init(struct tmate_encoder *encoder,
 	encoder->ev_active = false;
 }
 
-static void decoder_error(void)
+void tmate_decoder_error(void)
 {
 	tmate_print_stack_trace();
 	tmate_fatal("Received a bad message");
@@ -53,7 +53,7 @@ static void decoder_error(void)
 void init_unpacker(struct tmate_unpacker *uk, msgpack_object obj)
 {
 	if (obj.type != MSGPACK_OBJECT_ARRAY)
-		decoder_error();
+		tmate_decoder_error();
 
 	uk->argv = obj.via.array.ptr;
 	uk->argc = obj.via.array.size;
@@ -64,11 +64,11 @@ int64_t unpack_int(struct tmate_unpacker *uk)
 	int64_t val;
 
 	if (uk->argc == 0)
-		decoder_error();
+		tmate_decoder_error();
 
 	if (uk->argv[0].type != MSGPACK_OBJECT_POSITIVE_INTEGER &&
 	    uk->argv[0].type != MSGPACK_OBJECT_NEGATIVE_INTEGER)
-		decoder_error();
+		tmate_decoder_error();
 
 	val = uk->argv[0].via.i64;
 
@@ -81,18 +81,18 @@ int64_t unpack_int(struct tmate_unpacker *uk)
 void unpack_buffer(struct tmate_unpacker *uk, const char **buf, size_t *len)
 {
 	if (uk->argc == 0)
-		decoder_error();
+		tmate_decoder_error();
 
 #if NEW_MSGPACK_API
 	if (uk->argv[0].type != MSGPACK_OBJECT_STR &&
 	    uk->argv[0].type != MSGPACK_OBJECT_BIN)
-		decoder_error();
+		tmate_decoder_error();
 
 	*len = uk->argv[0].via.str.size;
 	*buf = uk->argv[0].via.str.ptr;
 #else
 	if (uk->argv[0].type != MSGPACK_OBJECT_RAW)
-		decoder_error();
+		tmate_decoder_error();
 
 	*len = uk->argv[0].via.raw.size;
 	*buf = uk->argv[0].via.raw.ptr;
@@ -120,7 +120,7 @@ char *unpack_string(struct tmate_unpacker *uk)
 void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *nested)
 {
 	if (uk->argc == 0)
-		decoder_error();
+		tmate_decoder_error();
 
 	init_unpacker(nested, uk->argv[0]);
 
