@@ -18,7 +18,7 @@ static void on_master_read(struct bufferevent *bev, void *_session)
 	master_in = bufferevent_get_input(session->bev_master);
 
 	while (evbuffer_get_length(master_in)) {
-		tmate_decoder_get_buffer(&session->client_decoder, &buf, &len);
+		tmate_decoder_get_buffer(&session->daemon_decoder, &buf, &len);
 
 		if (len == 0)
 			tmate_fatal("No more room in client decoder. Message too big?");
@@ -93,7 +93,7 @@ static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
 	size_t len;
 
 	while (total_len) {
-		tmate_decoder_get_buffer(&session->client_decoder, &buf, &len);
+		tmate_decoder_get_buffer(&session->daemon_decoder, &buf, &len);
 
 		if (len == 0)
 			tmate_fatal("No more room in client decoder. Message too big?");
@@ -103,7 +103,7 @@ static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
 
 		memcpy(buf, data, len);
 
-		tmate_decoder_commit(&session->client_decoder, len);
+		tmate_decoder_commit(&session->daemon_decoder, len);
 
 		total_len -= len;
 		written += len;
@@ -169,8 +169,8 @@ void tmate_daemon_init(struct tmate_session *session)
 	client->channel_cb.channel_data_function = on_ssh_channel_read,
 	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
 
-	tmate_encoder_init(&session->client_encoder, on_daemon_encoder_write, session);
-	tmate_decoder_init(&session->client_decoder, on_daemon_decoder_read, session);
+	tmate_encoder_init(&session->daemon_encoder, on_daemon_encoder_write, session);
+	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
 	if (tmate_has_master())
 		init_master(session);

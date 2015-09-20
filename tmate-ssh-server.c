@@ -45,7 +45,7 @@ static int shell_request(ssh_session session, ssh_channel channel,
 {
 	struct tmate_ssh_client *client = userdata;
 
-	client->role = TMATE_ROLE_CLIENT;
+	client->role = TMATE_ROLE_PTY_CLIENT;
 
 	return 0;
 }
@@ -56,7 +56,7 @@ static int subsystem_request(ssh_session session, ssh_channel channel,
 	struct tmate_ssh_client *client = userdata;
 
 	if (!strcmp(subsystem, "tmate"))
-		client->role = TMATE_ROLE_SERVER;
+		client->role = TMATE_ROLE_DAEMON;
 
 	return 0;
 }

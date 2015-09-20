@@ -103,11 +103,9 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 	     (tmp_uk)->argc > 0 && (init_unpacker(nested_uk, (tmp_uk)->argv[0]), 1);	\
 	     (tmp_uk)->argv++, (tmp_uk)->argc--)
 
-/* tmate-client-encoder.c */
+/* tmate-daemon-encoder.c */
 
 #define TMATE_LATEST_VERSION "1.8.10"
-
-extern void tmate_client_encoder_init(struct tmate_encoder *encoder);
 
 extern void printflike1 tmate_notify(const char *fmt, ...);
 extern void printflike2 tmate_notify_later(int timeout, const char *fmt, ...);
@@ -122,7 +120,7 @@ extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 extern void tmate_send_env(const char *name, const char *value);
 extern void tmate_send_client_ready(void);
 
-/* tmate-client-decoder.c */
+/* tmate-daemon-decoder.c */
 
 #define TMATE_HLIMIT 2000
 #define TMATE_PANE_ACTIVE 1
@@ -140,7 +138,7 @@ extern void tmate_daemon_init(struct tmate_session *session);
 
 /* tmate-ssh-client-pty.c */
 
-extern void tmate_ssh_client_pty_init(struct tmate_session *session);
+extern void tmate_client_pty_init(struct tmate_session *session);
 extern void tmate_flush_pty(struct tmate_session *session);
 
 /* tmate-ssh-server.c */
@@ -148,8 +146,8 @@ extern void tmate_flush_pty(struct tmate_session *session);
 #define TMATE_SSH_BANNER "tmate"
 #define TMATE_SSH_KEEPALIVE 60
 
-#define TMATE_ROLE_SERVER 1
-#define TMATE_ROLE_CLIENT 2
+#define TMATE_ROLE_DAEMON	1
+#define TMATE_ROLE_PTY_CLIENT	2
 
 struct tmate_ssh_client {
 	char ip_address[64];
@@ -213,8 +211,8 @@ struct tmate_session {
 	const char *session_token;
 	const char *session_token_ro;
 
-	struct tmate_encoder client_encoder;
-	struct tmate_decoder client_decoder;
+	struct tmate_encoder daemon_encoder;
+	struct tmate_decoder daemon_decoder;
 	int client_protocol_version;
 	struct event ev_notify_timer;
 

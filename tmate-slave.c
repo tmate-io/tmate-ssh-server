@@ -161,7 +161,7 @@ static void set_session_token(struct tmate_session *session,
 	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-slave [%s] %s %s",
 		session->session_token,
-		session->ssh_client.role == TMATE_ROLE_SERVER ? "(server)" : "(client)",
+		session->ssh_client.role == TMATE_ROLE_DAEMON ? "(daemon)" : "(pty client)",
 		session->ssh_client.ip_address);
 }
 static void create_session_ro_symlink(struct tmate_session *session)
@@ -297,7 +297,7 @@ static void setup_ncurse(int fd, const char *name)
 		tmate_fatal("Cannot setup terminal");
 }
 
-static void tmate_spawn_slave_server(struct tmate_session *session)
+static void tmate_spawn_slave_daemon(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
@@ -342,7 +342,7 @@ static void tmate_spawn_slave_server(struct tmate_session *session)
 	/* never reached */
 }
 
-static void tmate_spawn_slave_client(struct tmate_session *session)
+static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 	char *argv_rw[] = {(char *)"attach", NULL};
@@ -400,7 +400,7 @@ static void tmate_spawn_slave_client(struct tmate_session *session)
 
 	setup_ncurse(slave_pty, "screen-256color");
 
-	tmate_ssh_client_pty_init(session);
+	tmate_client_pty_init(session);
 
 	/* the unused session->master_fd will get closed automatically */
 
@@ -418,9 +418,8 @@ static void tmate_spawn_slave_client(struct tmate_session *session)
 
 void tmate_spawn_slave(struct tmate_session *session)
 {
-
-	if (session->ssh_client.role == TMATE_ROLE_SERVER)
-		tmate_spawn_slave_server(session);
-	else
-		tmate_spawn_slave_client(session);
+	switch (session->ssh_client.role) {
+	case TMATE_ROLE_DAEMON:		tmate_spawn_slave_daemon(session);	break;
+	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_slave_pty_client(session);	break;
+	}
 }

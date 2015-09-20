@@ -87,7 +87,7 @@ void tmate_flush_pty(struct tmate_session *session)
 	close(session->pty);
 }
 
-void tmate_ssh_client_pty_init(struct tmate_session *session)
+void tmate_client_pty_init(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
