@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include "tmate.h"
+#include "tmate-protocol.h"
 
 char *tmate_left_status, *tmate_right_status;
 
@@ -362,14 +363,14 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 
 	int cmd = unpack_int(uk);
 	switch (cmd) {
-	dispatch(TMATE_HEADER,		tmate_header);
-	dispatch(TMATE_SYNC_LAYOUT,	tmate_sync_layout);
-	dispatch(TMATE_PTY_DATA,	tmate_pty_data);
-	dispatch(TMATE_EXEC_CMD,	tmate_exec_cmd);
-	dispatch(TMATE_FAILED_CMD,	tmate_failed_cmd);
-	dispatch(TMATE_STATUS,		tmate_status);
-	dispatch(TMATE_SYNC_COPY_MODE,	tmate_sync_copy_mode);
-	dispatch(TMATE_WRITE_COPY_MODE,	tmate_write_copy_mode);
-	default:			tmate_fatal("Bad message type: %d", cmd);
+	dispatch(TMATE_OUT_HEADER,		tmate_header);
+	dispatch(TMATE_OUT_SYNC_LAYOUT,		tmate_sync_layout);
+	dispatch(TMATE_OUT_PTY_DATA,		tmate_pty_data);
+	dispatch(TMATE_OUT_EXEC_CMD,		tmate_exec_cmd);
+	dispatch(TMATE_OUT_FAILED_CMD,		tmate_failed_cmd);
+	dispatch(TMATE_OUT_STATUS,		tmate_status);
+	dispatch(TMATE_OUT_SYNC_COPY_MODE,	tmate_sync_copy_mode);
+	dispatch(TMATE_OUT_WRITE_COPY_MODE,	tmate_write_copy_mode);
+	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }

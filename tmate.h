@@ -7,6 +7,7 @@
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 #include <event.h>
+#include <time.h>
 
 #include "tmux.h"
 struct tmate_session;
@@ -106,15 +107,6 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 
 #define TMATE_LATEST_VERSION "1.8.10"
 
-enum tmate_client_commands {
-	TMATE_NOTIFY,
-	TMATE_CLIENT_PANE_KEY,
-	TMATE_CLIENT_RESIZE,
-	TMATE_CLIENT_EXEC_CMD,
-	TMATE_CLIENT_ENV,
-	TMATE_CLIENT_READY,
-};
-
 extern void tmate_client_encoder_init(struct tmate_encoder *encoder);
 
 extern void printflike1 tmate_notify(const char *fmt, ...);
@@ -133,28 +125,16 @@ extern void tmate_send_client_ready(void);
 /* tmate-client-decoder.c */
 
 #define TMATE_HLIMIT 2000
- /* 17 and not 16 because the sender does not takes into account envelope size */
-#define TMATE_MAX_MESSAGE_SIZE (17*1024)
-
-extern char *tmate_left_status, *tmate_right_status;
-
-enum tmate_commands {
-	TMATE_HEADER,
-	TMATE_SYNC_LAYOUT,
-	TMATE_PTY_DATA,
-	TMATE_EXEC_CMD,
-	TMATE_FAILED_CMD,
-	TMATE_STATUS,
-	TMATE_SYNC_COPY_MODE,
-	TMATE_WRITE_COPY_MODE,
-};
-
 #define TMATE_PANE_ACTIVE 1
 
+extern char *tmate_left_status, *tmate_right_status;
 extern void tmate_dispatch_daemon_message(struct tmate_session *session,
 					  struct tmate_unpacker *uk);
 
 /* tmate-ssh-client.c */
+
+#define TMATE_KEYFRAME_INTERVAL_SEC 10
+#define TMATE_KEYFRAME_MAX_SIZE 1024*1024
 
 extern void tmate_daemon_init(struct tmate_session *session);
 
@@ -208,7 +188,6 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 
 #define TMATE_SSH_DEFAULT_KEYS_DIR "keys"
 
-#define TMATE_DEFAULT_MASTER_HOST NULL
 #define TMATE_DEFAULT_MASTER_PORT 7000
 
 #define TMATE_TOKEN_LEN 25
@@ -231,18 +210,23 @@ struct tmate_session {
 	int tmux_socket_fd;
 
 	/* only for deamon */
+	const char *session_token;
+	const char *session_token_ro;
 
 	struct tmate_encoder client_encoder;
 	struct tmate_decoder client_decoder;
 	int client_protocol_version;
+	struct event ev_notify_timer;
 
+	int master_fd;
+	struct bufferevent *bev_master;
 	struct tmate_encoder master_encoder;
 	struct tmate_decoder master_decoder;
 
-	const char *session_token;
-	const char *session_token_ro;
-
-	struct event ev_notify_timer;
+	struct timespec session_start_time;
+	struct timespec keyframe_start_time;
+	unsigned int keyframe_cnt;
+	size_t keyframe_size;
 
 	/* only for client-pty */
 	int pty;
@@ -255,6 +239,25 @@ extern void tmate_get_random_bytes(void *buffer, ssize_t len);
 extern long tmate_get_random_long(void);
 extern void request_server_termination(void);
 extern void tmate_spawn_slave(struct tmate_session *session);
+
+/* tmate-master.c */
+
+extern void tmate_send_master_keyframe(struct tmate_session *session);
+extern void tmate_send_master_daemon_msg(struct tmate_session *session,
+					 struct tmate_unpacker *uk);
+extern void tmate_send_master_header(struct tmate_session *session);
+extern void tmate_init_master_session(struct tmate_session *session);
+
+extern int tmate_connect_to_master(void);
+static inline bool tmate_has_master(void)
+{
+	return !!tmate_settings->master_hostname;
+}
+
+
+extern void timespec_subtract(struct timespec *result,
+			      struct timespec *x, struct timespec *y);
+extern unsigned long long timespec_to_millisec(struct timespec *ts);
 
 /* tmate-debug.c */
 

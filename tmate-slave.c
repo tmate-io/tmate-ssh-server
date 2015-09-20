@@ -33,7 +33,7 @@ extern int client_connect(char *path, int start_server);
 struct tmate_settings _tmate_settings = {
 	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
 	.ssh_port        = TMATE_SSH_DEFAULT_PORT,
-	.master_hostname = TMATE_DEFAULT_MASTER_HOST,
+	.master_hostname = NULL,
 	.master_port     = TMATE_DEFAULT_MASTER_PORT,
 	.tmate_host      = NULL,
 	.log_level       = LOG_NOTICE,
@@ -328,15 +328,15 @@ static void tmate_spawn_slave_server(struct tmate_session *session)
 	 */
 	setup_ncurse(STDOUT_FILENO, "screen-256color");
 
+	tmate_daemon_init(session);
+
 	close_fds_except((int[]){session->tmux_socket_fd,
 				 ssh_get_fd(session->ssh_client.session),
-				 log_file ? fileno(log_file) : -1}, 3);
+				 log_file ? fileno(log_file) : -1,
+				 session->master_fd}, 4);
 
 	jail();
-
 	event_reinit(ev_base);
-
-	tmate_daemon_init(session);
 
 	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
 	/* never reached */
@@ -399,14 +399,17 @@ static void tmate_spawn_slave_client(struct tmate_session *session)
 	dup2(slave_pty, STDERR_FILENO);
 
 	setup_ncurse(slave_pty, "screen-256color");
+
+	tmate_ssh_client_pty_init(session);
+
+	/* the unused session->master_fd will get closed automatically */
+
 	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
 				 session->tmux_socket_fd,
 				 ssh_get_fd(session->ssh_client.session),
 				 session->pty, log_file ? fileno(log_file) : -1}, 7);
 	jail();
 	event_reinit(ev_base);
-
-	tmate_ssh_client_pty_init(session);
 
 	ret = client_main(argc, argv, IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
 	tmate_flush_pty(session);

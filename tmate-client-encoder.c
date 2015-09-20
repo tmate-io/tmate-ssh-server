@@ -1,11 +1,12 @@
 #include "tmate.h"
+#include "tmate-protocol.h"
 
 #define pack(what, ...) _pack(&tmate_session->client_encoder, what, __VA_ARGS__)
 
 static void __tmate_notify(const char *msg)
 {
 	pack(array, 2);
-	pack(int, TMATE_NOTIFY);
+	pack(int, TMATE_IN_NOTIFY);
 	pack(string, msg);
 }
 
@@ -101,7 +102,7 @@ void tmate_send_client_ready(void)
 		return;
 
 	pack(array, 1);
-	pack(int, TMATE_CLIENT_READY);
+	pack(int, TMATE_IN_READY);
 }
 
 void tmate_send_env(const char *name, const char *value)
@@ -110,7 +111,7 @@ void tmate_send_env(const char *name, const char *value)
 		return;
 
 	pack(array, 3);
-	pack(int, TMATE_CLIENT_ENV);
+	pack(int, TMATE_IN_SET_ENV);
 	pack(string, name);
 	pack(string, value);
 }
@@ -118,7 +119,7 @@ void tmate_send_env(const char *name, const char *value)
 void tmate_client_resize(u_int sx, u_int sy)
 {
 	pack(array, 3);
-	pack(int, TMATE_CLIENT_RESIZE);
+	pack(int, TMATE_IN_RESIZE);
 	/* cast to signed, -1 == no clients */
 	pack(int, sx);
 	pack(int, sy);
@@ -132,7 +133,7 @@ void tmate_client_pane_key(int pane_id, int key)
 	 */
 
 	pack(array, 2);
-	pack(int, TMATE_CLIENT_PANE_KEY);
+	pack(int, TMATE_IN_PANE_KEY);
 	pack(int, key);
 }
 
@@ -159,7 +160,7 @@ int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
 void tmate_client_cmd(int client_id, const char *cmd)
 {
 	pack(array, 3);
-	pack(int, TMATE_CLIENT_EXEC_CMD);
+	pack(int, TMATE_IN_EXEC_CMD);
 	pack(int, client_id);
 	pack(string, cmd);
 }

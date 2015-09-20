@@ -300,6 +300,10 @@ void tmate_ssh_server_main(struct tmate_session *session,
 	pid_t pid;
 
 	setup_signals();
+
+	if (tmate_has_master())
+		close(tmate_connect_to_master());
+
 	bind = prepare_ssh(keys_dir, port);
 
 	for (;;) {
@@ -314,6 +318,14 @@ void tmate_ssh_server_main(struct tmate_session *session,
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
 
+		/*
+		 * We should die if we can't connect to master. This way the
+		 * tmate daemon will pick another server to work on.
+		 */
+		session->master_fd = -1;
+		if (tmate_has_master())
+			session->master_fd = tmate_connect_to_master();
+
 		if (get_ip(ssh_get_fd(client->session),
 			   client->ip_address, sizeof(client->ip_address)) < 0)
 			tmate_fatal("Error getting IP address from connection");
@@ -325,6 +337,7 @@ void tmate_ssh_server_main(struct tmate_session *session,
 			tmate_info("Child spawned pid=%d, ip=%s",
 				    pid, client->ip_address);
 			ssh_free(client->session);
+			close(session->master_fd);
 		} else {
 			ssh_bind_free(bind);
 			session->session_token = "init";

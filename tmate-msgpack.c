@@ -1,4 +1,5 @@
 #include "tmate.h"
+#include "tmate-protocol.h"
 
 static void on_encoder_buffer_ready(evutil_socket_t fd, short what, void *arg)
 {
