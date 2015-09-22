@@ -7,7 +7,6 @@
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 #include <event.h>
-#include <time.h>
 
 #include "tmux.h"
 struct tmate_session;
@@ -223,11 +222,6 @@ struct tmate_session {
 	struct tmate_encoder master_encoder;
 	struct tmate_decoder master_decoder;
 
-	struct timespec session_start_time;
-	struct timespec keyframe_start_time;
-	unsigned int keyframe_cnt;
-	size_t keyframe_size;
-
 	/* only for client-pty */
 	int pty;
 	struct event ev_pty;
@@ -245,7 +239,6 @@ extern void tmate_spawn_slave(struct tmate_session *session);
 extern void tmate_dispatch_master_message(struct tmate_session *session,
 					  struct tmate_unpacker *uk);
 
-extern void tmate_send_master_keyframe(struct tmate_session *session);
 extern void tmate_send_master_daemon_msg(struct tmate_session *session,
 					 struct tmate_unpacker *uk);
 extern void tmate_send_master_header(struct tmate_session *session);

@@ -39,16 +39,6 @@ static void on_master_encoder_write(void *userdata, struct evbuffer *buffer)
 
 	master_out = bufferevent_get_output(session->bev_master);
 
-	len = evbuffer_get_length(buffer);
-
-	if (session->keyframe_size + len > TMATE_KEYFRAME_MAX_SIZE) {
-		if (session->keyframe_size == 0)
-			tmate_fatal("keyframe max size too small");
-		tmate_send_master_keyframe(session);
-	}
-
-	session->keyframe_size += len;
-
 	if (evbuffer_add_buffer(master_out, buffer) < 0)
 		tmate_fatal("Cannot write to master buffer");
 }
@@ -66,20 +56,8 @@ static void on_master_event(struct bufferevent *bev, short events, void *_sessio
 static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
-	struct timespec time_diff, current_time;
 
-	if (tmate_has_master()) {
-		if (clock_gettime(CLOCK_MONOTONIC, &current_time) < 0)
-			tmate_fatal("Cannot get time");
-
-		timespec_subtract(&time_diff, &current_time,
-				  &session->keyframe_start_time);
-		if (time_diff.tv_sec > TMATE_KEYFRAME_INTERVAL_SEC - 1)
-			tmate_send_master_keyframe(session);
-
-		tmate_send_master_daemon_msg(session, uk);
-	}
-
+	tmate_send_master_daemon_msg(session, uk);
 	tmate_dispatch_daemon_message(session, uk);
 }
 
@@ -156,8 +134,6 @@ static void init_master(struct tmate_session *session)
 
 	tmate_init_master_session(session);
 	tmate_send_master_header(session);
-
-	tmate_send_master_keyframe(session);
 }
 
 void tmate_daemon_init(struct tmate_session *session)

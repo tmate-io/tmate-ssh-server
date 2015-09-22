@@ -1,7 +1,6 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <fcntl.h>
-#include <time.h>
 
 #include "tmate.h"
 #include "tmate-protocol.h"
@@ -27,28 +26,6 @@ void tmate_dispatch_master_message(struct tmate_session *session,
 
 #define pack(what, ...) _pack(&tmate_session->master_encoder, what, __VA_ARGS__)
 
-void tmate_send_master_keyframe(struct tmate_session *session)
-{
-	struct timespec time_diff;
-
-	if (!tmate_has_master())
-		return;
-
-	/* Eventually the deamon will send the timestamps and keyframe number */
-
-	if (clock_gettime(CLOCK_MONOTONIC, &session->keyframe_start_time) < 0)
-		tmate_fatal("Cannot get time");
-
-	timespec_subtract(&time_diff, &session->keyframe_start_time,
-			  &session->session_start_time);
-	session->keyframe_size = 0;
-
-	pack(array, 3);
-	pack(int, TMATE_CTL_KEYFRAME);
-	pack(unsigned_int, session->keyframe_cnt++);
-	pack(unsigned_long_long, timespec_to_millisec(&time_diff));
-}
-
 void tmate_send_master_daemon_msg(struct tmate_session *session,
 				  struct tmate_unpacker *uk)
 {
@@ -58,15 +35,8 @@ void tmate_send_master_daemon_msg(struct tmate_session *session,
 	if (!tmate_has_master())
 		return;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &current_time) < 0)
-		tmate_fatal("Cannot get time");
-
-	timespec_subtract(&time_diff, &current_time,
-			  &session->keyframe_start_time);
-
-	pack(array, 3);
+	pack(array, 2);
 	pack(int, TMATE_CTL_DEAMON_OUT_MSG);
-	pack(unsigned_int, timespec_to_millisec(&time_diff));
 
 	pack(array, uk->argc);
 	for (i = 0; i < uk->argc; i++)
@@ -92,11 +62,7 @@ void tmate_init_master_session(struct tmate_session *session)
 	if (!tmate_has_master())
 		return;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &session->session_start_time) < 0)
-		tmate_fatal("Cannot get time");
-
-	session->keyframe_cnt = 0;
-	session->keyframe_size = 0;
+	/* Further init */
 }
 
 static int _tmate_connect_to_master(const char *hostname, int port)
