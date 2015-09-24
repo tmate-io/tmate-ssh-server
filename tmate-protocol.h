@@ -4,17 +4,18 @@
  /* 17 and not 16 because the sender does not takes into account envelope size */
 #define TMATE_MAX_MESSAGE_SIZE (17*1024)
 
-#define CONTROL_PROTOCOL_VERSION 1
-
 /* TODO document each msg */
 
 enum tmate_control_out_msg_types {
 	TMATE_CTL_AUTH,
 	TMATE_CTL_DEAMON_OUT_MSG,
+	TMATE_CTL_SNAPSHOT,
 };
 
 enum tmate_control_in_msg_types {
 	TMATE_CTL_DEAMON_FWD_MSG,
+	TMATE_CTL_REQUEST_SNAPSHOT,
+	TMATE_CTL_PANE_KEYS,
 };
 
 enum tmate_daemon_out_msg_types {

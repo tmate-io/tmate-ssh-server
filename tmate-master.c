@@ -5,12 +5,43 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
+#define CONTROL_PROTOCOL_VERSION 1
+
+#define pack(what, ...) _pack(&tmate_session->master_encoder, what, __VA_ARGS__)
+
 static void ctl_daemon_fwd_msg(struct tmate_session *session,
 			       struct tmate_unpacker *uk)
 {
 	if (uk->argc != 1)
 		tmate_decoder_error();
 	tmate_send_mc_obj(&uk->argv[0]);
+}
+
+static void ctl_daemon_request_snapshot(struct tmate_session *session,
+					struct tmate_unpacker *uk)
+{
+	pack(array, 2);
+	pack(int, TMATE_CTL_SNAPSHOT);
+	pack(array, 1);
+	pack(string, "snapshot TODO");
+}
+
+static void ctl_pane_keys(struct tmate_session *session,
+			  struct tmate_unpacker *uk)
+{
+	int i;
+	int pane_id;
+	char *str;
+
+	pane_id = unpack_int(uk);
+	str = unpack_string(uk);
+
+	/* a new protocol might be useful :) */
+	/* TODO Make pane_id active! the pane_id arg is ignored! */
+	for (i = 0; str[i]; i++)
+		tmate_client_pane_key(pane_id, str[i]);
+
+	free(str);
 }
 
 void tmate_dispatch_master_message(struct tmate_session *session,
@@ -20,11 +51,11 @@ void tmate_dispatch_master_message(struct tmate_session *session,
 	switch (cmd) {
 #define dispatch(c, f) case c: f(session, uk); break
 	dispatch(TMATE_CTL_DEAMON_FWD_MSG,	ctl_daemon_fwd_msg);
+	dispatch(TMATE_CTL_REQUEST_SNAPSHOT,	ctl_daemon_request_snapshot);
+	dispatch(TMATE_CTL_PANE_KEYS,		ctl_pane_keys);
 	default: tmate_fatal("Bad master message type: %d", cmd);
 	}
 }
-
-#define pack(what, ...) _pack(&tmate_session->master_encoder, what, __VA_ARGS__)
 
 void tmate_send_master_daemon_msg(struct tmate_session *session,
 				  struct tmate_unpacker *uk)
