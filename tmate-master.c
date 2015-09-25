@@ -17,13 +17,105 @@ static void ctl_daemon_fwd_msg(struct tmate_session *session,
 	tmate_send_mc_obj(&uk->argv[0]);
 }
 
+static void do_snapshot(struct tmate_unpacker *uk,
+			unsigned int max_snapshot_lines,
+			struct window_pane *pane)
+{
+	struct screen *screen;
+	struct grid *grid;
+	struct grid_line *line;
+	struct grid_cell *cell;
+	struct utf8_data utf8;
+	unsigned int line_i, i;
+	size_t str_len;
+
+	screen = &pane->base;
+	grid = screen->grid;
+
+	pack(array, 3);
+	pack(int, pane->id);
+
+	pack(array, 2);
+	pack(int, screen->cx);
+	pack(int, screen->cy);
+
+#define grid_num_lines(grid) (grid->hsize + grid->sy)
+
+	if (grid_num_lines(grid) > max_snapshot_lines)
+		line_i = grid_num_lines(grid) - max_snapshot_lines;
+	else
+		line_i = 0;
+
+	line_i = 0;
+
+	pack(array, grid_num_lines(grid) - line_i);
+	for (; line_i < grid_num_lines(grid); line_i++) {
+		line = &grid->linedata[line_i];
+
+		pack(array, 2);
+		str_len = 0;
+		for (i = 0; i < line->cellsize; i++) {
+			cell = &line->celldata[i];
+			grid_cell_get(cell, &utf8);
+			str_len += utf8.size;
+		}
+
+		pack(raw, str_len);
+		for (i = 0; i < line->cellsize; i++) {
+			cell = &line->celldata[i];
+			grid_cell_get(cell, &utf8);
+			pack(raw_body, utf8.data, utf8.size);
+		}
+
+		pack(array, line->cellsize);
+		for (i = 0; i < line->cellsize; i++) {
+			cell = &line->celldata[i];
+			pack(unsigned_int, ((cell->flags << 24) |
+					    (cell->attr  << 16) |
+					    (cell->bg    << 8)  |
+					     cell->fg        ));
+		}
+	}
+}
+
 static void ctl_daemon_request_snapshot(struct tmate_session *session,
 					struct tmate_unpacker *uk)
 {
+	struct session *s;
+	struct winlink *wl;
+	struct window *w;
+	struct window_pane *pane;
+	int max_snapshot_lines;
+	int num_panes;
+
+	max_snapshot_lines = unpack_int(uk);
+
 	pack(array, 2);
 	pack(int, TMATE_CTL_SNAPSHOT);
-	pack(array, 1);
-	pack(string, "snapshot TODO");
+
+	s = RB_MIN(sessions, &sessions);
+	if (!s)
+		tmate_fatal("no session?");
+
+	num_panes = 0;
+	RB_FOREACH(wl, winlinks, &s->windows) {
+		w = wl->window;
+		if (!w)
+			continue;
+
+		TAILQ_FOREACH(pane, &w->panes, entry)
+			num_panes++;
+	}
+
+	pack(array, num_panes);
+	RB_FOREACH(wl, winlinks, &s->windows) {
+		w = wl->window;
+		if (!w)
+			continue;
+
+		TAILQ_FOREACH(pane, &w->panes, entry)
+			do_snapshot(uk, max_snapshot_lines, pane);
+	}
 }
 
 static void ctl_pane_keys(struct tmate_session *session,
