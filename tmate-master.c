@@ -227,20 +227,3 @@ int tmate_connect_to_master(void)
 	return _tmate_connect_to_master(tmate_settings->master_hostname,
 					tmate_settings->master_port);
 }
-
-void timespec_subtract(struct timespec *result,
-		       struct timespec *x, struct timespec *y)
-{
-	if (x->tv_nsec < y->tv_nsec) {
-		result->tv_sec = x->tv_sec - y->tv_sec - 1;
-		result->tv_nsec = x->tv_nsec - y->tv_nsec + 1000000000;
-	} else {
-		result->tv_sec = x->tv_sec - y->tv_sec;
-		result->tv_nsec = x->tv_nsec - y->tv_nsec;
-	}
-}
-
-unsigned long long timespec_to_millisec(struct timespec *ts)
-{
-	return ts->tv_sec * 1000ULL + ts->tv_nsec / 1000000ULL;
-}
