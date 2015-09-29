@@ -18,7 +18,7 @@ static void ctl_daemon_fwd_msg(struct tmate_session *session,
 }
 
 static void do_snapshot(struct tmate_unpacker *uk,
-			unsigned int max_snapshot_lines,
+			unsigned int max_history_lines,
 			struct window_pane *pane)
 {
 	struct screen *screen;
@@ -27,6 +27,7 @@ static void do_snapshot(struct tmate_unpacker *uk,
 	struct grid_cell *cell;
 	struct utf8_data utf8;
 	unsigned int line_i, i;
+	unsigned int max_lines;
 	size_t str_len;
 
 	screen = &pane->base;
@@ -39,14 +40,14 @@ static void do_snapshot(struct tmate_unpacker *uk,
 	pack(int, screen->cx);
 	pack(int, screen->cy);
 
+	max_lines = max_history_lines + grid->sy;
+
 #define grid_num_lines(grid) (grid->hsize + grid->sy)
 
-	if (grid_num_lines(grid) > max_snapshot_lines)
-		line_i = grid_num_lines(grid) - max_snapshot_lines;
+	if (grid_num_lines(grid) > max_lines)
+		line_i = grid_num_lines(grid) - max_lines;
 	else
 		line_i = 0;
-
-	line_i = 0;
 
 	pack(array, grid_num_lines(grid) - line_i);
 	for (; line_i < grid_num_lines(grid); line_i++) {
@@ -85,10 +86,10 @@ static void ctl_daemon_request_snapshot(struct tmate_session *session,
 	struct winlink *wl;
 	struct window *w;
 	struct window_pane *pane;
-	int max_snapshot_lines;
+	int max_history_lines;
 	int num_panes;
 
-	max_snapshot_lines = unpack_int(uk);
+	max_history_lines = unpack_int(uk);
 
 	pack(array, 2);
 	pack(int, TMATE_CTL_SNAPSHOT);
@@ -114,7 +115,7 @@ static void ctl_daemon_request_snapshot(struct tmate_session *session,
 			continue;
 
 		TAILQ_FOREACH(pane, &w->panes, entry)
-			do_snapshot(uk, max_snapshot_lines, pane);
+			do_snapshot(uk, max_history_lines, pane);
 	}
 }
 
