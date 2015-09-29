@@ -33,12 +33,14 @@ static void do_snapshot(struct tmate_unpacker *uk,
 	screen = &pane->base;
 	grid = screen->grid;
 
-	pack(array, 3);
+	pack(array, 4);
 	pack(int, pane->id);
 
 	pack(array, 2);
 	pack(int, screen->cx);
 	pack(int, screen->cy);
+
+	pack(unsigned_int, screen->mode);
 
 	max_lines = max_history_lines + grid->sy;
 
