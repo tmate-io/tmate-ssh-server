@@ -271,8 +271,8 @@ static void jail(void)
 	if (chdir("/") < 0)
 		tmate_fatal("Cannot chdir()");
 
-	if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0)
-		tmate_fatal("Cannot create new namespace");
+	/* if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0) */
+		/* tmate_fatal("Cannot create new namespace"); */
 
 	if (setgroups(1, (gid_t[]){gid}) < 0)
 		tmate_fatal("Cannot setgroups()");

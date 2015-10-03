@@ -43,7 +43,7 @@ extern void tmate_encoder_init(struct tmate_encoder *encoder,
 			       tmate_encoder_write_cb *callback,
 			       void *userdata);
 
-#define NEW_MSGPACK_API 0
+#define NEW_MSGPACK_API 1
 
 #if NEW_MSG_PACK
 #define msgpack_pack_buffer(pk, buf, len) ({		\

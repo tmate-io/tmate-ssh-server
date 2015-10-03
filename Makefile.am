@@ -22,8 +22,9 @@ CFLAGS += -D_GNU_SOURCE
 endif
 
 CFLAGS += -Wno-unused-parameter -Wno-unused-variable
-CFLAGS += -Ilibssh/include/ -Imsgpack/src
+if IS_GCC
 CFLAGS += -rdynamic # for stack traces
+endif
 
 if IS_DEVENV
 CFLAGS += -DDEVENV
@@ -247,19 +248,3 @@ endif
 if NO_B64_NTOP
 nodist_tmate_slave_SOURCES += compat/b64_ntop.c
 endif
-
-tmate_slave_LDADD = \
-	libssh/build/src/libssh.a \
-	msgpack/src/.libs/libmsgpackc.a
-
-*.c: $(tmate_slave_LDADD)
-
-libssh/build/src/libssh.a:
-	cd libssh/build; ([ -f Makefile ] || cmake .. -DWITH_SFTP=OFF -DWITH_SERVER=ON -DWITH_PCAP=OFF -DWITH_STATIC_LIB=ON -DWITH_GSSAPI=OFF)
-	+make -C libssh/build ssh_static
-
-msgpack/src/.libs/libmsgpackc.a:
-	cd msgpack; ([ -f Makefile ] || (./bootstrap && ./configure))
-	+make -C msgpack/src libmsgpackc.la
-
-.PHONY: libssh/build/src/libssh.a msgpack/src/.libs/libmsgpackc.a
