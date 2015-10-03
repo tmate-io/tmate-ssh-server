@@ -24,11 +24,127 @@ static int on_encoder_write(void *userdata, const char *buf, unsigned int len)
 	return 0;
 }
 
+/* Really sad hack, but we can get away with it */
+#define tmate_encoder_from_pk(pk) ((struct tmate_encoder *)pk)
+
+void msgpack_pack_string(msgpack_packer *pk, const char *str)
+{
+	size_t len = strlen(str);
+
+	if (tmate_encoder_from_pk(pk)->mpac_version >= 5) {
+		msgpack_pack_str(pk, len);
+		msgpack_pack_str_body(pk, str, len);
+	} else {
+		msgpack_pack_v4raw(pk, len);
+		msgpack_pack_v4raw_body(pk, str, len);
+	}
+}
+
+/* Copy/pasted from msgpack sources, except we include the v4 support */
+int _msgpack_pack_object(msgpack_packer* pk, msgpack_object d)
+{
+	switch(d.type) {
+		case MSGPACK_OBJECT_NIL:
+			return msgpack_pack_nil(pk);
+
+		case MSGPACK_OBJECT_BOOLEAN:
+			if(d.via.boolean) {
+				return msgpack_pack_true(pk);
+			} else {
+				return msgpack_pack_false(pk);
+			}
+
+		case MSGPACK_OBJECT_POSITIVE_INTEGER:
+			return msgpack_pack_uint64(pk, d.via.u64);
+
+		case MSGPACK_OBJECT_NEGATIVE_INTEGER:
+			return msgpack_pack_int64(pk, d.via.i64);
+
+		case MSGPACK_OBJECT_FLOAT:
+			return msgpack_pack_double(pk, d.via.f64);
+
+		case MSGPACK_OBJECT_STR:
+			{
+				if (tmate_encoder_from_pk(pk)->mpac_version >= 5) {
+					int ret = msgpack_pack_str(pk, d.via.str.size);
+					if(ret < 0) { return ret; }
+					return msgpack_pack_str_body(pk, d.via.str.ptr, d.via.str.size);
+				} else {
+					int ret = msgpack_pack_v4raw(pk, d.via.str.size);
+					if(ret < 0) { return ret; }
+					return msgpack_pack_v4raw_body(pk, d.via.str.ptr, d.via.str.size);
+				}
+			}
+
+		case MSGPACK_OBJECT_BIN:
+			{
+				if (tmate_encoder_from_pk(pk)->mpac_version >= 5) {
+					int ret = msgpack_pack_bin(pk, d.via.bin.size);
+					if(ret < 0) { return ret; }
+					return msgpack_pack_bin_body(pk, d.via.bin.ptr, d.via.bin.size);
+				} else {
+					int ret = msgpack_pack_v4raw(pk, d.via.bin.size);
+					if(ret < 0) { return ret; }
+					return msgpack_pack_v4raw_body(pk, d.via.bin.ptr, d.via.bin.size);
+				}
+			}
+
+		case MSGPACK_OBJECT_EXT:
+			{
+				int ret = msgpack_pack_ext(pk, d.via.ext.size, d.via.ext.type);
+				if(ret < 0) { return ret; }
+				return msgpack_pack_ext_body(pk, d.via.ext.ptr, d.via.ext.size);
+			}
+
+		case MSGPACK_OBJECT_ARRAY:
+			{
+				int ret = msgpack_pack_array(pk, d.via.array.size);
+				if(ret < 0) {
+					return ret;
+				}
+				else {
+					msgpack_object* o = d.via.array.ptr;
+					msgpack_object* const oend = d.via.array.ptr + d.via.array.size;
+					for(; o != oend; ++o) {
+						ret = msgpack_pack_object(pk, *o);
+						if(ret < 0) { return ret; }
+					}
+
+					return 0;
+				}
+			}
+
+		case MSGPACK_OBJECT_MAP:
+			{
+				int ret = msgpack_pack_map(pk, d.via.map.size);
+				if(ret < 0) {
+					return ret;
+				}
+				else {
+					msgpack_object_kv* kv = d.via.map.ptr;
+					msgpack_object_kv* const kvend = d.via.map.ptr + d.via.map.size;
+					for(; kv != kvend; ++kv) {
+						ret = msgpack_pack_object(pk, kv->key);
+						if(ret < 0) { return ret; }
+						ret = msgpack_pack_object(pk, kv->val);
+						if(ret < 0) { return ret; }
+					}
+
+					return 0;
+				}
+			}
+
+		default:
+			return -1;
+	}
+}
+
 void tmate_encoder_init(struct tmate_encoder *encoder,
 			tmate_encoder_write_cb *callback,
 			void *userdata)
 {
 	msgpack_packer_init(&encoder->pk, encoder, &on_encoder_write);
+	encoder->mpac_version = 5;
 	encoder->buffer = evbuffer_new();
 	encoder->ready_callback = callback;
 	encoder->userdata = userdata;
@@ -83,20 +199,12 @@ void unpack_buffer(struct tmate_unpacker *uk, const char **buf, size_t *len)
 	if (uk->argc == 0)
 		tmate_decoder_error();
 
-#if NEW_MSGPACK_API
 	if (uk->argv[0].type != MSGPACK_OBJECT_STR &&
 	    uk->argv[0].type != MSGPACK_OBJECT_BIN)
 		tmate_decoder_error();
 
 	*len = uk->argv[0].via.str.size;
 	*buf = uk->argv[0].via.str.ptr;
-#else
-	if (uk->argv[0].type != MSGPACK_OBJECT_RAW)
-		tmate_decoder_error();
-
-	*len = uk->argv[0].via.raw.size;
-	*buf = uk->argv[0].via.raw.ptr;
-#endif
 
 	uk->argv++;
 	uk->argc--;

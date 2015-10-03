@@ -63,11 +63,11 @@ static void do_snapshot(struct tmate_unpacker *uk,
 			str_len += utf8.size;
 		}
 
-		pack(raw, str_len);
+		pack(str, str_len);
 		for (i = 0; i < line->cellsize; i++) {
 			cell = &line->celldata[i];
 			grid_cell_get(cell, &utf8);
-			pack(raw_body, utf8.data, utf8.size);
+			pack(str_body, utf8.data, utf8.size);
 		}
 
 		pack(array, line->cellsize);

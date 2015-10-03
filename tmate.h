@@ -32,6 +32,7 @@ typedef void tmate_encoder_write_cb(void *userdata, struct evbuffer *buffer);
 
 struct tmate_encoder {
 	msgpack_packer pk;
+	int mpac_version;
 	tmate_encoder_write_cb *ready_callback;
 	void *userdata;
 	struct evbuffer *buffer;
@@ -43,32 +44,10 @@ extern void tmate_encoder_init(struct tmate_encoder *encoder,
 			       tmate_encoder_write_cb *callback,
 			       void *userdata);
 
-#define NEW_MSGPACK_API 1
-
-#if NEW_MSG_PACK
-#define msgpack_pack_buffer(pk, buf, len) ({		\
-	msgpack_pack_bin(pk, len);			\
-	msgpack_pack_bin_body(pk, buf, len);		\
-})
-
-#define msgpack_pack_string(pk, str) ({			\
-	int __strlen = strlen(str);			\
-	msgpack_pack_str(pk, __strlen);			\
-	msgpack_pack_str_body(pk, str, __strlen);	\
-})
-#else
-/* old msgpack version */
-#define msgpack_pack_buffer(pk, buf, len) ({		\
-	msgpack_pack_raw(pk, len);			\
-	msgpack_pack_raw_body(pk, buf, len);		\
-})
-
-#define msgpack_pack_string(pk, str) ({			\
-	int __strlen = strlen(str);			\
-	msgpack_pack_raw(pk, __strlen);			\
-	msgpack_pack_raw_body(pk, str, __strlen);	\
-})
-#endif
+/* These functions deal with dual v4/v5 support through mpac_version */
+extern void msgpack_pack_string(msgpack_packer *pk, const char *str);
+extern int _msgpack_pack_object(msgpack_packer *pk, msgpack_object d);
+#define msgpack_pack_object _msgpack_pack_object
 
 #define _pack(enc, what, ...) msgpack_pack_##what(&(enc)->pk, __VA_ARGS__)
 

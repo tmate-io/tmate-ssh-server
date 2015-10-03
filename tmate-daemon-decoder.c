@@ -15,6 +15,10 @@ static void tmate_header(struct tmate_session *session,
 	char tmp[512];
 
 	session->client_protocol_version = unpack_int(uk);
+	if (session->client_protocol_version <= 4) {
+		session->daemon_encoder.mpac_version = 4;
+	}
+
 	if (session->client_protocol_version >= 3) {
 		free(client_version);
 		client_version = unpack_string(uk);
