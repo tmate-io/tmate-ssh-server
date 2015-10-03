@@ -1,5 +1,6 @@
 #include <libssh/server.h>
 #include <errno.h>
+#include <sys/ioctl.h>
 #include "tmate.h"
 
 extern void client_write_server(enum msgtype type, void *buf, size_t len);

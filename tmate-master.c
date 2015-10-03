@@ -210,7 +210,7 @@ static int _tmate_connect_to_master(const char *hostname, int port)
 	memcpy(&servaddr.sin_addr, host->h_addr, host->h_length);
 	servaddr.sin_port = htons(port);
 
-	if (connect(sockfd, &servaddr, sizeof(servaddr)) < 0)
+	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
 		tmate_fatal("Cannot connect to master at %s:%d", hostname, port);
 
 	int flag = 1;

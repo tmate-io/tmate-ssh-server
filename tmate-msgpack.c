@@ -9,7 +9,7 @@ static void on_encoder_buffer_ready(evutil_socket_t fd, short what, void *arg)
 	encoder->ready_callback(encoder->userdata, encoder->buffer);
 }
 
-static int on_encoder_write(void *userdata, const char *buf, unsigned int len)
+static int on_encoder_write(void *userdata, const char *buf, size_t len)
 {
 	struct tmate_encoder *encoder = userdata;
 

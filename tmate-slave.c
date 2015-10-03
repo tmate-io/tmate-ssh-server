@@ -271,17 +271,35 @@ static void jail(void)
 	if (chdir("/") < 0)
 		tmate_fatal("Cannot chdir()");
 
-	/* if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0) */
-		/* tmate_fatal("Cannot create new namespace"); */
+#if IS_LINUX
+	if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0)
+		tmate_fatal("Cannot create new namespace");
+#endif
 
 	if (setgroups(1, (gid_t[]){gid}) < 0)
 		tmate_fatal("Cannot setgroups()");
 
+#if HAVE_SETRESUID
 	if (setresuid(uid, uid, uid) < 0)
 		tmate_fatal("Cannot setresuid()");
+#elif HAVE_SETREUID
+	if (setreuid(uid, uid) < 0)
+		tmate_fatal("Cannot setreuid()");
+#else
+	if (setuid(uid) < 0)
+		tmate_fatal("Cannot setuid()");
+#endif
 
-	if (setresuid(gid, gid, gid) < 0)
+#if HAVE_SETRESGID
+	if (setresgid(gid, gid, gid) < 0)
 		tmate_fatal("Cannot setresgid()");
+#elif HAVE_SETREGID
+	if (setregid(gid, gid) < 0)
+		tmate_fatal("Cannot setregid()");
+#else
+	if (setgid(gid) < 0)
+		tmate_fatal("Cannot setgid()");
+#endif
 
 	if (nice(1) < 0)
 		tmate_fatal("Cannot nice()");

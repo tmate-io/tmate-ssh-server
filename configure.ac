@@ -156,7 +156,7 @@ fi
 
 PKG_CHECK_MODULES(
   MSGPACK,
-  msgpack,
+  msgpack >= 1.2.0,
   [
     CPPFLAGS="$MSGPACK_CFLAGS $CPPFLAGS"
     LIBS="$MSGPACK_LIBS $LIBS"
@@ -165,13 +165,13 @@ PKG_CHECK_MODULES(
   found_msgpack=no
 )
 if test "x$found_msgpack" = xno; then
-  AC_MSG_ERROR("msgpack not found")
+  AC_MSG_ERROR("msgpack >= 1.2.0 not found")
 fi
 
 
 PKG_CHECK_MODULES(
   LIBSSH,
-  libssh,
+  libssh >= 0.7.0,
   [
     CPPFLAGS="$LIBSSH_CFLAGS $CPPFLAGS"
     LIBS="$LIBSSH_LIBS $LIBS"
@@ -180,8 +180,10 @@ PKG_CHECK_MODULES(
   found_libssh=no
 )
 if test "x$found_libssh" = xno; then
-  AC_MSG_ERROR("libssh not found")
+  AC_MSG_ERROR("libssh >= 0.7.0 not found")
 fi
+
+AC_CHECK_FUNCS([setresuid setresgid setreuid setregid])
 
 # Check for b64_ntop.
 AC_MSG_CHECKING(for b64_ntop)
@@ -478,6 +480,7 @@ case "$host_os" in
 	*linux*)
 		AC_MSG_RESULT(linux)
 		PLATFORM=linux
+		AC_DEFINE(IS_LINUX)
 		;;
 	*freebsd*)
 		AC_MSG_RESULT(freebsd)

@@ -22,7 +22,7 @@ CFLAGS += -D_GNU_SOURCE
 endif
 
 CFLAGS += -Wno-unused-parameter -Wno-unused-variable
-if IS_GCC
+if IS_LINUX
 CFLAGS += -rdynamic # for stack traces
 endif
 

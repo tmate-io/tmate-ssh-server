@@ -96,7 +96,7 @@ static void on_daemon_encoder_write(void *userdata, struct evbuffer *buffer)
 {
 	struct tmate_session *session = userdata;
 	ssize_t len, written;
-	char *buf;
+	unsigned char *buf;
 
 	for(;;) {
 		len = evbuffer_get_length(buffer);
