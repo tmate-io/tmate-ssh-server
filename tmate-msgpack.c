@@ -65,10 +65,11 @@ int _msgpack_pack_object(msgpack_packer* pk, msgpack_object d)
 
 		case MSGPACK_OBJECT_STR:
 			{
+				/* XXX using bin types anyway! */
 				if (tmate_encoder_from_pk(pk)->mpac_version >= 5) {
-					int ret = msgpack_pack_str(pk, d.via.str.size);
+					int ret = msgpack_pack_bin(pk, d.via.str.size);
 					if(ret < 0) { return ret; }
-					return msgpack_pack_str_body(pk, d.via.str.ptr, d.via.str.size);
+					return msgpack_pack_bin_body(pk, d.via.str.ptr, d.via.str.size);
 				} else {
 					int ret = msgpack_pack_v4raw(pk, d.via.str.size);
 					if(ret < 0) { return ret; }
