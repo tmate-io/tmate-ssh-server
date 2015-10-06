@@ -305,8 +305,8 @@ void tmate_ssh_server_main(struct tmate_session *session,
 
 	setup_signals();
 
-	if (tmate_has_master())
-		close(tmate_connect_to_master());
+	if (tmate_has_proxy())
+		close(tmate_connect_to_proxy());
 
 	bind = prepare_ssh(keys_dir, port);
 
@@ -323,12 +323,12 @@ void tmate_ssh_server_main(struct tmate_session *session,
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
 
 		/*
-		 * We should die if we can't connect to master. This way the
+		 * We should die if we can't connect to proxy. This way the
 		 * tmate daemon will pick another server to work on.
 		 */
-		session->master_fd = -1;
-		if (tmate_has_master())
-			session->master_fd = tmate_connect_to_master();
+		session->proxy_fd = -1;
+		if (tmate_has_proxy())
+			session->proxy_fd = tmate_connect_to_proxy();
 
 		if (get_ip(ssh_get_fd(client->session),
 			   client->ip_address, sizeof(client->ip_address)) < 0)
@@ -341,7 +341,7 @@ void tmate_ssh_server_main(struct tmate_session *session,
 			tmate_info("Child spawned pid=%d, ip=%s",
 				    pid, client->ip_address);
 			ssh_free(client->session);
-			close(session->master_fd);
+			close(session->proxy_fd);
 		} else {
 			ssh_bind_free(bind);
 			session->session_token = "init";

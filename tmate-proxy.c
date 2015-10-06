@@ -7,7 +7,7 @@
 
 #define CONTROL_PROTOCOL_VERSION 1
 
-#define pack(what, ...) _pack(&tmate_session->master_encoder, what, __VA_ARGS__)
+#define pack(what, ...) _pack(&tmate_session->proxy_encoder, what, __VA_ARGS__)
 
 static void ctl_daemon_fwd_msg(struct tmate_session *session,
 			       struct tmate_unpacker *uk)
@@ -142,13 +142,13 @@ static void ctl_pane_keys(struct tmate_session *session,
 static void ctl_resize(struct tmate_session *session,
 		       struct tmate_unpacker *uk)
 {
-	session->master_sx = (u_int)unpack_int(uk);
-	session->master_sy = (u_int)unpack_int(uk);
+	session->proxy_sx = (u_int)unpack_int(uk);
+	session->proxy_sy = (u_int)unpack_int(uk);
 	recalculate_sizes();
 }
 
-void tmate_dispatch_master_message(struct tmate_session *session,
-				   struct tmate_unpacker *uk)
+void tmate_dispatch_proxy_message(struct tmate_session *session,
+				  struct tmate_unpacker *uk)
 {
 	int cmd = unpack_int(uk);
 	switch (cmd) {
@@ -157,14 +157,14 @@ void tmate_dispatch_master_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_REQUEST_SNAPSHOT,	ctl_daemon_request_snapshot);
 	dispatch(TMATE_CTL_PANE_KEYS,		ctl_pane_keys);
 	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
-	default: tmate_warn("Bad master message type: %d", cmd);
+	default: tmate_warn("Bad proxy message type: %d", cmd);
 	}
 }
 
 void tmate_notify_client_join(struct tmate_session *session,
 			      struct client *c)
 {
-	if (!tmate_has_master())
+	if (!tmate_has_proxy())
 		return;
 
 	pack(array, 4);
@@ -177,7 +177,7 @@ void tmate_notify_client_join(struct tmate_session *session,
 void tmate_notify_client_left(struct tmate_session *session,
 			      struct client *c)
 {
-	if (!tmate_has_master())
+	if (!tmate_has_proxy())
 		return;
 
 	pack(array, 2);
@@ -185,13 +185,13 @@ void tmate_notify_client_left(struct tmate_session *session,
 	pack(int, c->id);
 }
 
-void tmate_send_master_daemon_msg(struct tmate_session *session,
-				  struct tmate_unpacker *uk)
+void tmate_send_proxy_daemon_msg(struct tmate_session *session,
+				 struct tmate_unpacker *uk)
 {
 	struct timespec time_diff, current_time;
 	int i;
 
-	if (!tmate_has_master())
+	if (!tmate_has_proxy())
 		return;
 
 	pack(array, 2);
@@ -202,9 +202,9 @@ void tmate_send_master_daemon_msg(struct tmate_session *session,
 		pack(object, uk->argv[i]);
 }
 
-void tmate_send_master_header(struct tmate_session *session)
+void tmate_send_proxy_header(struct tmate_session *session)
 {
-	if (!tmate_has_master())
+	if (!tmate_has_proxy())
 		return;
 
 	pack(array, 6);
@@ -216,16 +216,16 @@ void tmate_send_master_header(struct tmate_session *session)
 	pack(string, session->session_token_ro);
 }
 
-void tmate_init_master_session(struct tmate_session *session)
+void tmate_init_proxy_session(struct tmate_session *session)
 {
-	if (!tmate_has_master())
+	if (!tmate_has_proxy())
 		return;
 
-	session->master_sx = -1;
-	session->master_sy = -1;
+	session->proxy_sx = -1;
+	session->proxy_sy = -1;
 }
 
-static int _tmate_connect_to_master(const char *hostname, int port)
+static int _tmate_connect_to_proxy(const char *hostname, int port)
 {
 	int sockfd = -1;
 	struct sockaddr_in servaddr;
@@ -245,22 +245,22 @@ static int _tmate_connect_to_master(const char *hostname, int port)
 	servaddr.sin_port = htons(port);
 
 	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-		tmate_fatal("Cannot connect to master at %s:%d", hostname, port);
+		tmate_fatal("Cannot connect to proxy at %s:%d", hostname, port);
 
 	int flag = 1;
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0)
-		tmate_fatal("Can't set master socket to TCP_NODELAY");
+		tmate_fatal("Can't set proxy socket to TCP_NODELAY");
 
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
-		tmate_fatal("Can't set master socket to non-blocking");
+		tmate_fatal("Can't set proxy socket to non-blocking");
 
-	tmate_notice("Connected to master at %s:%d", hostname, port);
+	tmate_notice("Connected to proxy at %s:%d", hostname, port);
 
 	return sockfd;
 }
 
-int tmate_connect_to_master(void)
+int tmate_connect_to_proxy(void)
 {
-	return _tmate_connect_to_master(tmate_settings->master_hostname,
-					tmate_settings->master_port);
+	return _tmate_connect_to_proxy(tmate_settings->proxy_hostname,
+				       tmate_settings->proxy_port);
 }

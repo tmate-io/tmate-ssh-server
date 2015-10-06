@@ -33,8 +33,8 @@ extern int client_connect(char *path, int start_server);
 struct tmate_settings _tmate_settings = {
 	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
 	.ssh_port        = TMATE_SSH_DEFAULT_PORT,
-	.master_hostname = NULL,
-	.master_port     = TMATE_DEFAULT_MASTER_PORT,
+	.proxy_hostname  = NULL,
+	.proxy_port      = TMATE_DEFAULT_PROXY_PORT,
 	.tmate_host      = NULL,
 	.log_level       = LOG_NOTICE,
 	.use_syslog      = false,
@@ -44,7 +44,7 @@ struct tmate_settings *tmate_settings = &_tmate_settings;
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-p port] [-m master_hostname] [-q master_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
 void tmate_get_random_bytes(void *buffer, ssize_t len)
@@ -76,7 +76,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "k:p:lvm:q:")) != -1) {
+	while ((opt = getopt(argc, argv, "k:p:lvx:q:")) != -1) {
 		switch (opt) {
 		case 'p':
 			tmate_settings->ssh_port = atoi(optarg);
@@ -90,11 +90,11 @@ int main(int argc, char **argv, char **envp)
 		case 'v':
 			tmate_settings->log_level++;
 			break;
-		case 'm':
-			tmate_settings->master_hostname = xstrdup(optarg);
+		case 'x':
+			tmate_settings->proxy_hostname = xstrdup(optarg);
 			break;
 		case 'q':
-			tmate_settings->master_port = atoi(optarg);
+			tmate_settings->proxy_port = atoi(optarg);
 			break;
 		case 'h':
 			tmate_settings->tmate_host = xstrdup(optarg);
@@ -351,7 +351,7 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	close_fds_except((int[]){session->tmux_socket_fd,
 				 ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1,
-				 session->master_fd}, 4);
+				 session->proxy_fd}, 4);
 
 	jail();
 	event_reinit(ev_base);
@@ -420,7 +420,7 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 
 	tmate_client_pty_init(session);
 
-	/* the unused session->master_fd will get closed automatically */
+	/* the unused session->proxy_fd will get closed automatically */
 
 	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
 				 session->tmux_socket_fd,

@@ -166,7 +166,7 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 
 #define TMATE_SSH_DEFAULT_KEYS_DIR "keys"
 
-#define TMATE_DEFAULT_MASTER_PORT 7000
+#define TMATE_DEFAULT_PROXY_PORT 4002
 
 #define TMATE_TOKEN_LEN 25
 #define TMATE_WORKDIR "/tmp/tmate"
@@ -175,8 +175,8 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 struct tmate_settings {
 	const char *keys_dir;
 	int ssh_port;
-	const char *master_hostname;
-	int master_port;
+	const char *proxy_hostname;
+	int proxy_port;
 	const char *tmate_host;
 	int log_level;
 	bool use_syslog;
@@ -196,11 +196,11 @@ struct tmate_session {
 	int client_protocol_version;
 	struct event ev_notify_timer;
 
-	int master_fd;
-	struct bufferevent *bev_master;
-	struct tmate_encoder master_encoder;
-	struct tmate_decoder master_decoder;
-	u_int master_sx, master_sy;
+	int proxy_fd;
+	struct bufferevent *bev_proxy;
+	struct tmate_encoder proxy_encoder;
+	struct tmate_decoder proxy_decoder;
+	u_int proxy_sx, proxy_sy;
 
 	/* only for client-pty */
 	int pty;
@@ -214,20 +214,20 @@ extern long tmate_get_random_long(void);
 extern void request_server_termination(void);
 extern void tmate_spawn_slave(struct tmate_session *session);
 
-/* tmate-master.c */
+/* tmate-proxy.c */
 
-extern void tmate_dispatch_master_message(struct tmate_session *session,
+extern void tmate_dispatch_proxy_message(struct tmate_session *session,
 					  struct tmate_unpacker *uk);
 
-extern void tmate_send_master_daemon_msg(struct tmate_session *session,
+extern void tmate_send_proxy_daemon_msg(struct tmate_session *session,
 					 struct tmate_unpacker *uk);
-extern void tmate_send_master_header(struct tmate_session *session);
-extern void tmate_init_master_session(struct tmate_session *session);
+extern void tmate_send_proxy_header(struct tmate_session *session);
+extern void tmate_init_proxy_session(struct tmate_session *session);
 
-extern int tmate_connect_to_master(void);
-static inline bool tmate_has_master(void)
+extern int tmate_connect_to_proxy(void);
+static inline bool tmate_has_proxy(void)
 {
-	return !!tmate_settings->master_hostname;
+	return !!tmate_settings->proxy_hostname;
 }
 
 

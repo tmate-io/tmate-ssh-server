@@ -1,55 +1,55 @@
 #include "tmate.h"
 #include <errno.h>
 
-static void on_master_decoder_read(void *userdata, struct tmate_unpacker *uk)
+static void on_proxy_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
-	tmate_dispatch_master_message(session, uk);
+	tmate_dispatch_proxy_message(session, uk);
 }
 
-static void on_master_read(struct bufferevent *bev, void *_session)
+static void on_proxy_read(struct bufferevent *bev, void *_session)
 {
 	struct tmate_session *session = _session;
-	struct evbuffer *master_in;
+	struct evbuffer *proxy_in;
 	ssize_t written;
 	char *buf;
 	size_t len;
 
-	master_in = bufferevent_get_input(session->bev_master);
+	proxy_in = bufferevent_get_input(session->bev_proxy);
 
-	while (evbuffer_get_length(master_in)) {
-		tmate_decoder_get_buffer(&session->master_decoder, &buf, &len);
+	while (evbuffer_get_length(proxy_in)) {
+		tmate_decoder_get_buffer(&session->proxy_decoder, &buf, &len);
 
 		if (len == 0)
 			tmate_fatal("No more room in client decoder. Message too big?");
 
-		written = evbuffer_remove(master_in, buf, len);
+		written = evbuffer_remove(proxy_in, buf, len);
 		if (written < 0)
-			tmate_fatal("Cannot read master buffer");
+			tmate_fatal("Cannot read proxy buffer");
 
-		tmate_decoder_commit(&session->master_decoder, written);
+		tmate_decoder_commit(&session->proxy_decoder, written);
 	}
 }
 
-static void on_master_encoder_write(void *userdata, struct evbuffer *buffer)
+static void on_proxy_encoder_write(void *userdata, struct evbuffer *buffer)
 {
 	struct tmate_session *session = userdata;
-	struct evbuffer *master_out;
+	struct evbuffer *proxy_out;
 	size_t len;
 
-	master_out = bufferevent_get_output(session->bev_master);
+	proxy_out = bufferevent_get_output(session->bev_proxy);
 
-	if (evbuffer_add_buffer(master_out, buffer) < 0)
-		tmate_fatal("Cannot write to master buffer");
+	if (evbuffer_add_buffer(proxy_out, buffer) < 0)
+		tmate_fatal("Cannot write to proxy buffer");
 }
 
-static void on_master_event(struct bufferevent *bev, short events, void *_session)
+static void on_proxy_event(struct bufferevent *bev, short events, void *_session)
 {
 	if (events & BEV_EVENT_EOF)
-		tmate_fatal("Connection to master closed");
+		tmate_fatal("Connection to proxy closed");
 
 	if (events & BEV_EVENT_ERROR)
-		tmate_fatal("Connection to master error: %s",
+		tmate_fatal("Connection to proxy error: %s",
 			    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 }
 
@@ -57,7 +57,7 @@ static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
 
-	tmate_send_master_daemon_msg(session, uk);
+	tmate_send_proxy_daemon_msg(session, uk);
 	tmate_dispatch_daemon_message(session, uk);
 }
 
@@ -117,23 +117,23 @@ static void on_daemon_encoder_write(void *userdata, struct evbuffer *buffer)
 	}
 }
 
-static void init_master(struct tmate_session *session)
+static void init_proxy(struct tmate_session *session)
 {
-	/* session->master_fd is already connected */
-	session->bev_master = bufferevent_socket_new(ev_base, session->master_fd,
+	/* session->proxy_fd is already connected */
+	session->bev_proxy = bufferevent_socket_new(ev_base, session->proxy_fd,
 						     BEV_OPT_CLOSE_ON_FREE);
-	if (!session->bev_master)
+	if (!session->bev_proxy)
 		tmate_fatal("Cannot setup socket bufferevent");
 
-	bufferevent_setcb(session->bev_master,
-			  on_master_read, NULL, on_master_event, session);
-	bufferevent_enable(session->bev_master, EV_READ | EV_WRITE);
+	bufferevent_setcb(session->bev_proxy,
+			  on_proxy_read, NULL, on_proxy_event, session);
+	bufferevent_enable(session->bev_proxy, EV_READ | EV_WRITE);
 
-	tmate_encoder_init(&session->master_encoder, on_master_encoder_write, session);
-	tmate_decoder_init(&session->master_decoder, on_master_decoder_read, session);
+	tmate_encoder_init(&session->proxy_encoder, on_proxy_encoder_write, session);
+	tmate_decoder_init(&session->proxy_decoder, on_proxy_decoder_read, session);
 
-	tmate_init_master_session(session);
-	tmate_send_master_header(session);
+	tmate_init_proxy_session(session);
+	tmate_send_proxy_header(session);
 }
 
 void tmate_daemon_init(struct tmate_session *session)
@@ -149,6 +149,6 @@ void tmate_daemon_init(struct tmate_session *session)
 	tmate_encoder_init(&session->daemon_encoder, on_daemon_encoder_write, session);
 	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
-	if (tmate_has_master())
-		init_master(session);
+	if (tmate_has_proxy())
+		init_proxy(session);
 }
