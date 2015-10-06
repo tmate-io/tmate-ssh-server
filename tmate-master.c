@@ -139,6 +139,14 @@ static void ctl_pane_keys(struct tmate_session *session,
 	free(str);
 }
 
+static void ctl_resize(struct tmate_session *session,
+		       struct tmate_unpacker *uk)
+{
+	session->master_sx = (u_int)unpack_int(uk);
+	session->master_sy = (u_int)unpack_int(uk);
+	recalculate_sizes();
+}
+
 void tmate_dispatch_master_message(struct tmate_session *session,
 				   struct tmate_unpacker *uk)
 {
@@ -148,8 +156,33 @@ void tmate_dispatch_master_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_DEAMON_FWD_MSG,	ctl_daemon_fwd_msg);
 	dispatch(TMATE_CTL_REQUEST_SNAPSHOT,	ctl_daemon_request_snapshot);
 	dispatch(TMATE_CTL_PANE_KEYS,		ctl_pane_keys);
-	default: tmate_fatal("Bad master message type: %d", cmd);
+	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
+	default: tmate_warn("Bad master message type: %d", cmd);
 	}
+}
+
+void tmate_notify_client_join(struct tmate_session *session,
+			      struct client *c)
+{
+	if (!tmate_has_master())
+		return;
+
+	pack(array, 4);
+	pack(int, TMATE_CTL_CLIENT_JOIN);
+	pack(int, c->id);
+	pack(string, c->ip_address);
+	pack(string, c->pubkey);
+}
+
+void tmate_notify_client_left(struct tmate_session *session,
+			      struct client *c)
+{
+	if (!tmate_has_master())
+		return;
+
+	pack(array, 2);
+	pack(int, TMATE_CTL_CLIENT_LEFT);
+	pack(int, c->id);
 }
 
 void tmate_send_master_daemon_msg(struct tmate_session *session,
@@ -188,7 +221,8 @@ void tmate_init_master_session(struct tmate_session *session)
 	if (!tmate_has_master())
 		return;
 
-	/* Further init */
+	session->master_sx = -1;
+	session->master_sy = -1;
 }
 
 static int _tmate_connect_to_master(const char *hostname, int port)

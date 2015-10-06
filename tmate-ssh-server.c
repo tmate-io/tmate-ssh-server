@@ -123,6 +123,8 @@ static void on_ssh_read(evutil_socket_t fd, short what, void *arg)
 	if (!ssh_is_connected(client->session)) {
 		tmate_warn("SSH Disconnected");
 
+		event_del(&client->ev_ssh);
+
 		/* For graceful tmux client termination */
 		request_server_termination();
 	}
@@ -190,14 +192,16 @@ static void client_bootstrap(struct tmate_session *_session)
 
 static void handle_sigchld(void)
 {
-	siginfo_t si;
+	int status;
+	pid_t pid;
 
-	/* TODO cleanup the socket when the client dies */
-	while (waitid(P_ALL, 0, &si, WEXITED | WNOHANG) >= 0 && si.si_pid) {
-		tmate_info("Child %d %s (%d)",
-			   si.si_pid,
-			   si.si_code == CLD_EXITED ? "exited" : "killed",
-			   si.si_status);
+	while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
+		if (WIFEXITED(status))
+			tmate_info("Child %d exited (%d)", pid, WEXITSTATUS(status));
+		if (WIFSIGNALED(status))
+			tmate_info("Child %d killed (%d)", pid, WTERMSIG(status));
+		if (WIFSTOPPED(status))
+			tmate_info("Child %d stopped (%d)", pid, WSTOPSIG(status));
 	}
 }
 

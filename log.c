@@ -47,6 +47,7 @@ void
 log_event_cb(unused int severity, const char *msg)
 {
 	log_warnx("%s", msg);
+	sleep(1);
 }
 
 void init_logging(const char *program_name, bool use_syslog, int log_level)

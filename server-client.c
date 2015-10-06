@@ -111,6 +111,7 @@ server_client_create(int fd)
 
 #ifdef TMATE_SLAVE
 	c->ip_address = NULL;
+	c->pubkey = NULL;
 #endif
 
 	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
@@ -159,7 +160,7 @@ server_client_lost(struct client *c)
 	log_debug("lost client %d", c->ibuf.fd);
 
 #ifdef TMATE_SLAVE
-	tmate_notify_client_left(c);
+	tmate_notify_client_left(tmate_session, c);
 #endif
 
 	/*
@@ -205,6 +206,8 @@ server_client_lost(struct client *c)
 #ifdef TMATE_SLAVE
 	free(c->ip_address);
 	c->ip_address = NULL;
+	free(c->pubkey);
+	c->pubkey = NULL;
 #endif
 
 	environ_free(&c->environ);
@@ -1029,7 +1032,8 @@ server_client_msg_identify(
 
 #ifdef TMATE_SLAVE
 	c->ip_address = xstrdup(data->ip_address);
-	tmate_notify_client_join(c);
+	c->pubkey = xstrdup(data->pubkey);
+	tmate_notify_client_join(tmate_session, c);
 #endif
 }
 

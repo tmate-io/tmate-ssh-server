@@ -325,7 +325,10 @@ client_send_identify(int flags)
 	int				fd;
 
 #ifdef TMATE_SLAVE
-	strcpy(data.ip_address, tmate_session->ssh_client.ip_address);
+	strncpy(data.ip_address, tmate_session->ssh_client.ip_address,
+		sizeof(data.ip_address));
+	strncpy(data.pubkey, tmate_session->ssh_client.pubkey,
+		sizeof(data.pubkey));
 #endif
 
 	data.flags = flags;

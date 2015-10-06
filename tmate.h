@@ -88,8 +88,8 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 
 extern void printflike1 tmate_notify(const char *fmt, ...);
 extern void printflike2 tmate_notify_later(int timeout, const char *fmt, ...);
-extern void tmate_notify_client_join(struct client *c);
-extern void tmate_notify_client_left(struct client *c);
+extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
+extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
 
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
@@ -200,6 +200,7 @@ struct tmate_session {
 	struct bufferevent *bev_master;
 	struct tmate_encoder master_encoder;
 	struct tmate_decoder master_decoder;
+	u_int master_sx, master_sy;
 
 	/* only for client-pty */
 	int pty;

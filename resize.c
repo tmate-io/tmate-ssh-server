@@ -78,6 +78,13 @@ recalculate_sizes(void)
 		}
 
 #ifdef TMATE_SLAVE
+		if (tmate_has_master()) {
+			if (tmate_session->master_sy < ssy)
+				ssy = tmate_session->master_sy;
+			if (tmate_session->master_sx < ssx)
+				ssx = tmate_session->master_sx;
+		}
+
 		tmate_client_resize(ssx, ssy);
 		return;
 #endif
