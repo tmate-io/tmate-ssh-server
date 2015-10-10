@@ -279,6 +279,17 @@ static void jail(void)
 	if (setgroups(1, (gid_t[]){gid}) < 0)
 		tmate_fatal("Cannot setgroups()");
 
+#if HAVE_SETRESGID
+	if (setresgid(gid, gid, gid) < 0)
+		tmate_fatal("Cannot setresgid() %d", gid);
+#elif HAVE_SETREGID
+	if (setregid(gid, gid) < 0)
+		tmate_fatal("Cannot setregid()");
+#else
+	if (setgid(gid) < 0)
+		tmate_fatal("Cannot setgid()");
+#endif
+
 #if HAVE_SETRESUID
 	if (setresuid(uid, uid, uid) < 0)
 		tmate_fatal("Cannot setresuid()");
@@ -288,17 +299,6 @@ static void jail(void)
 #else
 	if (setuid(uid) < 0)
 		tmate_fatal("Cannot setuid()");
-#endif
-
-#if HAVE_SETRESGID
-	if (setresgid(gid, gid, gid) < 0)
-		tmate_fatal("Cannot setresgid()");
-#elif HAVE_SETREGID
-	if (setregid(gid, gid) < 0)
-		tmate_fatal("Cannot setregid()");
-#else
-	if (setgid(gid) < 0)
-		tmate_fatal("Cannot setgid()");
 #endif
 
 	if (nice(1) < 0)
