@@ -159,6 +159,14 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	alarm(grace_period);
 
+	/*
+	 * We should die early if we can't connect to proxy. This way the
+	 * tmate daemon will pick another server to work on.
+	 */
+	_session->proxy_fd = -1;
+	if (tmate_has_proxy())
+		_session->proxy_fd = tmate_connect_to_proxy();
+
 	ssh_server_cb.userdata = client;
 	ssh_callbacks_init(&ssh_server_cb);
 	ssh_set_server_callbacks(client->session, &ssh_server_cb);
@@ -305,9 +313,6 @@ void tmate_ssh_server_main(struct tmate_session *session,
 
 	setup_signals();
 
-	if (tmate_has_proxy())
-		close(tmate_connect_to_proxy());
-
 	bind = prepare_ssh(keys_dir, port);
 
 	for (;;) {
@@ -322,14 +327,6 @@ void tmate_ssh_server_main(struct tmate_session *session,
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
 
-		/*
-		 * We should die if we can't connect to proxy. This way the
-		 * tmate daemon will pick another server to work on.
-		 */
-		session->proxy_fd = -1;
-		if (tmate_has_proxy())
-			session->proxy_fd = tmate_connect_to_proxy();
-
 		if (get_ip(ssh_get_fd(client->session),
 			   client->ip_address, sizeof(client->ip_address)) < 0)
 			tmate_fatal("Error getting IP address from connection");
@@ -341,7 +338,6 @@ void tmate_ssh_server_main(struct tmate_session *session,
 			tmate_info("Child spawned pid=%d, ip=%s",
 				    pid, client->ip_address);
 			ssh_free(client->session);
-			close(session->proxy_fd);
 		} else {
 			ssh_bind_free(bind);
 			session->session_token = "init";
