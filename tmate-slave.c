@@ -44,7 +44,7 @@ struct tmate_settings *tmate_settings = &_tmate_settings;
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
 void tmate_get_random_bytes(void *buffer, ssize_t len)
@@ -76,7 +76,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "k:p:lvx:q:")) != -1) {
+	while ((opt = getopt(argc, argv, "h:k:p:lvx:q:")) != -1) {
 		switch (opt) {
 		case 'p':
 			tmate_settings->ssh_port = atoi(optarg);
