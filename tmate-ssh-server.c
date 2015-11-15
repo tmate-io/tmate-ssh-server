@@ -45,6 +45,9 @@ static int shell_request(ssh_session session, ssh_channel channel,
 {
 	struct tmate_ssh_client *client = userdata;
 
+	if (client->role)
+		return 1;
+
 	client->role = TMATE_ROLE_PTY_CLIENT;
 
 	return 0;
@@ -55,8 +58,28 @@ static int subsystem_request(ssh_session session, ssh_channel channel,
 {
 	struct tmate_ssh_client *client = userdata;
 
+	if (client->role)
+		return 1;
+
 	if (!strcmp(subsystem, "tmate"))
 		client->role = TMATE_ROLE_DAEMON;
+
+	return 0;
+}
+
+static int exec_request(ssh_session session, ssh_channel channel,
+			const char *command, void *userdata)
+{
+	struct tmate_ssh_client *client = userdata;
+
+	if (client->role)
+		return 1;
+
+	if (!tmate_has_proxy())
+		return 1;
+
+	client->role = TMATE_ROLE_EXEC;
+	client->exec_command = xstrdup(command);
 
 	return 0;
 }
@@ -82,9 +105,10 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 	memset(&client->channel_cb, 0, sizeof(client->channel_cb));
 	ssh_callbacks_init(&client->channel_cb);
 	client->channel_cb.userdata = client;
-	client->channel_cb.channel_pty_request_function = pty_request,
-	client->channel_cb.channel_shell_request_function = shell_request,
-	client->channel_cb.channel_subsystem_request_function = subsystem_request,
+	client->channel_cb.channel_pty_request_function = pty_request;
+	client->channel_cb.channel_shell_request_function = shell_request;
+	client->channel_cb.channel_subsystem_request_function = subsystem_request;
+	client->channel_cb.channel_exec_request_function = exec_request;
 	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
 
 	return client->channel;

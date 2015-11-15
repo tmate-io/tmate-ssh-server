@@ -40,6 +40,14 @@ void msgpack_pack_string(msgpack_packer *pk, const char *str)
 	}
 }
 
+void msgpack_pack_boolean(msgpack_packer *pk, bool value)
+{
+	if (value)
+		msgpack_pack_true(pk);
+	else
+		msgpack_pack_false(pk);
+}
+
 /* Copy/pasted from msgpack sources, except we include the v4 support */
 int _msgpack_pack_object(msgpack_packer* pk, msgpack_object d)
 {
@@ -188,6 +196,24 @@ int64_t unpack_int(struct tmate_unpacker *uk)
 		tmate_decoder_error();
 
 	val = uk->argv[0].via.i64;
+
+	uk->argv++;
+	uk->argc--;
+
+	return val;
+}
+
+bool unpack_bool(struct tmate_unpacker *uk)
+{
+	bool val;
+
+	if (uk->argc == 0)
+		tmate_decoder_error();
+
+	if (uk->argv[0].type != MSGPACK_OBJECT_BOOLEAN)
+		tmate_decoder_error();
+
+	val = uk->argv[0].via.boolean;
 
 	uk->argv++;
 	uk->argc--;

@@ -329,6 +329,7 @@ client_send_identify(int flags)
 		sizeof(data.ip_address));
 	strncpy(data.pubkey, tmate_session->ssh_client.pubkey,
 		sizeof(data.pubkey));
+	data.readonly = tmate_session->readonly;
 #endif
 
 	data.flags = flags;

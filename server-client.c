@@ -1033,6 +1033,7 @@ server_client_msg_identify(
 #ifdef TMATE_SLAVE
 	c->ip_address = xstrdup(data->ip_address);
 	c->pubkey = xstrdup(data->pubkey);
+	c->readonly = data->readonly;
 	tmate_notify_client_join(tmate_session, c);
 #endif
 }

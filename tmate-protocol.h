@@ -10,6 +10,7 @@ enum tmate_control_out_msg_types {
 	TMATE_CTL_SNAPSHOT,
 	TMATE_CTL_CLIENT_JOIN,
 	TMATE_CTL_CLIENT_LEFT,
+	TMATE_CTL_EXEC,
 };
 
 /*
@@ -18,8 +19,9 @@ enum tmate_control_out_msg_types {
 [TMATE_CTL_DEAMON_OUT_MSG, object: msg]
 [TMATE_CTL_SNAPSHOT, [[int: pane_id, [int: cur_x, int: cur_y], int: mode,
                        [[string: line_utf8, [int: char_attr, ...]], ...], ...], ...]]
-[TMATE_CTL_CLIENT_JOIN, int: client_id, string: ip_address, string: pubkey]
+[TMATE_CTL_CLIENT_JOIN, int: client_id, string: ip_address, string: pubkey, boolean: readonly]
 [TMATE_CTL_CLIENT_LEFT, int: client_id]
+[TMATE_CTL_EXEC, string: username, string: ip_address, string: pubkey, string: command]
 */
 
 enum tmate_control_in_msg_types {
@@ -27,6 +29,7 @@ enum tmate_control_in_msg_types {
 	TMATE_CTL_REQUEST_SNAPSHOT,
 	TMATE_CTL_PANE_KEYS,
 	TMATE_CTL_RESIZE,
+	TMATE_CTL_EXEC_RESPONSE,
 };
 
 /*
@@ -34,6 +37,7 @@ enum tmate_control_in_msg_types {
 [TMATE_CTL_REQUEST_SNAPSHOT, int: max_history_lines]
 [TMATE_CTL_PANE_KEYS, int: pane_id, string: keys]
 [TMATE_CTL_RESIZE, int: sx, int: sy] // sx == -1: no clients
+[TMATE_CTL_EXEC_RESPONSE, int: exit_code, string: message]
 */
 
 enum tmate_daemon_out_msg_types {

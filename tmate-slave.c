@@ -434,10 +434,26 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 	exit(ret);
 }
 
+static void tmate_spawn_slave_exec(struct tmate_session *session)
+{
+	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
+				 log_file ? fileno(log_file) : -1,
+				 session->proxy_fd}, 3);
+	jail();
+	event_reinit(ev_base);
+
+	tmate_client_exec_init(session);
+
+	if (event_base_dispatch(ev_base) < 0)
+		tmate_fatal("Cannot run event loop");
+	exit(0);
+}
+
 void tmate_spawn_slave(struct tmate_session *session)
 {
 	switch (session->ssh_client.role) {
 	case TMATE_ROLE_DAEMON:		tmate_spawn_slave_daemon(session);	break;
 	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_slave_pty_client(session);	break;
+	case TMATE_ROLE_EXEC:		tmate_spawn_slave_exec(session);	break;
 	}
 }

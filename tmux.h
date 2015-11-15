@@ -480,6 +480,7 @@ struct msg_identify_data {
 #ifdef TMATE_SLAVE
 	char		ip_address[64];
 	char		pubkey[2048]; /* hopefully enough :) */
+	int		readonly;
 #endif
 
 #define IDENTIFY_UTF8 0x1
@@ -1389,6 +1390,7 @@ struct client {
 #ifdef TMATE_SLAVE
 	char		*ip_address;
 	char		*pubkey;
+	int		readonly;
 #endif
 };
 ARRAY_DECL(clients, struct client *);

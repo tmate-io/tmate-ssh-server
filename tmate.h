@@ -46,6 +46,7 @@ extern void tmate_encoder_init(struct tmate_encoder *encoder,
 
 /* These functions deal with dual v4/v5 support through mpac_version */
 extern void msgpack_pack_string(msgpack_packer *pk, const char *str);
+extern void msgpack_pack_boolean(msgpack_packer *pk, bool value);
 extern int _msgpack_pack_object(msgpack_packer *pk, msgpack_object d);
 #define msgpack_pack_object _msgpack_pack_object
 
@@ -73,6 +74,7 @@ struct tmate_unpacker {
 extern void init_unpacker(struct tmate_unpacker *uk, msgpack_object obj);
 extern void tmate_decoder_error(void);
 extern int64_t unpack_int(struct tmate_unpacker *uk);
+extern bool unpack_bool(struct tmate_unpacker *uk);
 extern void unpack_buffer(struct tmate_unpacker *uk, const char **buf, size_t *len);
 extern char *unpack_string(struct tmate_unpacker *uk);
 extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *nested);
@@ -88,8 +90,6 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 
 extern void printflike1 tmate_notify(const char *fmt, ...);
 extern void printflike2 tmate_notify_later(int timeout, const char *fmt, ...);
-extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
-extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
 
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
@@ -109,12 +109,18 @@ extern char *tmate_left_status, *tmate_right_status;
 extern void tmate_dispatch_daemon_message(struct tmate_session *session,
 					  struct tmate_unpacker *uk);
 
-/* tmate-ssh-client.c */
+/* tmate-ssh-daemon.c */
 
 #define TMATE_KEYFRAME_INTERVAL_SEC 10
 #define TMATE_KEYFRAME_MAX_SIZE 1024*1024
 
 extern void tmate_daemon_init(struct tmate_session *session);
+
+/* tmate-ssh-exec.c */
+
+extern void tmate_dump_exec_response(struct tmate_session *session,
+				     int exit_code, const char *message);
+extern void tmate_client_exec_init(struct tmate_session *session);
 
 /* tmate-ssh-client-pty.c */
 
@@ -128,6 +134,7 @@ extern void tmate_flush_pty(struct tmate_session *session);
 
 #define TMATE_ROLE_DAEMON	1
 #define TMATE_ROLE_PTY_CLIENT	2
+#define TMATE_ROLE_EXEC		3
 
 struct tmate_ssh_client {
 	char ip_address[64];
@@ -144,6 +151,8 @@ struct tmate_ssh_client {
 
 	char *username;
 	char *pubkey;
+
+	char *exec_command;
 
 	struct winsize winsize_pty;
 
@@ -183,11 +192,13 @@ struct tmate_settings {
 };
 extern struct tmate_settings *tmate_settings;
 
+typedef void on_proxy_error_cb(struct tmate_session *session, short events);
+
 struct tmate_session {
 	struct tmate_ssh_client ssh_client;
 	int tmux_socket_fd;
 
-	/* only for deamon */
+	/* only for role deamon */
 	const char *session_token;
 	const char *session_token_ro;
 
@@ -201,11 +212,17 @@ struct tmate_session {
 	struct tmate_encoder proxy_encoder;
 	struct tmate_decoder proxy_decoder;
 	u_int proxy_sx, proxy_sy;
+	on_proxy_error_cb *on_proxy_error;
 
-	/* only for client-pty */
+	/* only for role client-pty */
 	int pty;
 	struct event ev_pty;
 	bool readonly;
+
+	/* only for role-exec */
+	bool response_received;
+	bool response_status;
+	const char *response_message;
 };
 
 extern struct tmate_session *tmate_session;
@@ -216,13 +233,15 @@ extern void tmate_spawn_slave(struct tmate_session *session);
 
 /* tmate-proxy.c */
 
-extern void tmate_dispatch_proxy_message(struct tmate_session *session,
-					  struct tmate_unpacker *uk);
+extern void tmate_proxy_exec(struct tmate_session *session, const char *command);
+extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
+extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
 
 extern void tmate_send_proxy_daemon_msg(struct tmate_session *session,
 					 struct tmate_unpacker *uk);
 extern void tmate_send_proxy_header(struct tmate_session *session);
-extern void tmate_init_proxy_session(struct tmate_session *session);
+extern void tmate_init_proxy(struct tmate_session *session,
+			     on_proxy_error_cb on_proxy_error);
 
 extern int tmate_connect_to_proxy(void);
 static inline bool tmate_has_proxy(void)

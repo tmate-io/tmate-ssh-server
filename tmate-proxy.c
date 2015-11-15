@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include "tmate.h"
 #include "tmate-protocol.h"
@@ -147,8 +148,21 @@ static void ctl_resize(struct tmate_session *session,
 	recalculate_sizes();
 }
 
-void tmate_dispatch_proxy_message(struct tmate_session *session,
+static void ctl_ssh_exec_response(struct tmate_session *session,
 				  struct tmate_unpacker *uk)
+{
+	int exit_code;
+	char *message;
+
+	exit_code = unpack_int(uk);
+	message = unpack_string(uk);
+
+	tmate_dump_exec_response(session, exit_code, message);
+	free(message);
+}
+
+static void tmate_dispatch_proxy_message(struct tmate_session *session,
+					 struct tmate_unpacker *uk)
 {
 	int cmd = unpack_int(uk);
 	switch (cmd) {
@@ -157,8 +171,24 @@ void tmate_dispatch_proxy_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_REQUEST_SNAPSHOT,	ctl_daemon_request_snapshot);
 	dispatch(TMATE_CTL_PANE_KEYS,		ctl_pane_keys);
 	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
+	dispatch(TMATE_CTL_EXEC_RESPONSE,	ctl_ssh_exec_response);
 	default: tmate_warn("Bad proxy message type: %d", cmd);
 	}
+}
+
+void tmate_proxy_exec(struct tmate_session *session, const char *command)
+{
+	struct tmate_ssh_client *client = &session->ssh_client;
+
+	if (!tmate_has_proxy())
+		return;
+
+	pack(array, 5);
+	pack(int, TMATE_CTL_EXEC);
+	pack(string, client->username);
+	pack(string, client->ip_address);
+	pack(string, client->pubkey);
+	pack(string, command);
 }
 
 void tmate_notify_client_join(struct tmate_session *session,
@@ -167,11 +197,12 @@ void tmate_notify_client_join(struct tmate_session *session,
 	if (!tmate_has_proxy())
 		return;
 
-	pack(array, 4);
+	pack(array, 5);
 	pack(int, TMATE_CTL_CLIENT_JOIN);
 	pack(int, c->id);
 	pack(string, c->ip_address);
 	pack(string, c->pubkey);
+	pack(boolean, c->readonly);
 }
 
 void tmate_notify_client_left(struct tmate_session *session,
@@ -216,13 +247,87 @@ void tmate_send_proxy_header(struct tmate_session *session)
 	pack(string, session->session_token_ro);
 }
 
-void tmate_init_proxy_session(struct tmate_session *session)
+static void on_proxy_decoder_read(void *userdata, struct tmate_unpacker *uk)
+{
+	struct tmate_session *session = userdata;
+	tmate_dispatch_proxy_message(session, uk);
+}
+
+static void on_proxy_read(struct bufferevent *bev, void *_session)
+{
+	struct tmate_session *session = _session;
+	struct evbuffer *proxy_in;
+	ssize_t written;
+	char *buf;
+	size_t len;
+
+	proxy_in = bufferevent_get_input(session->bev_proxy);
+
+	while (evbuffer_get_length(proxy_in)) {
+		tmate_decoder_get_buffer(&session->proxy_decoder, &buf, &len);
+
+		if (len == 0)
+			tmate_fatal("No more room in client decoder. Message too big?");
+
+		written = evbuffer_remove(proxy_in, buf, len);
+		if (written < 0)
+			tmate_fatal("Cannot read proxy buffer");
+
+		tmate_decoder_commit(&session->proxy_decoder, written);
+	}
+}
+
+static void on_proxy_encoder_write(void *userdata, struct evbuffer *buffer)
+{
+	struct tmate_session *session = userdata;
+	struct evbuffer *proxy_out;
+	size_t len;
+
+	proxy_out = bufferevent_get_output(session->bev_proxy);
+
+	if (evbuffer_add_buffer(proxy_out, buffer) < 0)
+		tmate_fatal("Cannot write to proxy buffer");
+}
+
+static void on_proxy_event_default(struct tmate_session *session, short events)
+{
+	if (events & BEV_EVENT_EOF)
+		tmate_fatal("Connection to proxy closed");
+
+	if (events & BEV_EVENT_ERROR)
+		tmate_fatal("Connection to proxy error: %s",
+			    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+}
+
+static void on_proxy_event(struct bufferevent *bev, short events, void *_session)
+{
+	struct tmate_session *session = _session;
+	session->on_proxy_error(session, events);
+}
+
+void tmate_init_proxy(struct tmate_session *session,
+		      on_proxy_error_cb on_proxy_error)
 {
 	if (!tmate_has_proxy())
 		return;
 
 	session->proxy_sx = -1;
 	session->proxy_sy = -1;
+
+	/* session->proxy_fd is already connected */
+	session->bev_proxy = bufferevent_socket_new(ev_base, session->proxy_fd,
+						     BEV_OPT_CLOSE_ON_FREE);
+	if (!session->bev_proxy)
+		tmate_fatal("Cannot setup socket bufferevent");
+
+	session->on_proxy_error = on_proxy_error ?: on_proxy_event_default;
+
+	bufferevent_setcb(session->bev_proxy,
+			  on_proxy_read, NULL, on_proxy_event, session);
+	bufferevent_enable(session->bev_proxy, EV_READ | EV_WRITE);
+
+	tmate_encoder_init(&session->proxy_encoder, on_proxy_encoder_write, session);
+	tmate_decoder_init(&session->proxy_decoder, on_proxy_decoder_read, session);
 }
 
 static int _tmate_connect_to_proxy(const char *hostname, int port)
