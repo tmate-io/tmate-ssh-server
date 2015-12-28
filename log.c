@@ -39,15 +39,27 @@ struct logging_settings {
 
 static struct logging_settings log_settings;
 
-void		 log_event_cb(int, const char *);
-void		 log_vwrite(int, const char *, va_list);
-__dead void	 log_vfatal(const char *, va_list);
+static void	log_event_cb(int, const char *);
+static void	log_vwrite(int, const char *, va_list);
 
-void
+static void
 log_event_cb(unused int severity, const char *msg)
 {
-	log_warnx("%s", msg);
-	sleep(1);
+	log_debug("%s", msg);
+}
+
+/* Increment log level. */
+void
+log_add_level(void)
+{
+	logging_settings.log_level++;
+}
+
+/* Get log level. */
+int
+log_get_level(void)
+{
+	return (logging_settings.log_level);
 }
 
 void init_logging(const char *program_name, bool use_syslog, int log_level)
@@ -69,7 +81,7 @@ void init_logging(const char *program_name, bool use_syslog, int log_level)
 }
 
 /* Write a log message. */
-void
+static void
 log_vwrite(int level, const char *msg, va_list ap)
 {
 	char	*fmt = NULL;
@@ -97,110 +109,46 @@ log_vwrite(int level, const char *msg, va_list ap)
 	free(fmt);
 }
 
-/* Log a warning with error string. */
-void printflike1
-log_warn(const char *msg, ...)
-{
-	va_list	 ap;
-	char	*fmt;
-
-	va_start(ap, msg);
-	if (asprintf(&fmt, "%s: %s", msg, strerror(errno)) == -1)
-		exit(1);
-	log_vwrite(LOG_WARNING, fmt, ap);
-	free(fmt);
-	va_end(ap);
-}
-
-/* Log a warning. */
-void printflike1
-log_warnx(const char *msg, ...)
-{
-	va_list	ap;
-
-	va_start(ap, msg);
-	log_vwrite(LOG_WARNING, msg, ap);
-	va_end(ap);
-}
-
-/* Log an informational message. */
-void printflike1
-log_info(const char *msg, ...)
-{
-	va_list	ap;
-
-	va_start(ap, msg);
-	log_vwrite(LOG_NOTICE, msg, ap);
-	va_end(ap);
-}
-
 /* Log a debug message. */
-void printflike1
+void
 log_debug(const char *msg, ...)
 {
 	va_list	ap;
 
 	va_start(ap, msg);
-	log_vwrite(LOG_INFO, msg, ap);
-	va_end(ap);
-}
-
-/* Log a debug message at level 2. */
-void printflike1
-log_debug2(const char *msg, ...)
-{
-	va_list	ap;
-
-	/* Not going with crazy logging on tmux */
-#ifndef TMATE_SLAVE
-	va_start(ap, msg);
 	log_vwrite(LOG_DEBUG, msg, ap);
 	va_end(ap);
-#endif
 }
 
-/* Log a critical error, with error string if necessary, and die. */
+/* Log a critical error with error string and die. */
 __dead void
-log_vfatal(const char *msg, va_list ap)
+fatal(const char *msg, ...)
 {
 	char	*fmt;
+	va_list	 ap;
 
-	if (errno != 0) {
-		if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
-			exit(1);
-		log_vwrite(LOG_CRIT, fmt, ap);
-	} else {
-		if (asprintf(&fmt, "fatal: %s", msg) == -1)
-			exit(1);
-		log_vwrite(LOG_CRIT, fmt, ap);
-	}
-	free(fmt);
-
+	va_start(ap, msg);
+	if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
+		exit(1);
+	log_vwrite(fmt, ap);
 	exit(1);
 }
 
-/* Log a critical error, with error string, and die. */
-__dead void printflike1
-log_fatal(const char *msg, ...)
-{
-	va_list	ap;
-
-	va_start(ap, msg);
-	log_vfatal(msg, ap);
-}
-
 /* Log a critical error and die. */
-__dead void printflike1
-log_fatalx(const char *msg, ...)
+__dead void
+fatalx(const char *msg, ...)
 {
-	va_list	ap;
+	char	*fmt;
+	va_list	 ap;
 
-	errno = 0;
 	va_start(ap, msg);
-	log_vfatal(msg, ap);
+	if (asprintf(&fmt, "fatal: %s", msg) == -1)
+		exit(1);
+	log_vwrite(fmt, ap);
+	exit(1);
 }
 
-void printflike2 tmate_log(int level, const char *msg, ...)
+void tmate_log(int level, const char *msg, ...)
 {
 	char *fmt;
 	va_list	ap;
