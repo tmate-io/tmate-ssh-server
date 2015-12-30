@@ -13,11 +13,11 @@ void tmate_dump_exec_response(struct tmate_session *session,
 	ssh_channel_send_eof(client->channel);
 	ssh_channel_close(client->channel);
 
-	if (event_base_loopexit(ev_base, NULL) < 0)
+	if (event_base_loopexit(session->ev_base, NULL) < 0)
 		tmate_fatal("cannot stop event loop");
 }
 
-static void on_proxy_error(struct tmate_session *session, short events)
+static void on_proxy_error(struct tmate_session *session, __unused short events)
 {
 	tmate_warn("Lost proxy connection");
 	tmate_dump_exec_response(session, 1, "Internal Error\r\n");

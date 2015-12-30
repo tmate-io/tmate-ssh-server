@@ -10,7 +10,7 @@ static void __tmate_notify(const char *msg)
 	pack(string, msg);
 }
 
-void printflike1 tmate_notify(const char *fmt, ...)
+void tmate_notify(const char *fmt, ...)
 {
 	va_list ap;
 	char msg[1024];
@@ -22,13 +22,14 @@ void printflike1 tmate_notify(const char *fmt, ...)
 	__tmate_notify(msg);
 }
 
-static void __tmate_notify_later(evutil_socket_t fd, short what, void *arg)
+static void __tmate_notify_later(__unused evutil_socket_t fd,
+				 __unused short what, void *arg)
 {
 	char *msg = arg;
 	__tmate_notify(msg);
 }
 
-void printflike2 tmate_notify_later(int timeout, const char *fmt, ...)
+void tmate_notify_later(int timeout, const char *fmt, ...)
 {
 	struct timeval tv;
 	va_list ap;
@@ -42,12 +43,12 @@ void printflike2 tmate_notify_later(int timeout, const char *fmt, ...)
 	va_end(ap);
 
 	/*
-	 * FIXME leaks like crazy when calling tmate_notify_later()
+	 * FIXME leaks when calling tmate_notify_later()
 	 * multiple times.
 	 */
 
-	evtimer_assign(&tmate_session->ev_notify_timer, ev_base,
-		       __tmate_notify_later, msg);
+	evtimer_set(&tmate_session->ev_notify_timer,
+		    __tmate_notify_later, msg);
 	evtimer_add(&tmate_session->ev_notify_timer, &tv);
 }
 
@@ -91,6 +92,13 @@ void tmate_client_pane_key(int pane_id, int key)
 	pack(int, TMATE_IN_PANE_KEY);
 	pack(int, key);
 }
+
+extern const struct cmd_entry cmd_bind_key_entry;
+extern const struct cmd_entry cmd_unbind_key_entry;
+extern const struct cmd_entry cmd_set_option_entry;
+extern const struct cmd_entry cmd_set_window_option_entry;
+extern const struct cmd_entry cmd_detach_client_entry;
+extern const struct cmd_entry cmd_attach_session_entry;
 
 static const struct cmd_entry *local_cmds[] = {
 	&cmd_bind_key_entry,

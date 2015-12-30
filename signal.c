@@ -24,6 +24,8 @@
 
 #include "tmux.h"
 
+#ifndef TMATE_SLAVE
+
 struct event	ev_sighup;
 struct event	ev_sigchld;
 struct event	ev_sigcont;
@@ -103,3 +105,5 @@ clear_signals(int after_fork)
 		event_del(&ev_sigwinch);
 	}
 }
+
+#endif

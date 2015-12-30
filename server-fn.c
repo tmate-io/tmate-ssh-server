@@ -332,11 +332,11 @@ server_destroy_pane(struct window_pane *wp, int hooks)
 	server_unzoom_window(w);
 #ifndef TMATE_SLAVE
 	layout_close_pane(wp);
-#endif
 	window_remove_pane(w, wp);
 
 	if (hooks && cmd_find_from_window(&fs, w) == 0)
 		hooks_run(hooks_get(fs.s), NULL, &fs, "pane-exited");
+#endif
 
 	if (TAILQ_EMPTY(&w->panes))
 		server_kill_window(w);

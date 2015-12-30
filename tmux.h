@@ -409,6 +409,12 @@ enum msgtype {
 	MSG_IDENTIFY_CLIENTPID,
 	MSG_IDENTIFY_CWD,
 
+#ifdef TMATE_SLAVE
+	MSG_IDENTIFY_TMATE_IP_ADDRESS,
+	MSG_IDENTIFY_TMATE_PUBKEY,
+	MSG_IDENTIFY_TMATE_READONLY,
+#endif
+
 	MSG_COMMAND = 200,
 	MSG_DETACH,
 	MSG_DETACHKILL,
@@ -879,8 +885,8 @@ struct window_pane {
 #else
 	int		 fd;
 	struct bufferevent *event;
-	struct event	 timer;
 #endif
+	struct event	 timer;
 
 	struct input_ctx *ictx;
 

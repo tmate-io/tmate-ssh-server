@@ -11,7 +11,8 @@
 #include "tmate.h"
 
 static void start_keepalive_timer(struct tmate_ssh_client *client);
-static void on_keepalive_timer(evutil_socket_t fd, short what, void *arg)
+static void on_keepalive_timer(__unused evutil_socket_t fd,
+			       __unused short what, void *arg)
 {
 	struct tmate_ssh_client *client = arg;
 
@@ -23,14 +24,17 @@ static void start_keepalive_timer(struct tmate_ssh_client *client)
 {
 	struct timeval tv = { TMATE_SSH_KEEPALIVE, 0 };
 
-	evtimer_assign(&client->ev_keepalive_timer, ev_base,
-		       on_keepalive_timer, client);
+	evtimer_set(&client->ev_keepalive_timer,
+		    on_keepalive_timer, client);
 	evtimer_add(&client->ev_keepalive_timer, &tv);
 }
 
-static int pty_request(ssh_session session, ssh_channel channel,
-		       const char *term, int width, int height,
-		       int pxwidth, int pwheight, void *userdata)
+static int pty_request(__unused ssh_session session,
+		       __unused ssh_channel channel,
+		       __unused const char *term,
+		       int width, int height,
+		       __unused int pxwidth, __unused int pwheight,
+		       void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
 
@@ -40,7 +44,8 @@ static int pty_request(ssh_session session, ssh_channel channel,
 	return 0;
 }
 
-static int shell_request(ssh_session session, ssh_channel channel,
+static int shell_request(__unused ssh_session session,
+			 __unused ssh_channel channel,
 			 void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
@@ -53,7 +58,8 @@ static int shell_request(ssh_session session, ssh_channel channel,
 	return 0;
 }
 
-static int subsystem_request(ssh_session session, ssh_channel channel,
+static int subsystem_request(__unused ssh_session session,
+			     __unused ssh_channel channel,
 			     const char *subsystem, void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
@@ -67,7 +73,8 @@ static int subsystem_request(ssh_session session, ssh_channel channel,
 	return 0;
 }
 
-static int exec_request(ssh_session session, ssh_channel channel,
+static int exec_request(__unused ssh_session session,
+			__unused ssh_channel channel,
 			const char *command, void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
@@ -114,7 +121,8 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 	return client->channel;
 }
 
-static int auth_pubkey_cb(ssh_session session, const char *user,
+static int auth_pubkey_cb(__unused ssh_session session,
+			  const char *user,
 			  struct ssh_key_struct *pubkey,
 			  char signature_state, void *userdata)
 {
@@ -139,7 +147,7 @@ static struct ssh_server_callbacks_struct ssh_server_cb = {
 	.channel_open_request_session_function = channel_open_request_cb,
 };
 
-static void on_ssh_read(evutil_socket_t fd, short what, void *arg)
+static void on_ssh_read(__unused evutil_socket_t fd, __unused short what, void *arg)
 {
 	struct tmate_ssh_client *client = arg;
 	ssh_execute_message_callbacks(client->session);
@@ -156,23 +164,21 @@ static void on_ssh_read(evutil_socket_t fd, short what, void *arg)
 
 static void register_on_ssh_read(struct tmate_ssh_client *client)
 {
-	event_assign(&client->ev_ssh, ev_base, ssh_get_fd(client->session),
-		     EV_READ | EV_PERSIST, on_ssh_read, client);
+	event_set(&client->ev_ssh, ssh_get_fd(client->session),
+		  EV_READ | EV_PERSIST, on_ssh_read, client);
 	event_add(&client->ev_ssh, NULL);
 }
 
 static void client_bootstrap(struct tmate_session *_session)
 {
 	struct tmate_ssh_client *client = &_session->ssh_client;
-	int auth = 0;
 	int grace_period = TMATE_SSH_GRACE_PERIOD;
 	ssh_event mainloop;
 	ssh_session session = client->session;
-	ssh_message msg;
 
 	tmate_notice("Bootstrapping ssh client ip=%s", client->ip_address);
 
-	ev_base = osdep_event_init();
+	_session->ev_base = osdep_event_init();
 
 	/* new process group, we don't want to die with our parent (upstart) */
 	setpgid(0, 0);
@@ -200,7 +206,7 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	ssh_set_auth_methods(client->session, SSH_AUTH_METHOD_PUBLICKEY);
 
-	tmate_debug("Exchanging DH keys");
+	tmate_info("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
 		tmate_fatal("Error doing the key exchange: %s",
 				    ssh_get_error(session));
@@ -248,10 +254,15 @@ static void handle_sigsegv(void)
 	tmate_print_stack_trace();
 	tmate_fatal("CRASHED");
 }
+static void handle_sigterm(void)
+{
+	request_server_termination();
+}
 
 static void signal_handler(int sig)
 {
 	switch (sig) {
+	case SIGTERM: handle_sigterm(); break;
 	case SIGCHLD: handle_sigchld(); break;
 	case SIGALRM: handle_sigalrm(); break;
 	case SIGSEGV: handle_sigsegv(); break;
@@ -260,6 +271,7 @@ static void signal_handler(int sig)
 
 static void setup_signals(void)
 {
+	signal(SIGTERM, signal_handler);
 	signal(SIGCHLD, signal_handler);
 	signal(SIGALRM, signal_handler);
 	signal(SIGSEGV, signal_handler);
@@ -293,9 +305,9 @@ static int get_ip(int fd, char *dst, size_t len)
 }
 
 static void ssh_log_function(int priority, const char *function,
-			     const char *buffer, void *userdata)
+			     const char *buffer, __unused void *userdata)
 {
-	tmate_debug("[%d] [%s] %s", priority, function, buffer);
+	tmate_info("[%d] [%s] %s", priority, function, buffer);
 }
 
 static ssh_bind prepare_ssh(const char *keys_dir, int port)

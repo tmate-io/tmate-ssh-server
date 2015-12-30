@@ -3,6 +3,70 @@
 
 #include "tmux.h"
 
+struct screen *window_copy_init(struct window_pane *);
+void	window_copy_free(struct window_pane *);
+void	window_copy_resize(struct window_pane *, u_int, u_int);
+void	window_copy_key(struct window_pane *, struct client *, struct session *,
+	    key_code, struct mouse_event *);
+int	window_copy_key_input(struct window_pane *, key_code);
+int	window_copy_key_numeric_prefix(struct window_pane *, key_code);
+
+void	window_copy_redraw_selection(struct window_pane *, u_int);
+void	window_copy_redraw_lines(struct window_pane *, u_int, u_int);
+void	window_copy_redraw_screen(struct window_pane *);
+void	window_copy_write_line(struct window_pane *, struct screen_write_ctx *,
+	    u_int);
+void	window_copy_write_lines(struct window_pane *,
+	    struct screen_write_ctx *, u_int, u_int);
+
+void	window_copy_scroll_to(struct window_pane *, u_int, u_int);
+int	window_copy_search_compare(struct grid *, u_int, u_int, struct grid *,
+	    u_int, int);
+int	window_copy_search_lr(struct grid *, struct grid *, u_int *, u_int,
+	    u_int, u_int, int);
+int	window_copy_search_rl(struct grid *, struct grid *, u_int *, u_int,
+	    u_int, u_int, int);
+void	window_copy_search_up(struct window_pane *, const char *);
+void	window_copy_search_down(struct window_pane *, const char *);
+void	window_copy_goto_line(struct window_pane *, const char *);
+void	window_copy_update_cursor(struct window_pane *, u_int, u_int);
+void	window_copy_start_selection(struct window_pane *);
+int	window_copy_update_selection(struct window_pane *, int);
+void   *window_copy_get_selection(struct window_pane *, size_t *);
+void	window_copy_copy_buffer(struct window_pane *, const char *, void *,
+	    size_t);
+void	window_copy_copy_pipe(struct window_pane *, struct session *,
+	    const char *, const char *);
+void	window_copy_copy_selection(struct window_pane *, const char *);
+void	window_copy_append_selection(struct window_pane *, const char *);
+void	window_copy_clear_selection(struct window_pane *);
+void	window_copy_copy_line(struct window_pane *, char **, size_t *, u_int,
+	    u_int, u_int);
+int	window_copy_in_set(struct window_pane *, u_int, u_int, const char *);
+u_int	window_copy_find_length(struct window_pane *, u_int);
+void	window_copy_cursor_start_of_line(struct window_pane *);
+void	window_copy_cursor_back_to_indentation(struct window_pane *);
+void	window_copy_cursor_end_of_line(struct window_pane *);
+void	window_copy_other_end(struct window_pane *);
+void	window_copy_cursor_left(struct window_pane *);
+void	window_copy_cursor_right(struct window_pane *);
+void	window_copy_cursor_up(struct window_pane *, int);
+void	window_copy_cursor_down(struct window_pane *, int);
+void	window_copy_cursor_jump(struct window_pane *);
+void	window_copy_cursor_jump_back(struct window_pane *);
+void	window_copy_cursor_jump_to(struct window_pane *, int);
+void	window_copy_cursor_jump_to_back(struct window_pane *, int);
+void	window_copy_cursor_next_word(struct window_pane *, const char *);
+void	window_copy_cursor_next_word_end(struct window_pane *, const char *);
+void	window_copy_cursor_previous_word(struct window_pane *, const char *);
+void	window_copy_scroll_up(struct window_pane *, u_int);
+void	window_copy_scroll_down(struct window_pane *, u_int);
+void	window_copy_rectangle_toggle(struct window_pane *);
+void	window_copy_drag_update(struct client *, struct mouse_event *);
+void	window_copy_drag_release(struct client *, struct mouse_event *);
+
+extern const struct window_mode window_copy_mode;
+
 enum window_copy_input_type {
 	WINDOW_COPY_OFF,
 	WINDOW_COPY_NAMEDBUFFER,
@@ -32,10 +96,6 @@ enum window_copy_input_type {
  * a newly-allocated screen structure (which is deallocated when the
  * mode ends).
  */
-
-#ifdef TMATE
-typedef void (*copy_password_callback)(const char *password, void *private);
-#endif
 
 struct window_copy_mode_data {
 	struct screen		 screen;

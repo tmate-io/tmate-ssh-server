@@ -172,6 +172,10 @@ proc_start(const char *name, struct event_base *base, int forkflag,
 	struct tmuxproc	*tp;
 	struct utsname	 u;
 
+#ifdef TMATE_SLAVE
+	if (forkflag)
+		fatal("can't fork");
+#else
 	if (forkflag) {
 		switch (fork()) {
 		case -1:
@@ -188,8 +192,8 @@ proc_start(const char *name, struct event_base *base, int forkflag,
 		if (event_reinit(base) != 0)
 			fatalx("event_reinit failed");
 	}
-
 	log_open(name);
+#endif
 
 #ifdef HAVE_SETPROCTITLE
 	setproctitle("%s (%s)", name, socket_path);
@@ -206,8 +210,10 @@ proc_start(const char *name, struct event_base *base, int forkflag,
 	tp = xcalloc(1, sizeof *tp);
 	tp->name = xstrdup(name);
 
+#ifndef TMATE_SLAVE
 	tp->signalcb = signalcb;
 	set_signals(proc_signal_cb, tp);
+#endif
 
 	return (tp);
 }

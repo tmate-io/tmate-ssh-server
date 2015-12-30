@@ -125,7 +125,6 @@ cmd_resize_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 	server_redraw_window(wl->window);
 
 	return (CMD_RETURN_NORMAL);
-#endif
 }
 
 void
@@ -173,4 +172,5 @@ cmd_resize_pane_mouse_update(struct client *c, struct mouse_event *m)
 		server_redraw_window(wl->window);
 	else
 		c->tty.mouse_drag_update = NULL;
+#endif
 }

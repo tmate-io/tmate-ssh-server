@@ -2,10 +2,9 @@
 #include <unistd.h>
 #include "tmate.h"
 #include "tmate-protocol.h"
+#include "window-copy.h"
 
 char *tmate_left_status, *tmate_right_status;
-
-static struct session *main_session;
 
 static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
@@ -24,8 +23,8 @@ static void tmate_header(struct tmate_session *session,
 		client_version = unpack_string(uk);
 	}
 
-	tmate_debug("new master, client version: %s, protocol version: %d",
-		    client_version, session->client_protocol_version);
+	tmate_notice("new master, client version: %s, protocol version: %d",
+		     client_version, session->client_protocol_version);
 
 #if 0
 	if (strcmp(client_version, TMATE_LATEST_VERSION))
@@ -113,10 +112,7 @@ static void tmate_sync_windows(struct session *s,
 
 		wl = winlink_find_by_index(&s->windows, idx);
 		if (!wl) {
-			/* Avoid memory bloats with the scroll buffer */
-			options_set_number(&s->options,
-					   "history-limit", TMATE_HLIMIT);
-			wl = session_new(s, name, "", NULL, idx, &cause);
+			wl = session_new(s, name, 0, NULL, NULL, NULL, idx, &cause);
 			if (!wl)
 				tmate_fatal("can't create window idx=%d", idx);
 		}
@@ -146,7 +142,7 @@ static void tmate_sync_windows(struct session *s,
 	server_redraw_window(wl->window);
 }
 
-static void tmate_sync_layout(struct tmate_session *session,
+static void tmate_sync_layout(__unused struct tmate_session *session,
 			      struct tmate_unpacker *uk)
 {
 	struct session *s;
@@ -157,8 +153,8 @@ static void tmate_sync_layout(struct tmate_session *session,
 
 	s = RB_MIN(sessions, &sessions);
 	if (!s) {
-		s = session_create("default", NULL, "default", NULL,
-				   NULL, 0, sx, sy, &cause);
+		s = session_create("default", 0, NULL, "/", "/",
+				   NULL, NULL, 0, sx, sy, &cause);
 		if (!s)
 			tmate_fatal("can't create main session");
 	}
@@ -169,7 +165,7 @@ static void tmate_sync_layout(struct tmate_session *session,
 	tmate_sync_windows(s, uk);
 }
 
-static void tmate_pty_data(struct tmate_session *session,
+static void tmate_pty_data(__unused struct tmate_session *session,
 			   struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;
@@ -190,7 +186,7 @@ static void tmate_pty_data(struct tmate_session *session,
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
-static void tmate_exec_cmd(struct tmate_session *session,
+static void tmate_exec_cmd(__unused struct tmate_session *session,
 			   struct tmate_unpacker *uk)
 {
 	struct cmd_q *cmd_q;
@@ -205,26 +201,24 @@ static void tmate_exec_cmd(struct tmate_session *session,
 	}
 
 	cmd_q = cmdq_new(NULL);
-	cmdq_run(cmd_q, cmdlist);
+	cmdq_run(cmd_q, cmdlist, NULL);
 	cmd_list_free(cmdlist);
 	cmdq_free(cmd_q);
 out:
 	free(cmd_str);
 }
 
-static void tmate_failed_cmd(struct tmate_session *session,
+static void tmate_failed_cmd(__unused struct tmate_session *session,
 			     struct tmate_unpacker *uk)
 {
 	struct client *c;
-	unsigned int i;
 	int client_id;
 	char *cause;
 
 	client_id = unpack_int(uk);
 	cause = unpack_string(uk);
 
-	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
-		c = ARRAY_ITEM(&clients, i);
+	TAILQ_FOREACH(c, &clients, entry) {
 		if (c && c->id == client_id) {
 			*cause = toupper((u_char) *cause);
 			status_message_set(c, "%s", cause);
@@ -235,34 +229,25 @@ static void tmate_failed_cmd(struct tmate_session *session,
 	free(cause);
 }
 
-static void tmate_status(struct tmate_session *session,
+static void tmate_status(__unused struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	struct client *c;
-	unsigned int i;
 
 	free(tmate_left_status);
 	free(tmate_right_status);
 	tmate_left_status = unpack_string(uk);
 	tmate_right_status = unpack_string(uk);
 
-	for (i = 0; i < ARRAY_LENGTH(&clients); i++) {
-		c = ARRAY_ITEM(&clients, i);
-		if (c)
-			c->flags |= CLIENT_STATUS;
-	}
+	TAILQ_FOREACH(c, &clients, entry)
+		c->flags |= CLIENT_STATUS;
 }
-
-extern void window_copy_redraw_screen(struct window_pane *);
-extern int window_copy_update_selection(struct window_pane *);
-extern void window_copy_init_for_output(struct window_pane *);
 
 static void tmate_sync_copy_mode(struct tmate_session *session,
 				 struct tmate_unpacker *uk)
 {
 	struct tmate_unpacker cm_uk, sel_uk, input_uk;
 	struct window_copy_mode_data *data;
-	struct screen_write_ctx ctx;
 	struct window_pane *wp;
 	int pane_id;
 	int base_backing = 1;
@@ -288,7 +273,7 @@ static void tmate_sync_copy_mode(struct tmate_session *session,
 
 	if (window_pane_set_mode(wp, &window_copy_mode) == 0) {
 		if (base_backing)
-			window_copy_init_from_pane(wp);
+			window_copy_init_from_pane(wp, 0);
 		else
 			window_copy_init_for_output(wp);
 	}
@@ -335,11 +320,11 @@ static void tmate_sync_copy_mode(struct tmate_session *session,
 		data->inputprompt = NULL;
 	}
 
-	window_copy_update_selection(wp);
+	window_copy_update_selection(wp, 1);
 	window_copy_redraw_screen(wp);
 }
 
-static void tmate_write_copy_mode(struct tmate_session *session,
+static void tmate_write_copy_mode(__unused struct tmate_session *session,
 				  struct tmate_unpacker *uk)
 {
 	struct window_pane *wp;

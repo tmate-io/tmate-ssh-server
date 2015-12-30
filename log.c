@@ -43,7 +43,7 @@ static void	log_event_cb(int, const char *);
 static void	log_vwrite(int, const char *, va_list);
 
 static void
-log_event_cb(unused int severity, const char *msg)
+log_event_cb(__unused int severity, const char *msg)
 {
 	log_debug("%s", msg);
 }
@@ -52,14 +52,14 @@ log_event_cb(unused int severity, const char *msg)
 void
 log_add_level(void)
 {
-	logging_settings.log_level++;
+	log_settings.log_level++;
 }
 
 /* Get log level. */
 int
 log_get_level(void)
 {
-	return (logging_settings.log_level);
+	return (log_settings.log_level);
 }
 
 void init_logging(const char *program_name, bool use_syslog, int log_level)
@@ -130,7 +130,7 @@ fatal(const char *msg, ...)
 	va_start(ap, msg);
 	if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
 		exit(1);
-	log_vwrite(fmt, ap);
+	log_vwrite(LOG_CRIT, fmt, ap);
 	exit(1);
 }
 
@@ -144,7 +144,7 @@ fatalx(const char *msg, ...)
 	va_start(ap, msg);
 	if (asprintf(&fmt, "fatal: %s", msg) == -1)
 		exit(1);
-	log_vwrite(fmt, ap);
+	log_vwrite(LOG_CRIT, fmt, ap);
 	exit(1);
 }
 

@@ -135,7 +135,9 @@ server_create_socket(void)
 int
 server_start(struct event_base *base, int lockfd, char *lockfile)
 {
-#ifndef TMATE_SLAVE
+#ifdef TMATE_SLAVE
+	server_proc = proc_start("server", base, 0, server_signal);
+#else
 	int	pair[2];
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, pair) != 0)
@@ -186,14 +188,22 @@ server_start(struct event_base *base, int lockfd, char *lockfile)
 
 	start_cfg();
 
+#ifndef TMATE_SLAVE
 	status_prompt_load_history();
+#endif
 
 	server_add_accept(0);
 
 	proc_loop(server_proc, server_loop);
+#ifndef TMATE_SLAVE
 	status_prompt_save_history();
+#endif
 	exit(0);
 }
+
+#ifdef TMATE_SLAVE
+static int tmate_server_request_exit;
+#endif
 
 /* Server loop callback. */
 int
@@ -203,10 +213,15 @@ server_loop(void)
 
 	server_client_loop();
 
+#ifdef TMATE_SLAVE
+	if (!tmate_server_request_exit)
+		return 0;
+#else
 	if (!options_get_number(global_options, "exit-unattached")) {
 		if (!RB_EMPTY(&sessions))
 			return (0);
 	}
+#endif
 
 	TAILQ_FOREACH(c, &clients, entry) {
 		if (c->session != NULL)
@@ -221,11 +236,7 @@ server_loop(void)
 	if (!TAILQ_EMPTY(&clients))
 		return (0);
 
-#ifdef TMATE_SLAVE
-	return server_shutdown;
-#else
 	return (1);
-#endif
 }
 
 /* Exit the server by killing all clients and windows. */
@@ -234,6 +245,10 @@ server_send_exit(void)
 {
 	struct client	*c, *c1;
 	struct session	*s, *s1;
+
+#ifdef TMATE_SLAVE
+	tmate_server_request_exit = 1;
+#endif
 
 	cmd_wait_for_flush();
 
@@ -353,7 +368,6 @@ server_signal(int sig)
 		server_child_signal();
 		break;
 	case SIGUSR1:
-#ifndef TMATE_SLAVE
 		event_del(&server_ev_accept);
 		fd = server_create_socket();
 		if (fd != -1) {
@@ -362,7 +376,6 @@ server_signal(int sig)
 			server_update_socket();
 		}
 		server_add_accept(0);
-#endif
 		break;
 	}
 }

@@ -31,6 +31,7 @@
 #include <unistd.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 #if defined(DEBUG) && defined(__OpenBSD__)
 extern char	*malloc_options;
@@ -45,6 +46,7 @@ struct hooks	*global_hooks;
 struct timeval	 start_time;
 const char	*socket_path;
 
+#ifndef TMATE_SLAVE
 __dead void	 usage(void);
 static char	*make_label(const char *);
 
@@ -151,6 +153,7 @@ fail:
 	errno = saved_errno;
 	return (NULL);
 }
+#endif
 
 void
 setblocking(int fd, int state)
@@ -165,6 +168,11 @@ setblocking(int fd, int state)
 		fcntl(fd, F_SETFL, mode);
 	}
 }
+
+#ifdef TMATE_SLAVE
+const char * find_home(void) { return NULL; }
+int areshell(__unused const char *shell) { return 0; }
+#else
 
 const char *
 find_home(void)
@@ -337,3 +345,26 @@ main(int argc, char **argv)
 	/* Pass control to the client. */
 	exit(client_main(event_init(), argc, argv, flags, shellcmd));
 }
+#endif
+
+#ifdef TMATE_SLAVE
+void tmux_server_init(void)
+{
+	global_hooks = hooks_create(NULL);
+
+	global_environ = environ_create();
+
+	global_options = options_create(NULL);
+	options_table_populate_tree(OPTIONS_TABLE_SERVER, global_options);
+
+	global_s_options = options_create(NULL);
+	options_table_populate_tree(OPTIONS_TABLE_SESSION, global_s_options);
+	options_set_string(global_s_options, "default-shell", "%s", "/bin/false");
+
+	global_w_options = options_create(NULL);
+	options_table_populate_tree(OPTIONS_TABLE_WINDOW, global_w_options);
+
+	options_set_number(global_s_options, "status-keys", MODEKEY_VI);
+	options_set_number(global_w_options, "mode-keys", MODEKEY_VI);
+}
+#endif

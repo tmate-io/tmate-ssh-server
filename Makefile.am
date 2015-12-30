@@ -1,7 +1,7 @@
 # Makefile.am
 
 # Obvious program stuff.
-bin_PROGRAMS = tmate
+bin_PROGRAMS = tmate-slave
 CLEANFILES = tmate.1.mdoc tmate.1.man
 
 # Distribution tarball options.
@@ -185,7 +185,7 @@ dist_tmate_slave_SOURCES = \
 	tmate-ssh-daemon.c \
 	tmate-ssh-exec.c \
 	tmate-ssh-server.c \
-	tmux-bare.c \
+	tmux.c \
 	tty-acs.c \
 	tty-keys.c \
 	tty-term.c \
@@ -228,7 +228,7 @@ if NO_FGETLN
 nodist_tmate_slave_SOURCES += compat/fgetln.c
 endif
 if NO_FPARSELN
-nodist_tmux_SOURCES += compat/fparseln.c
+nodist_tmate_slave_SOURCES += compat/fparseln.c
 endif
 if NO_GETOPT
 nodist_tmate_slave_SOURCES += compat/getopt.c
@@ -249,11 +249,11 @@ if NO_B64_NTOP
 nodist_tmate_slave_SOURCES += compat/b64_ntop.c
 endif
 if NO_CFMAKERAW
-nodist_tmate_SOURCES += compat/cfmakeraw.c
+nodist_tmate_slave_SOURCES += compat/cfmakeraw.c
 endif
 if NO_OPENAT
-nodist_tmate_SOURCES += compat/openat.c
+nodist_tmate_slave_SOURCES += compat/openat.c
 endif
 if NO_REALLOCARRAY
-nodist_tmate_SOURCES += compat/reallocarray.c
+nodist_tmate_slave_SOURCES += compat/reallocarray.c
 endif

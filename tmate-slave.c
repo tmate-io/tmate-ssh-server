@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <libssh/libssh.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
@@ -28,7 +29,7 @@ static char *cmdline_end;
 static int dev_urandom_fd;
 
 extern int server_create_socket(void);
-extern int client_connect(char *path, int start_server);
+extern int client_connect(struct event_base *base, const char *path, int start_server);
 
 struct tmate_settings _tmate_settings = {
 	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
@@ -60,14 +61,12 @@ long tmate_get_random_long(void)
 	return val;
 }
 
-extern int server_shutdown;
 extern int server_fd;
-extern void server_send_shutdown(void);
+extern void server_send_exit(void);
 void request_server_termination(void)
 {
 	if (server_fd) {
-		server_shutdown = 1;
-		server_send_shutdown();
+		server_send_exit();
 	} else
 		exit(1);
 }
@@ -154,9 +153,10 @@ static char *get_random_token(void)
 static void set_session_token(struct tmate_session *session,
 			      const char *token)
 {
+	char *path;
 	session->session_token = xstrdup(token);
-	strcpy(socket_path, TMATE_WORKDIR "/sessions/");
-	strcat(socket_path, token);
+	xasprintf(&path, TMATE_WORKDIR "/sessions/%s", token);
+	socket_path = path;
 
 	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-slave [%s] %s %s",
@@ -164,6 +164,7 @@ static void set_session_token(struct tmate_session *session,
 		session->ssh_client.role == TMATE_ROLE_DAEMON ? "(daemon)" : "(pty client)",
 		session->ssh_client.ip_address);
 }
+
 static void create_session_ro_symlink(struct tmate_session *session)
 {
 	char session_ro_path[MAXPATHLEN];
@@ -271,7 +272,7 @@ static void jail(void)
 	if (chdir("/") < 0)
 		tmate_fatal("Cannot chdir()");
 
-#if IS_LINUX
+#ifdef IS_LINUX
 	if (unshare(CLONE_NEWPID | CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWNET) < 0)
 		tmate_fatal("Cannot create new namespace");
 #endif
@@ -279,10 +280,10 @@ static void jail(void)
 	if (setgroups(1, (gid_t[]){gid}) < 0)
 		tmate_fatal("Cannot setgroups()");
 
-#if HAVE_SETRESGID
+#if defined(HAVE_SETRESGID)
 	if (setresgid(gid, gid, gid) < 0)
 		tmate_fatal("Cannot setresgid() %d", gid);
-#elif HAVE_SETREGID
+#elif defined(HAVE_SETREGID)
 	if (setregid(gid, gid) < 0)
 		tmate_fatal("Cannot setregid()");
 #else
@@ -290,10 +291,10 @@ static void jail(void)
 		tmate_fatal("Cannot setgid()");
 #endif
 
-#if HAVE_SETRESUID
+#if defined(HAVE_SETRESUID)
 	if (setresuid(uid, uid, uid) < 0)
 		tmate_fatal("Cannot setresuid()");
-#elif HAVE_SETREUID
+#elif defined(HAVE_SETREUID)
 	if (setreuid(uid, uid) < 0)
 		tmate_fatal("Cannot setreuid()");
 #else
@@ -304,8 +305,8 @@ static void jail(void)
 	if (nice(1) < 0)
 		tmate_fatal("Cannot nice()");
 
-	tmate_debug("Dropped priviledges to %s (%d,%d), jailed in %s",
-		    TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
+	tmate_info("Dropped priviledges to %s (%d,%d), jailed in %s",
+		   TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
 }
 
 static void setup_ncurse(int fd, const char *name)
@@ -318,10 +319,7 @@ static void setup_ncurse(int fd, const char *name)
 static void tmate_spawn_slave_daemon(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
-
 	char *token;
-	struct tmate_encoder encoder;
-	struct tmate_decoder decoder;
 
 	token = get_random_token();
 #ifdef DEVENV
@@ -331,8 +329,8 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	set_session_token(session, token);
 	free(token);
 
-	tmate_debug("Spawning slave server for %s at %s (%s)",
-		    client->username, client->ip_address, client->pubkey);
+	tmate_notice("Spawning slave server for %s at %s (%s)",
+		     client->username, client->ip_address, client->pubkey);
 
 	session->tmux_socket_fd = server_create_socket();
 	if (session->tmux_socket_fd < 0)
@@ -354,9 +352,10 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 				 session->proxy_fd}, 4);
 
 	jail();
-	event_reinit(ev_base);
+	event_reinit(session->ev_base);
 
-	tmux_server_init(IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
+	tmux_server_init();
+	server_start(session->ev_base, -1, NULL);
 	/* never reached */
 }
 
@@ -383,10 +382,10 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 
 	set_session_token(session, token);
 
-	tmate_debug("Spawning slave client for %s (%s)",
-		    client->ip_address, client->pubkey);
+	tmate_notice("Spawning slave client for %s (%s)",
+		     client->ip_address, client->pubkey);
 
-	session->tmux_socket_fd = client_connect(socket_path, 0);
+	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
 	if (session->tmux_socket_fd < 0) {
 		random_sleep(); /* for making timing attacks harder */
 		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
@@ -427,9 +426,10 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 				 ssh_get_fd(session->ssh_client.session),
 				 session->pty, log_file ? fileno(log_file) : -1}, 7);
 	jail();
-	event_reinit(ev_base);
+	event_reinit(session->ev_base);
 
-	ret = client_main(argc, argv, IDENTIFY_UTF8 | IDENTIFY_256COLOURS);
+	ret = client_main(session->ev_base, argc, argv,
+			  CLIENT_UTF8 | CLIENT_256COLOURS, NULL);
 	tmate_flush_pty(session);
 	exit(ret);
 }
@@ -440,11 +440,11 @@ static void tmate_spawn_slave_exec(struct tmate_session *session)
 				 log_file ? fileno(log_file) : -1,
 				 session->proxy_fd}, 3);
 	jail();
-	event_reinit(ev_base);
+	event_reinit(session->ev_base);
 
 	tmate_client_exec_init(session);
 
-	if (event_base_dispatch(ev_base) < 0)
+	if (event_base_dispatch(session->ev_base) < 0)
 		tmate_fatal("Cannot run event loop");
 	exit(0);
 }

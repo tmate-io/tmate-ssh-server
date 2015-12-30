@@ -227,8 +227,10 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 	struct termios		 tio, saved_tio;
 	size_t			 size;
 
+#ifndef TMATE_SLAVE
 	/* Ignore SIGCHLD now or daemon() in the server will leave a zombie. */
 	signal(SIGCHLD, SIG_IGN);
+#endif
 
 	/* Save the flags. */
 	client_flags = flags;
@@ -264,10 +266,10 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 
 #ifdef TMATE_SLAVE
 	fd = tmate_session->tmux_socket_fd;
-#else
+
 	/* Create client process structure (starts logging). */
 	client_proc = proc_start("client", base, 0, client_signal);
-
+#else
 	/* Initialize the client socket and start the server. */
 	fd = client_connect(base, socket_path, cmdflags & CMD_STARTSERVER);
 	if (fd == -1) {
@@ -306,11 +308,13 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 		fatal("pledge failed");
 #endif
 
+#ifndef TMATE_SLAVE
 	/* Free stuff that is not used in the client. */
 	options_free(global_options);
 	options_free(global_s_options);
 	options_free(global_w_options);
 	environ_free(global_environ);
+#endif
 
 	/* Create stdin handler. */
 	setblocking(STDIN_FILENO, 0);
@@ -524,11 +528,9 @@ client_signal(int sig)
 			client_exitval = 1;
 			proc_send(client_peer, MSG_EXITING, -1, NULL, 0);
 			break;
-#ifndef TMATE_SLAVE
 		case SIGWINCH:
 			proc_send(client_peer, MSG_RESIZE, -1, NULL, 0);
 			break;
-#endif
 		case SIGCONT:
 			memset(&sigact, 0, sizeof sigact);
 			sigemptyset(&sigact.sa_mask);
@@ -642,10 +644,10 @@ client_dispatch_wait(struct imsg *imsg, const char *shellcmd)
 		if (datalen == 0 || data[datalen - 1] != '\0')
 			fatalx("bad MSG_SHELL string");
 
-		clear_signals(0);
 #ifdef TMATE_SLAVE
 		exit(1);
 #else
+		clear_signals(0);
 		client_exec(data, shellcmd);
 #endif
 		/* NOTREACHED */

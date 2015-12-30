@@ -3,11 +3,12 @@
 #include <sys/ioctl.h>
 #include "tmate.h"
 
-extern void client_write_server(enum msgtype type, void *buf, size_t len);
+extern void client_signal(int sig);
 
-static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
+static int on_ssh_channel_read(__unused ssh_session _session,
+			       __unused ssh_channel channel,
 			       void *_data, uint32_t total_len,
-			       int is_stderr, void *userdata)
+			       __unused int is_stderr, void *userdata)
 {
 	struct tmate_session *session = userdata;
 	char *data = _data;
@@ -32,7 +33,8 @@ static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
 	return written;
 }
 
-static int on_ssh_message_callback(ssh_session _session, ssh_message msg, void *arg)
+static int on_ssh_message_callback(__unused ssh_session _session,
+				   ssh_message msg, void *arg)
 {
 	struct tmate_session *session = arg;
 
@@ -44,7 +46,7 @@ static int on_ssh_message_callback(ssh_session _session, ssh_message msg, void *
 		ws.ws_row = ssh_message_channel_request_pty_height(msg);
 
 		ioctl(session->pty, TIOCSWINSZ, &ws);
-		client_write_server(MSG_RESIZE, NULL, 0);
+		client_signal(SIGWINCH);
 
 		return 1;
 	}
@@ -77,7 +79,7 @@ static void on_pty_event(struct tmate_session *session)
 	}
 }
 
-static void __on_pty_event(evutil_socket_t fd, short what, void *arg)
+static void __on_pty_event(__unused evutil_socket_t fd, __unused short what, void *arg)
 {
 	on_pty_event(arg);
 }
@@ -104,7 +106,7 @@ void tmate_client_pty_init(struct tmate_session *session)
 				 on_ssh_message_callback, session);
 
 	setblocking(session->pty, 0);
-	event_assign(&session->ev_pty, ev_base, session->pty,
-		     EV_READ | EV_PERSIST, __on_pty_event, session);
+	event_set(&session->ev_pty, session->pty,
+		  EV_READ | EV_PERSIST, __on_pty_event, session);
 	event_add(&session->ev_pty, NULL);
 }

@@ -1,7 +1,8 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
-static void on_encoder_buffer_ready(evutil_socket_t fd, short what, void *arg)
+static void on_encoder_buffer_ready(__unused evutil_socket_t fd,
+				    __unused short what, void *arg)
 {
 	struct tmate_encoder *encoder = arg;
 
@@ -161,8 +162,8 @@ void tmate_encoder_init(struct tmate_encoder *encoder,
 	if (!encoder->buffer)
 		tmate_fatal("Can't allocate buffer");
 
-	event_assign(&encoder->ev_buffer, ev_base, -1,
-		     EV_READ | EV_PERSIST, on_encoder_buffer_ready, encoder);
+	event_set(&encoder->ev_buffer, -1,
+		  EV_READ | EV_PERSIST, on_encoder_buffer_ready, encoder);
 
 	event_add(&encoder->ev_buffer, NULL);
 

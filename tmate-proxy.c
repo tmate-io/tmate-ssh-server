@@ -10,7 +10,7 @@
 
 #define pack(what, ...) _pack(&tmate_session->proxy_encoder, what, __VA_ARGS__)
 
-static void ctl_daemon_fwd_msg(struct tmate_session *session,
+static void ctl_daemon_fwd_msg(__unused struct tmate_session *session,
 			       struct tmate_unpacker *uk)
 {
 	if (uk->argc != 1)
@@ -18,15 +18,14 @@ static void ctl_daemon_fwd_msg(struct tmate_session *session,
 	tmate_send_mc_obj(&uk->argv[0]);
 }
 
-static void do_snapshot(struct tmate_unpacker *uk,
+static void do_snapshot(__unused struct tmate_unpacker *uk,
 			unsigned int max_history_lines,
 			struct window_pane *pane)
 {
 	struct screen *screen;
 	struct grid *grid;
 	struct grid_line *line;
-	struct grid_cell *cell;
-	struct utf8_data utf8;
+	struct grid_cell gc;
 	unsigned int line_i, i;
 	unsigned int max_lines;
 	size_t str_len;
@@ -59,30 +58,28 @@ static void do_snapshot(struct tmate_unpacker *uk,
 		pack(array, 2);
 		str_len = 0;
 		for (i = 0; i < line->cellsize; i++) {
-			cell = &line->celldata[i];
-			grid_cell_get(cell, &utf8);
-			str_len += utf8.size;
+			grid_get_cell(grid, line_i, i, &gc);
+			str_len += gc.data.size;
 		}
 
 		pack(str, str_len);
 		for (i = 0; i < line->cellsize; i++) {
-			cell = &line->celldata[i];
-			grid_cell_get(cell, &utf8);
-			pack(str_body, utf8.data, utf8.size);
+			grid_get_cell(grid, line_i, i, &gc);
+			pack(str_body, gc.data.data, gc.data.size);
 		}
 
 		pack(array, line->cellsize);
 		for (i = 0; i < line->cellsize; i++) {
-			cell = &line->celldata[i];
-			pack(unsigned_int, ((cell->flags << 24) |
-					    (cell->attr  << 16) |
-					    (cell->bg    << 8)  |
-					     cell->fg        ));
+			grid_get_cell(grid, line_i, i, &gc);
+			pack(unsigned_int, ((gc.flags << 24) |
+					    (gc.attr  << 16) |
+					    (gc.bg    << 8)  |
+					     gc.fg        ));
 		}
 	}
 }
 
-static void ctl_daemon_request_snapshot(struct tmate_session *session,
+static void ctl_daemon_request_snapshot(__unused struct tmate_session *session,
 					struct tmate_unpacker *uk)
 {
 	struct session *s;
@@ -122,7 +119,7 @@ static void ctl_daemon_request_snapshot(struct tmate_session *session,
 	}
 }
 
-static void ctl_pane_keys(struct tmate_session *session,
+static void ctl_pane_keys(__unused struct tmate_session *session,
 			  struct tmate_unpacker *uk)
 {
 	int i;
@@ -191,7 +188,7 @@ void tmate_proxy_exec(struct tmate_session *session, const char *command)
 	pack(string, command);
 }
 
-void tmate_notify_client_join(struct tmate_session *session,
+void tmate_notify_client_join(__unused struct tmate_session *session,
 			      struct client *c)
 {
 	if (!tmate_has_proxy())
@@ -205,7 +202,7 @@ void tmate_notify_client_join(struct tmate_session *session,
 	pack(boolean, c->readonly);
 }
 
-void tmate_notify_client_left(struct tmate_session *session,
+void tmate_notify_client_left(__unused struct tmate_session *session,
 			      struct client *c)
 {
 	if (!tmate_has_proxy())
@@ -216,10 +213,9 @@ void tmate_notify_client_left(struct tmate_session *session,
 	pack(int, c->id);
 }
 
-void tmate_send_proxy_daemon_msg(struct tmate_session *session,
+void tmate_send_proxy_daemon_msg(__unused struct tmate_session *session,
 				 struct tmate_unpacker *uk)
 {
-	struct timespec time_diff, current_time;
 	int i;
 
 	if (!tmate_has_proxy())
@@ -253,7 +249,7 @@ static void on_proxy_decoder_read(void *userdata, struct tmate_unpacker *uk)
 	tmate_dispatch_proxy_message(session, uk);
 }
 
-static void on_proxy_read(struct bufferevent *bev, void *_session)
+static void on_proxy_read(__unused struct bufferevent *bev, void *_session)
 {
 	struct tmate_session *session = _session;
 	struct evbuffer *proxy_in;
@@ -281,7 +277,6 @@ static void on_proxy_encoder_write(void *userdata, struct evbuffer *buffer)
 {
 	struct tmate_session *session = userdata;
 	struct evbuffer *proxy_out;
-	size_t len;
 
 	proxy_out = bufferevent_get_output(session->bev_proxy);
 
@@ -289,7 +284,7 @@ static void on_proxy_encoder_write(void *userdata, struct evbuffer *buffer)
 		tmate_fatal("Cannot write to proxy buffer");
 }
 
-static void on_proxy_event_default(struct tmate_session *session, short events)
+static void on_proxy_event_default(__unused struct tmate_session *session, short events)
 {
 	if (events & BEV_EVENT_EOF)
 		tmate_fatal("Connection to proxy closed");
@@ -299,7 +294,7 @@ static void on_proxy_event_default(struct tmate_session *session, short events)
 			    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 }
 
-static void on_proxy_event(struct bufferevent *bev, short events, void *_session)
+static void on_proxy_event(__unused struct bufferevent *bev, short events, void *_session)
 {
 	struct tmate_session *session = _session;
 	session->on_proxy_error(session, events);
@@ -315,8 +310,8 @@ void tmate_init_proxy(struct tmate_session *session,
 	session->proxy_sy = -1;
 
 	/* session->proxy_fd is already connected */
-	session->bev_proxy = bufferevent_socket_new(ev_base, session->proxy_fd,
-						     BEV_OPT_CLOSE_ON_FREE);
+	session->bev_proxy = bufferevent_socket_new(session->ev_base, session->proxy_fd,
+						    BEV_OPT_CLOSE_ON_FREE);
 	if (!session->bev_proxy)
 		tmate_fatal("Cannot setup socket bufferevent");
 

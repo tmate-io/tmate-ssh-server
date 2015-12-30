@@ -313,10 +313,6 @@ server_client_detach(struct client *c, enum msgtype msgtype)
 key_code
 server_client_check_mouse(struct client *c)
 {
-#ifdef TMATE_SLAVE
-	/* TODO Support mouse */
-	return;
-#else
 	struct session				*s = c->session;
 	struct mouse_event			*m = &c->tty.mouse;
 	struct window				*w;
@@ -539,7 +535,6 @@ server_client_check_mouse(struct client *c)
 		key |= KEYC_SHIFT;
 
 	return (key);
-#endif
 }
 
 /* Is this fast enough to probably be a paste? */

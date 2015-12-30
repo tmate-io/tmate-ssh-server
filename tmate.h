@@ -14,7 +14,7 @@ struct tmate_session;
 /* log.c */
 
 extern void init_logging(const char *program_name, bool use_syslog, int log_level);
-extern void printflike2 tmate_log(int level, const char *msg, ...);
+extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
 
 #define tmate_debug(str, ...)	tmate_log(LOG_DEBUG, str, ##__VA_ARGS__)
 #define tmate_info(str, ...)	tmate_log(LOG_INFO, str, ##__VA_ARGS__)
@@ -88,8 +88,8 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 
 #define TMATE_LATEST_VERSION "1.8.10"
 
-extern void printflike1 tmate_notify(const char *fmt, ...);
-extern void printflike2 tmate_notify_later(int timeout, const char *fmt, ...);
+extern void printflike(1, 2) tmate_notify(const char *fmt, ...);
+extern void printflike(2, 3) tmate_notify_later(int timeout, const char *fmt, ...);
 
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_pane_key(int pane_id, int key);
@@ -195,6 +195,7 @@ extern struct tmate_settings *tmate_settings;
 typedef void on_proxy_error_cb(struct tmate_session *session, short events);
 
 struct tmate_session {
+	struct event_base *ev_base;
 	struct tmate_ssh_client ssh_client;
 	int tmux_socket_fd;
 
@@ -259,8 +260,8 @@ extern unsigned long long timespec_to_millisec(struct timespec *ts);
 extern void tmate_preload_trace_lib(void);
 extern void tmate_print_stack_trace(void);
 
-/* tmux-bare.c */
+/* tmux.c */
 
-extern void tmux_server_init(int flags);
+extern void tmux_server_init(void);
 
 #endif
