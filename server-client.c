@@ -589,14 +589,12 @@ server_client_handle_key(struct client *c, key_code key)
 		if (c->flags & CLIENT_READONLY)
 			return;
 
-#ifdef TMATE_SLAVE
-		wp = window_pane_at_index(w, key - '0');
-		if (wp != NULL && window_pane_visible(wp))
-			tmate_client_set_active_pane(c->id, key - '0', wp->id);
-#else
 		window_unzoom(w);
 		wp = window_pane_at_index(w, key - '0');
 		if (wp != NULL && window_pane_visible(wp))
+#ifdef TMATE_SLAVE
+			tmate_client_set_active_pane(c->id, key - '0', wp->id);
+#else
 			window_set_active_pane(w, wp);
 #endif
 		server_clear_identify(c);

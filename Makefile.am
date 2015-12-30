@@ -178,6 +178,7 @@ dist_tmate_slave_SOURCES = \
 	tmate-debug.c \
 	tmate-daemon-decoder.c \
 	tmate-daemon-encoder.c \
+	tmate-daemon-legacy.c \
 	tmate-msgpack.c \
 	tmate-proxy.c \
 	tmate-slave.c \

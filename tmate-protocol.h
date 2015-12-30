@@ -69,11 +69,12 @@ enum tmate_daemon_out_msg_types {
 
 enum tmate_daemon_in_msg_types {
 	TMATE_IN_NOTIFY,
-	TMATE_IN_PANE_KEY,
+	TMATE_IN_LEGACY_PANE_KEY,
 	TMATE_IN_RESIZE,
 	TMATE_IN_EXEC_CMD,
 	TMATE_IN_SET_ENV,
 	TMATE_IN_READY,
+	TMATE_IN_PANE_KEY,
 };
 
 /*

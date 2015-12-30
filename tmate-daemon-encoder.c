@@ -81,7 +81,7 @@ void tmate_client_resize(u_int sx, u_int sy)
 	pack(int, sy);
 }
 
-void tmate_client_pane_key(int pane_id, int key)
+void tmate_client_legacy_pane_key(__unused int pane_id, int key)
 {
 	/*
 	 * We don't specify the pane id because the current active pane is
@@ -89,8 +89,29 @@ void tmate_client_pane_key(int pane_id, int key)
 	 */
 
 	pack(array, 2);
-	pack(int, TMATE_IN_PANE_KEY);
+	pack(int, TMATE_IN_LEGACY_PANE_KEY);
 	pack(int, key);
+}
+
+void tmate_client_pane_key(int pane_id, key_code key)
+{
+	if (key == KEYC_NONE || key == KEYC_UNKNOWN)
+		return;
+
+	/* Mouse keys not supported yet */
+	if (KEYC_IS_MOUSE(key))
+		return;
+
+	if (tmate_session->client_protocol_version < 5) {
+		int legacy_key = tmate_translate_legacy_key(key);
+		tmate_client_legacy_pane_key(pane_id, legacy_key);
+		return;
+	}
+
+	pack(array, 3);
+	pack(int, TMATE_IN_PANE_KEY);
+	pack(int, pane_id);
+	pack(uint64, key);
 }
 
 extern const struct cmd_entry cmd_bind_key_entry;

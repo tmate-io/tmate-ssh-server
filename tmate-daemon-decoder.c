@@ -23,7 +23,7 @@ static void tmate_header(struct tmate_session *session,
 		client_version = unpack_string(uk);
 	}
 
-	tmate_notice("new master, client version: %s, protocol version: %d",
+	tmate_notice("Daemon header: client version: %s, protocol version: %d",
 		     client_version, session->client_protocol_version);
 
 #if 0
