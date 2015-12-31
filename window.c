@@ -1149,7 +1149,12 @@ window_pane_key(struct window_pane *wp, struct client *c, struct session *s,
     key_code key, struct mouse_event *m)
 {
 #ifdef TMATE_SLAVE
-	tmate_client_pane_key(wp->id, key);
+	/*
+	 * pane_id == -1,  which means that we should send the keys to
+	 * the active pane. This is better due to latency issues in
+	 * synchronizing the session layout.
+	 */
+	tmate_client_pane_key(-1, key);
 #else
 
 	struct window_pane	*wp2;
