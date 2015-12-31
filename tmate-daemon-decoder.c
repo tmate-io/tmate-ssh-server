@@ -195,6 +195,9 @@ static void tmate_exec_cmd(__unused struct tmate_session *session,
 	char *cause;
 
 	cmd_str = unpack_string(uk);
+
+	tmate_info("Local cmd: %s", cmd_str);
+
 	if (cmd_string_parse(cmd_str, &cmdlist, NULL, 0, &cause) != 0) {
 		free(cause);
 		goto out;

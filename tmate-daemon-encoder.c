@@ -143,6 +143,8 @@ int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
 
 void tmate_client_cmd(int client_id, const char *cmd)
 {
+	tmate_info("Remote cmd (cid=%d): %s", client_id, cmd);
+
 	pack(array, 3);
 	pack(int, TMATE_IN_EXEC_CMD);
 	pack(int, client_id);

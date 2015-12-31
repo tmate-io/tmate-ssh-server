@@ -191,6 +191,8 @@ void tmate_proxy_exec(struct tmate_session *session, const char *command)
 void tmate_notify_client_join(__unused struct tmate_session *session,
 			      struct client *c)
 {
+	tmate_notice("Client joined (cid=%d)", c->id);
+
 	if (!tmate_has_proxy())
 		return;
 
@@ -205,6 +207,8 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 void tmate_notify_client_left(__unused struct tmate_session *session,
 			      struct client *c)
 {
+	tmate_notice("Client left (cid=%d)", c->id);
+
 	if (!tmate_has_proxy())
 		return;
 
