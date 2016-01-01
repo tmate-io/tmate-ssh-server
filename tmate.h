@@ -103,7 +103,7 @@ extern void tmate_send_mc_obj(msgpack_object *obj);
 
 /* tmate-daemon-legacy.c */
 
-extern int tmate_translate_legacy_key(key_code key);
+extern void tmate_translate_legacy_key(int pane_id, key_code key);
 
 /* tmate-daemon-decoder.c */
 

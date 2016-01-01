@@ -103,8 +103,7 @@ void tmate_client_pane_key(int pane_id, key_code key)
 		return;
 
 	if (tmate_session->client_protocol_version < 5) {
-		int legacy_key = tmate_translate_legacy_key(key);
-		tmate_client_legacy_pane_key(pane_id, legacy_key);
+		tmate_translate_legacy_key(pane_id, key);
 		return;
 	}
 

@@ -62,11 +62,17 @@ enum legacy_key_code {
 	LEGACY_KEYC_FOCUS_OUT,
 };
 
-int tmate_translate_legacy_key(key_code key)
+void tmate_translate_legacy_key(int pane_id, key_code key)
 {
+	key_code justkey = key & KEYC_MASK_KEY;
+	int lflags = 0;
 	int lkey;
 
-	switch(key & KEYC_MASK_KEY) {
+	if (key & KEYC_ESCAPE)	lflags |= LEGACY_KEYC_ESCAPE;
+	if (key & KEYC_CTRL)	lflags |= LEGACY_KEYC_CTRL;
+	if (key & KEYC_SHIFT)	lflags |= LEGACY_KEYC_SHIFT;
+
+	switch(justkey) {
 	case KEYC_BSPACE:     lkey = LEGACY_KEYC_BSPACE;	break;
 	case KEYC_F1:         lkey = LEGACY_KEYC_F1;		break;
 	case KEYC_F2:         lkey = LEGACY_KEYC_F2;		break;
@@ -109,12 +115,28 @@ int tmate_translate_legacy_key(key_code key)
 	case KEYC_KP_PERIOD:  lkey = LEGACY_KEYC_KP_PERIOD;	break;
 	case KEYC_FOCUS_IN:   lkey = LEGACY_KEYC_FOCUS_IN;	break;
 	case KEYC_FOCUS_OUT:  lkey = LEGACY_KEYC_FOCUS_OUT;	break;
-	default:	      lkey = key & KEYC_MASK_KEY;
+	default:
+		if (justkey >= KEYC_BASE) {
+			/* Unknown key */
+			return;
+		}
+
+		if (justkey > 0x7f) {
+			/* UTF8 */
+			int i;
+			struct utf8_data ud;
+			if (utf8_split(justkey, &ud) != UTF8_DONE)
+				return;
+
+			for (i = 0; i < ud.size; i++) {
+				tmate_client_legacy_pane_key(pane_id, lflags | ud.data[i]);
+				lflags = 0;
+			}
+			return;
+		}
+
+		lkey = justkey;
 	}
 
-	if (key & KEYC_ESCAPE)	lkey |= LEGACY_KEYC_ESCAPE;
-	if (key & KEYC_CTRL)	lkey |= LEGACY_KEYC_CTRL;
-	if (key & KEYC_SHIFT)	lkey |= LEGACY_KEYC_SHIFT;
-
-	return lkey;
+	tmate_client_legacy_pane_key(pane_id, lflags | lkey);
 }
