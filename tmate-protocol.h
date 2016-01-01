@@ -84,6 +84,7 @@ enum tmate_daemon_in_msg_types {
 [TMATE_IN_EXEC_CMD, int: client_id, string: cmd]
 [TMATE_IN_SET_ENV, string: name, string: value]
 [TMATE_IN_READY]
+[TMATE_IN_PANE_KEY, int: pane_id, uint64 keycode] // pane_id == -1: active pane
 */
 
 #endif
