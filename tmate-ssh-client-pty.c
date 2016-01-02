@@ -1,6 +1,7 @@
 #include <libssh/server.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 #include "tmate.h"
 
 extern void client_signal(int sig);
