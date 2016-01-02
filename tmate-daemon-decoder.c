@@ -348,6 +348,12 @@ static void tmate_write_copy_mode(__unused struct tmate_session *session,
 	free(str);
 }
 
+static void tmate_fin(__unused struct tmate_session *session,
+		      __unused struct tmate_unpacker *uk)
+{
+	request_server_termination();
+}
+
 void tmate_dispatch_daemon_message(struct tmate_session *session,
 				   struct tmate_unpacker *uk)
 {
@@ -362,6 +368,7 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_STATUS,		tmate_status);
 	dispatch(TMATE_OUT_SYNC_COPY_MODE,	tmate_sync_copy_mode);
 	dispatch(TMATE_OUT_WRITE_COPY_MODE,	tmate_write_copy_mode);
+	dispatch(TMATE_OUT_FIN,			tmate_fin);
 	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }
