@@ -58,19 +58,19 @@ static void do_snapshot(__unused struct tmate_unpacker *uk,
 		pack(array, 2);
 		str_len = 0;
 		for (i = 0; i < line->cellsize; i++) {
-			grid_get_cell(grid, line_i, i, &gc);
+			grid_get_cell(grid, i, line_i, &gc);
 			str_len += gc.data.size;
 		}
 
 		pack(str, str_len);
 		for (i = 0; i < line->cellsize; i++) {
-			grid_get_cell(grid, line_i, i, &gc);
+			grid_get_cell(grid, i, line_i, &gc);
 			pack(str_body, gc.data.data, gc.data.size);
 		}
 
 		pack(array, line->cellsize);
 		for (i = 0; i < line->cellsize; i++) {
-			grid_get_cell(grid, line_i, i, &gc);
+			grid_get_cell(grid, i, line_i, &gc);
 			pack(unsigned_int, ((gc.flags << 24) |
 					    (gc.attr  << 16) |
 					    (gc.bg    << 8)  |
