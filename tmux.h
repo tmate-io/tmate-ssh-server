@@ -1280,6 +1280,9 @@ struct client {
 #define CLIENT_256COLOURS 0x20000
 #define CLIENT_IDENTIFIED 0x40000
 #define CLIENT_STATUSFORCE 0x80000
+#ifdef TMATE_SLAVE
+#define CLIENT_TMATE_NOTIFIED_JOIN 0x10000000
+#endif
 	int		 flags;
 	struct key_table *keytable;
 

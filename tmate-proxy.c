@@ -196,6 +196,8 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 	if (!tmate_has_proxy())
 		return;
 
+	c->flags |= CLIENT_TMATE_NOTIFIED_JOIN;
+
 	pack(array, 5);
 	pack(int, TMATE_CTL_CLIENT_JOIN);
 	pack(int, c->id);
@@ -211,6 +213,11 @@ void tmate_notify_client_left(__unused struct tmate_session *session,
 
 	if (!tmate_has_proxy())
 		return;
+
+	if (!(c->flags & CLIENT_TMATE_NOTIFIED_JOIN))
+		return;
+
+	c->flags &= ~CLIENT_TMATE_NOTIFIED_JOIN;
 
 	pack(array, 2);
 	pack(int, TMATE_CTL_CLIENT_LEFT);
