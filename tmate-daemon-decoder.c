@@ -158,7 +158,7 @@ static void tmate_sync_layout(__unused struct tmate_session *session,
 
 	s = RB_MIN(sessions, &sessions);
 	if (!s) {
-		s = session_create("default", 0, NULL, "/", "/",
+		s = session_create("default", -1, NULL, "/", "/",
 				   NULL, NULL, 0, sx, sy, &cause);
 		if (!s)
 			tmate_fatal("can't create main session");
