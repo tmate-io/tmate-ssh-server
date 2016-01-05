@@ -67,6 +67,11 @@ static void tmate_sync_window_panes(struct window *w,
 		u_int yoff = unpack_int(&uk);
 
 		wp = window_pane_find_by_id(id);
+		if (wp && wp->window != w) {
+			/* Pane in the wrong window */
+			tmate_fatal("Pane id=%u in the wrong window", id);
+		}
+
 		if (!wp) {
 			next_window_pane_id = id;
 			wp = window_add_pane(w, TMATE_HLIMIT);
