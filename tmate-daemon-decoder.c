@@ -183,7 +183,7 @@ static void tmate_pty_data(__unused struct tmate_session *session,
 
 	wp = window_pane_find_by_id(id);
 	if (!wp)
-		tmate_fatal("can't find pane id=%d", id);
+		tmate_fatal("can't find pane id=%d (pty_data)", id);
 
 	evbuffer_add(wp->event_input, buf, len);
 	input_parse(wp);
@@ -342,7 +342,7 @@ static void tmate_write_copy_mode(__unused struct tmate_session *session,
 	id = unpack_int(uk);
 	wp = window_pane_find_by_id(id);
 	if (!wp)
-		tmate_fatal("can't find pane id=%d", id);
+		tmate_fatal("can't find pane id=%d (copy_mode)", id);
 
 	str = unpack_string(uk);
 
