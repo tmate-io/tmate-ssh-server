@@ -9,9 +9,10 @@ static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 	tmate_dispatch_daemon_message(session, uk);
 }
 
-static int on_ssh_channel_read(ssh_session _session, ssh_channel channel,
+static int on_ssh_channel_read(__unused ssh_session _session,
+			       __unused ssh_channel channel,
 			       void *_data, uint32_t total_len,
-			       int is_stderr, void *userdata)
+			       __unused int is_stderr, void *userdata)
 {
 	struct tmate_session *session = userdata;
 	char *data = _data;
