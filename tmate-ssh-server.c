@@ -169,6 +169,11 @@ static void register_on_ssh_read(struct tmate_ssh_client *client)
 	event_add(&client->ev_ssh, NULL);
 }
 
+static void handle_sigalrm(__unused int sig)
+{
+	tmate_fatal("Connection grace period (%d) passed", TMATE_SSH_GRACE_PERIOD);
+}
+
 static void client_bootstrap(struct tmate_session *_session)
 {
 	struct tmate_ssh_client *client = &_session->ssh_client;
@@ -187,6 +192,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
 		   &flag, sizeof(flag));
 
+	signal(SIGALRM, handle_sigalrm);
 	alarm(grace_period);
 
 	/*
@@ -226,55 +232,6 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	tmate_spawn_slave(_session);
 	/* never reached */
-}
-
-static void handle_sigchld(void)
-{
-	int status;
-	pid_t pid;
-
-	while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
-		if (WIFEXITED(status))
-			tmate_info("Child %d exited (%d)", pid, WEXITSTATUS(status));
-		if (WIFSIGNALED(status))
-			tmate_info("Child %d killed (%d)", pid, WTERMSIG(status));
-		if (WIFSTOPPED(status))
-			tmate_info("Child %d stopped (%d)", pid, WSTOPSIG(status));
-	}
-}
-
-static void handle_sigalrm(void)
-{
-	tmate_fatal("Connection grace period (%d) passed", TMATE_SSH_GRACE_PERIOD);
-}
-
-static void handle_sigsegv(void)
-{
-	tmate_info("CRASH, printing stack trace");
-	tmate_print_stack_trace();
-	tmate_fatal("CRASHED");
-}
-static void handle_sigterm(void)
-{
-	request_server_termination();
-}
-
-static void signal_handler(int sig)
-{
-	switch (sig) {
-	case SIGTERM: handle_sigterm(); break;
-	case SIGCHLD: handle_sigchld(); break;
-	case SIGALRM: handle_sigalrm(); break;
-	case SIGSEGV: handle_sigsegv(); break;
-	}
-}
-
-static void setup_signals(void)
-{
-	signal(SIGTERM, signal_handler);
-	signal(SIGCHLD, signal_handler);
-	signal(SIGALRM, signal_handler);
-	signal(SIGSEGV, signal_handler);
 }
 
 static int get_ip(int fd, char *dst, size_t len)
@@ -340,14 +297,42 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	return bind;
 }
 
+static void handle_sigchld(__unused int sig)
+{
+	int status;
+	pid_t pid;
+
+	while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
+		if (WIFEXITED(status))
+			tmate_info("Child %d exited (%d)", pid, WEXITSTATUS(status));
+		if (WIFSIGNALED(status))
+			tmate_info("Child %d killed (%d)", pid, WTERMSIG(status));
+		if (WIFSTOPPED(status))
+			tmate_info("Child %d stopped (%d)", pid, WSTOPSIG(status));
+	}
+}
+
+static void handle_sigsegv(__unused int sig)
+{
+	tmate_info("CRASH, printing stack trace");
+	tmate_print_stack_trace();
+	tmate_fatal("CRASHED");
+}
+
 void tmate_ssh_server_main(struct tmate_session *session,
 			   const char *keys_dir, int port)
 {
+	sigset_t sigchld_set;
 	struct tmate_ssh_client *client = &session->ssh_client;
 	ssh_bind bind;
 	pid_t pid;
 
-	setup_signals();
+	signal(SIGSEGV, handle_sigsegv);
+	signal(SIGCHLD, handle_sigchld);
+
+	sigemptyset(&sigchld_set);
+	sigaddset(&sigchld_set, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &sigchld_set, NULL);
 
 	bind = prepare_ssh(keys_dir, port);
 
@@ -360,8 +345,10 @@ void tmate_ssh_server_main(struct tmate_session *session,
 		if (!client->session)
 			tmate_fatal("Cannot initialize session");
 
+		sigprocmask(SIG_UNBLOCK, &sigchld_set, NULL);
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
+		sigprocmask(SIG_BLOCK, &sigchld_set, NULL);
 
 		if (get_ip(ssh_get_fd(client->session),
 			   client->ip_address, sizeof(client->ip_address)) < 0)

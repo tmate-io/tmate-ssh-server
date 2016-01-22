@@ -316,6 +316,11 @@ static void setup_ncurse(int fd, const char *name)
 		tmate_fatal("Cannot setup terminal");
 }
 
+static void handle_sigterm(__unused int sig)
+{
+	request_server_termination();
+}
+
 static void tmate_spawn_slave_daemon(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
@@ -355,6 +360,7 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	event_reinit(session->ev_base);
 
 	tmux_server_init();
+	signal(SIGTERM, handle_sigterm);
 	server_start(session->ev_base, -1, NULL);
 	/* never reached */
 }
