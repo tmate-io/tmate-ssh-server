@@ -61,6 +61,38 @@ long tmate_get_random_long(void)
 	return val;
 }
 
+#define RS_BUF_SIZE 256
+
+struct random_stream {
+	char bytes[RS_BUF_SIZE];
+	off_t pos;
+};
+
+static void random_stream_init(struct random_stream *rs)
+{
+	rs->pos = RS_BUF_SIZE;
+}
+
+static char *random_stream_get(struct random_stream *rs, size_t count)
+{
+	char *ret;
+
+	if (count > RS_BUF_SIZE) {
+		tmate_fatal("buffer too small");
+	}
+
+	if (rs->pos + count > RS_BUF_SIZE) {
+		tmate_get_random_bytes(rs->bytes, RS_BUF_SIZE);
+		rs->pos = 0;
+	}
+
+
+	ret = &rs->bytes[rs->pos];
+	rs->pos += count;
+	return ret;
+}
+
+
 extern int server_fd;
 extern void server_send_exit(void);
 void request_server_termination(void)
@@ -139,12 +171,21 @@ static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
 
 static char *get_random_token(void)
 {
-	int i;
+	struct random_stream rs;
 	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
+	int i;
+	unsigned char c;
 
-	tmate_get_random_bytes(token, TMATE_TOKEN_LEN);
-	for (i = 0; i < TMATE_TOKEN_LEN; i++)
-		token[i] = tmate_token_digits[token[i] % NUM_DIGITS];
+	random_stream_init(&rs);
+
+	for (i = 0; i < TMATE_TOKEN_LEN; i++) {
+		do {
+			c = *random_stream_get(&rs, 1);
+		} while (c >= NUM_DIGITS);
+
+		token[i] = tmate_token_digits[c];
+	}
+
 	token[i] = 0;
 
 	return token;
