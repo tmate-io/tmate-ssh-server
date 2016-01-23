@@ -86,8 +86,6 @@ extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *neste
 
 /* tmate-daemon-encoder.c */
 
-#define TMATE_LATEST_VERSION "1.8.10"
-
 extern void printflike(1, 2) tmate_notify(const char *fmt, ...);
 extern void printflike(2, 3) tmate_notify_later(int timeout, const char *fmt, ...);
 
@@ -97,7 +95,7 @@ extern void tmate_client_pane_key(int pane_id, key_code key);
 extern void tmate_client_cmd(int client_id, const char *cmd);
 extern void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id);
 extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
-extern void tmate_send_env(const char *name, const char *value);
+extern void tmate_set_env(const char *name, const char *value);
 extern void tmate_send_client_ready(void);
 extern void tmate_send_mc_obj(msgpack_object *obj);
 
@@ -210,6 +208,7 @@ struct tmate_session {
 
 	struct tmate_encoder daemon_encoder;
 	struct tmate_decoder daemon_decoder;
+	const char *client_version;
 	int client_protocol_version;
 	struct event ev_notify_timer;
 

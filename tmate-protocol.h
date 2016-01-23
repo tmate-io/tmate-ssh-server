@@ -5,7 +5,7 @@
 #define TMATE_MAX_MESSAGE_SIZE (17*1024)
 
 enum tmate_control_out_msg_types {
-	TMATE_CTL_AUTH,
+	TMATE_CTL_HEADER,
 	TMATE_CTL_DEAMON_OUT_MSG,
 	TMATE_CTL_SNAPSHOT,
 	TMATE_CTL_CLIENT_JOIN,
@@ -14,8 +14,9 @@ enum tmate_control_out_msg_types {
 };
 
 /*
-[TMATE_CTL_AUTH, int: ctl_proto_version, string: ip_address, string: pubkey,
-                 string: session_token, string: session_token_ro]
+[TMATE_CTL_HEADER, int: ctl_proto_version, string: ip_address, string: pubkey,
+                   string: session_token, string: session_token_ro, string: ssh_cmd_fmt]
+	           string: client_version, int: client_protocol_version]
 [TMATE_CTL_DEAMON_OUT_MSG, object: msg]
 [TMATE_CTL_SNAPSHOT, [[int: pane_id, [int: cur_x, int: cur_y], int: mode,
                        [[string: line_utf8, [int: char_attr, ...]], ...], ...], ...]]

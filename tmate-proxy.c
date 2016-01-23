@@ -6,7 +6,7 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
-#define CONTROL_PROTOCOL_VERSION 1
+#define CONTROL_PROTOCOL_VERSION 2
 
 #define pack(what, ...) _pack(&tmate_session->proxy_encoder, what, __VA_ARGS__)
 
@@ -242,16 +242,27 @@ void tmate_send_proxy_daemon_msg(__unused struct tmate_session *session,
 
 void tmate_send_proxy_header(struct tmate_session *session)
 {
+	char port_arg[16] = {0};
+	char ssh_cmd_fmt[512];
+
 	if (!tmate_has_proxy())
 		return;
 
-	pack(array, 6);
-	pack(int, TMATE_CTL_AUTH);
+	pack(array, 9);
+	pack(int, TMATE_CTL_HEADER);
 	pack(int, CONTROL_PROTOCOL_VERSION);
 	pack(string, session->ssh_client.ip_address);
 	pack(string, session->ssh_client.pubkey);
 	pack(string, session->session_token);
 	pack(string, session->session_token_ro);
+
+	if (tmate_settings->ssh_port != 22)
+		sprintf(port_arg, " -p%d", tmate_settings->ssh_port);
+	sprintf(ssh_cmd_fmt, "ssh%s %%s@%s", port_arg, tmate_settings->tmate_host);
+	pack(string, ssh_cmd_fmt);
+
+	pack(string, session->client_version);
+	pack(int, session->client_protocol_version);
 }
 
 static void on_proxy_decoder_read(void *userdata, struct tmate_unpacker *uk)

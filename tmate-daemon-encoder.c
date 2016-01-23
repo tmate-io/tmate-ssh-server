@@ -61,7 +61,7 @@ void tmate_send_client_ready(void)
 	pack(int, TMATE_IN_READY);
 }
 
-void tmate_send_env(const char *name, const char *value)
+void tmate_set_env(const char *name, const char *value)
 {
 	if (tmate_session->client_protocol_version < 4)
 		return;

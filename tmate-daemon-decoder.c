@@ -10,7 +10,6 @@ static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	char port_arg[16] = {0};
-	char *client_version = xstrdup("< 1.8.6");
 	char tmp[512];
 
 	session->client_protocol_version = unpack_int(uk);
@@ -19,30 +18,33 @@ static void tmate_header(struct tmate_session *session,
 	}
 
 	if (session->client_protocol_version >= 3) {
-		free(client_version);
-		client_version = unpack_string(uk);
+		session->client_version = unpack_string(uk);
+	} else {
+		session->client_version = xstrdup("1.8.5");
 	}
 
 	tmate_notice("Daemon header: client version: %s, protocol version: %d",
-		     client_version, session->client_protocol_version);
+		     session->client_version, session->client_protocol_version);
 
-#if 0
-	if (strcmp(client_version, TMATE_LATEST_VERSION))
-		tmate_notify_later(10, "A new version is available, please upgrade :)");
-#endif
-
-	free(client_version);
+	if (tmate_has_proxy()) {
+		/* If we have a proxy, it takes care of all the following notificatons */
+		tmate_send_proxy_header(session);
+		return;
+	}
 
 	if (tmate_settings->ssh_port != 22)
 		sprintf(port_arg, " -p%d", tmate_settings->ssh_port);
 
-	sprintf(tmp, "ssh%s ro-%s@%s", port_arg, session->session_token_ro, tmate_settings->tmate_host);
-	tmate_notify("Remote session read only: %s (clear your screen if you share this)", tmp);
-	tmate_send_env("tmate_ssh_ro", tmp);
+	sprintf(tmp, "ssh%s %s@%s", port_arg, session->session_token_ro, tmate_settings->tmate_host);
+
+	tmate_notify("Note: clear your terminal before sharing readonly access");
+	tmate_notify("ssh session read only: %s", tmp);
 
 	sprintf(tmp, "ssh%s %s@%s", port_arg, session->session_token, tmate_settings->tmate_host);
-	tmate_notify("Remote session: %s", tmp);
-	tmate_send_env("tmate_ssh", tmp);
+	tmate_notify("ssh session: %s", tmp);
+
+	tmate_set_env("tmate_ssh_ro", tmp);
+	tmate_set_env("tmate_ssh", tmp);
 
 	tmate_send_client_ready();
 }

@@ -80,5 +80,4 @@ void tmate_daemon_init(struct tmate_session *session)
 	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
 	tmate_init_proxy(session, NULL);
-	tmate_send_proxy_header(session);
 }
