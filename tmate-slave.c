@@ -208,25 +208,36 @@ static void set_session_token(struct tmate_session *session,
 
 static void create_session_ro_symlink(struct tmate_session *session)
 {
-	char session_ro_path[MAXPATHLEN];
+	char *tmp, *token, *session_ro_path;
 
-	session->session_token_ro = get_random_token();
 #ifdef DEVENV
-	strcpy((char *)session->session_token_ro, "READONLYTOKENFORDEVENV000");
+	tmp = "READONLYTOKENFORDEVENV000";
+#else
+	tmp = get_random_token();
 #endif
+	xasprintf(&token, "ro-%s", tmp);
+	free(tmp);
 
-	strcpy(session_ro_path, TMATE_WORKDIR "/sessions/");
-	strcat(session_ro_path, session->session_token_ro);
+	session->session_token_ro = token;
+
+	xasprintf(&session_ro_path, TMATE_WORKDIR "/sessions/%s",
+		  session->session_token_ro);
 
 	unlink(session_ro_path);
 	if (symlink(session->session_token, session_ro_path) < 0)
 		tmate_fatal("Cannot create read-only symlink");
+	free(session_ro_path);
 }
 
 static int validate_token(const char *token)
 {
-	int len = strlen(token);
+	int len;
 	int i;
+
+	if (!memcmp("ro-", token, 3))
+		token += 3;
+
+	len = strlen(token);
 
 	if (len != TMATE_TOKEN_LEN)
 		return -1;
@@ -254,26 +265,10 @@ static void ssh_echo(struct tmate_ssh_client *ssh_client,
 }
 
 #define BAD_TOKEN_ERROR_STR						\
-"  "								 "\r\n" \
-"  Dear guest,"							 "\r\n" \
-"  "								 "\r\n" \
-"  There isn't much I can do without a valid session token."	 "\r\n" \
-"  Feel free to reach out if you are having issues."		 "\r\n" \
-"  "								 "\r\n" \
-"  Thanks,"							 "\r\n" \
-"  Nico"							 "\r\n" \
-"  "								 "\r\n"
+"Invalid session token"						 "\r\n"
 
 #define EXPIRED_TOKEN_ERROR_STR						\
-"  "								 "\r\n" \
-"  Dear guest,"							 "\r\n" \
-"  "								 "\r\n" \
-"  The provided session token is invalid, or has expired."	 "\r\n" \
-"  Feel free to reach out if you are having issues."		 "\r\n" \
-"  "								 "\r\n" \
-"  Thanks,"							 "\r\n" \
-"  Nico"							 "\r\n" \
-"  "								 "\r\n"
+"Invalid or expired session token"				 "\r\n"
 
 static void close_fds_except(int *fd_to_preserve, int num_fds)
 {
@@ -417,10 +412,6 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 	struct stat fstat;
 	int slave_pty;
 	int ret;
-
-	/* the "ro-" part is just sugar, we don't care about it */
-	if (!memcmp("ro-", token, 3))
-		token += 3;
 
 	if (validate_token(token) < 0) {
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
