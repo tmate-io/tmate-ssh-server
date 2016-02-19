@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <sys/syslog.h>
 #include <sched.h>
+#include <signal.h>
 #include "tmate.h"
 
 struct tmate_session _tmate_session, *tmate_session = &_tmate_session;
