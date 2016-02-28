@@ -212,7 +212,7 @@ static void create_session_ro_symlink(struct tmate_session *session)
 	char *tmp, *token, *session_ro_path;
 
 #ifdef DEVENV
-	tmp = "READONLYTOKENFORDEVENV000";
+	tmp = xstrdup("READONLYTOKENFORDEVENV000");
 #else
 	tmp = get_random_token();
 #endif
@@ -363,9 +363,10 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	struct tmate_ssh_client *client = &session->ssh_client;
 	char *token;
 
-	token = get_random_token();
 #ifdef DEVENV
-	strcpy(token, "SUPERSECURETOKENFORDEVENV");
+	token = xstrdup("SUPERSECURETOKENFORDEVENV");
+#else
+	token = get_random_token();
 #endif
 
 	set_session_token(session, token);

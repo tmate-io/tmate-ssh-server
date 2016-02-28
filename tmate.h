@@ -254,11 +254,6 @@ static inline bool tmate_has_proxy(void)
 	return !!tmate_settings->proxy_hostname;
 }
 
-
-extern void timespec_subtract(struct timespec *result,
-			      struct timespec *x, struct timespec *y);
-extern unsigned long long timespec_to_millisec(struct timespec *ts);
-
 /* tmate-debug.c */
 
 extern void tmate_preload_trace_lib(void);

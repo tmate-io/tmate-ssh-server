@@ -101,7 +101,11 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 	}
 
 	if (client->channel) {
-		/* We already have a channel, returning NULL means we are unhappy */
+		/*
+		 * We already have a channel, and we don't support multi
+		 * channels yet. Returning NULL means the channel request will
+		 * be denied.
+		 */
 		return NULL;
 	}
 
@@ -188,9 +192,11 @@ static void client_bootstrap(struct tmate_session *_session)
 	/* new process group, we don't want to die with our parent (upstart) */
 	setpgid(0, 0);
 
+	{
 	int flag = 1;
 	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
 		   &flag, sizeof(flag));
+	}
 
 	signal(SIGALRM, handle_sigalrm);
 	alarm(grace_period);

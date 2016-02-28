@@ -369,9 +369,11 @@ static int _tmate_connect_to_proxy(const char *hostname, int port)
 	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
 		tmate_fatal("Cannot connect to proxy at %s:%d", hostname, port);
 
+	{
 	int flag = 1;
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0)
 		tmate_fatal("Can't set proxy socket to TCP_NODELAY");
+	}
 
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
 		tmate_fatal("Can't set proxy socket to non-blocking");
