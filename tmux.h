@@ -410,6 +410,7 @@ enum msgtype {
 	MSG_IDENTIFY_CWD,
 
 #ifdef TMATE_SLAVE
+	/* Next time put this after TMATE_LATENCY */
 	MSG_IDENTIFY_TMATE_IP_ADDRESS,
 	MSG_IDENTIFY_TMATE_PUBKEY,
 	MSG_IDENTIFY_TMATE_READONLY,
@@ -432,6 +433,10 @@ enum msgtype {
 	MSG_SUSPEND,
 	MSG_UNLOCK,
 	MSG_WAKEUP,
+
+#ifdef TMATE_SLAVE
+	MSG_LATENCY = 300
+#endif
 };
 
 /*

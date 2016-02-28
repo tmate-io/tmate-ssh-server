@@ -10,25 +10,6 @@
 
 #include "tmate.h"
 
-static void start_keepalive_timer(struct tmate_ssh_client *client);
-static void on_keepalive_timer(__unused evutil_socket_t fd,
-			       __unused short what, void *arg)
-{
-	struct tmate_ssh_client *client = arg;
-
-	ssh_send_keepalive(client->session);
-	start_keepalive_timer(client);
-}
-
-static void start_keepalive_timer(struct tmate_ssh_client *client)
-{
-	struct timeval tv = { TMATE_SSH_KEEPALIVE, 0 };
-
-	evtimer_set(&client->ev_keepalive_timer,
-		    on_keepalive_timer, client);
-	evtimer_add(&client->ev_keepalive_timer, &tv);
-}
-
 static int pty_request(__unused ssh_session session,
 		       __unused ssh_channel channel,
 		       __unused const char *term,
@@ -233,7 +214,8 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	alarm(0);
 
-	start_keepalive_timer(client);
+	/* The latency is callback set later */
+	tmate_start_ssh_latency_probes(client, &ssh_server_cb, TMATE_SSH_KEEPALIVE * 1000);
 	register_on_ssh_read(client);
 
 	tmate_spawn_slave(_session);

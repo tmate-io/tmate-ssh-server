@@ -25,6 +25,10 @@ if IS_DEVENV
 CFLAGS += -DDEVENV
 endif
 
+if IS_LATENCY
+CFLAGS += -DENABLE_LATENCY
+endif
+
 if IS_LINUX
 CFLAGS += -rdynamic # for stack traces
 endif
@@ -185,6 +189,7 @@ dist_tmate_slave_SOURCES = \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-daemon.c \
 	tmate-ssh-exec.c \
+	tmate-ssh-latency.c \
 	tmate-ssh-server.c \
 	tmux.c \
 	tty-acs.c \

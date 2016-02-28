@@ -7,6 +7,7 @@
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 #include <event.h>
+#include <time.h>
 
 #include "tmux.h"
 struct tmate_session;
@@ -133,11 +134,19 @@ extern void tmate_flush_pty(struct tmate_session *session);
 /* tmate-ssh-server.c */
 
 #define TMATE_SSH_BANNER "tmate"
-#define TMATE_SSH_KEEPALIVE 60
+#define TMATE_SSH_KEEPALIVE 30
 
 #define TMATE_ROLE_DAEMON	1
 #define TMATE_ROLE_PTY_CLIENT	2
 #define TMATE_ROLE_EXEC		3
+
+struct tmate_ssh_client;
+typedef void ssh_client_latency_cb(void *userdata, int latency_ms);
+extern void tmate_start_ssh_latency_probes(struct tmate_ssh_client *client,
+					   struct ssh_server_callbacks_struct *server_callbacks,
+					   int keepalive_interval_ms);
+extern void tmate_add_ssh_latency_callback(struct tmate_ssh_client *client,
+					   ssh_client_latency_cb cb, void *userdata);
 
 struct tmate_ssh_client {
 	char ip_address[64];
@@ -160,7 +169,14 @@ struct tmate_ssh_client {
 	struct winsize winsize_pty;
 
 	struct event ev_ssh;
+
 	struct event ev_keepalive_timer;
+	int keepalive_interval_ms;
+#ifdef ENABLE_LATENCY
+	ssh_client_latency_cb *latency_cb;
+	void *latency_cb_userdata;
+	struct timespec keepalive_sent_at;
+#endif
 };
 
 extern void tmate_ssh_server_main(struct tmate_session *session,
@@ -241,6 +257,7 @@ extern void tmate_spawn_slave(struct tmate_session *session);
 extern void tmate_proxy_exec(struct tmate_session *session, const char *command);
 extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
 extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
+extern void tmate_notify_latency(struct tmate_session *session, struct client *c, int latency_ms);
 
 extern void tmate_send_proxy_daemon_msg(struct tmate_session *session,
 					 struct tmate_unpacker *uk);

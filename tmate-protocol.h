@@ -11,6 +11,7 @@ enum tmate_control_out_msg_types {
 	TMATE_CTL_CLIENT_JOIN,
 	TMATE_CTL_CLIENT_LEFT,
 	TMATE_CTL_EXEC,
+	TMATE_CTL_LATENCY,
 };
 
 /*
@@ -23,6 +24,7 @@ enum tmate_control_out_msg_types {
 [TMATE_CTL_CLIENT_JOIN, int: client_id, string: ip_address, string: pubkey, boolean: readonly]
 [TMATE_CTL_CLIENT_LEFT, int: client_id]
 [TMATE_CTL_EXEC, string: username, string: ip_address, string: pubkey, string: command]
+[TMATE_CTL_LATENCY, int: client_id, int: latency_ms] // client_id == -1: tmate host
 */
 
 enum tmate_control_in_msg_types {
