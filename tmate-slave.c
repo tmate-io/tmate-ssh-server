@@ -44,11 +44,6 @@ struct tmate_settings _tmate_settings = {
 
 struct tmate_settings *tmate_settings = &_tmate_settings;
 
-static void usage(void)
-{
-	fprintf(stderr, "usage: tmate-slave [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
-}
-
 void tmate_get_random_bytes(void *buffer, ssize_t len)
 {
 	if (read(dev_urandom_fd, buffer, len) != len)
@@ -104,23 +99,25 @@ void request_server_termination(void)
 		exit(1);
 }
 
+static void usage(void)
+{
+	fprintf(stderr, "usage: tmate-slave [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "h:k:p:lvx:q:")) != -1) {
+	while ((opt = getopt(argc, argv, "h:k:p:x:q:sv")) != -1) {
 		switch (opt) {
-		case 'p':
-			tmate_settings->ssh_port = atoi(optarg);
+		case 'h':
+			tmate_settings->tmate_host = xstrdup(optarg);
 			break;
 		case 'k':
 			tmate_settings->keys_dir = xstrdup(optarg);
 			break;
-		case 's':
-			tmate_settings->use_syslog = true;
-			break;
-		case 'v':
-			tmate_settings->log_level++;
+		case 'p':
+			tmate_settings->ssh_port = atoi(optarg);
 			break;
 		case 'x':
 			tmate_settings->proxy_hostname = xstrdup(optarg);
@@ -128,8 +125,11 @@ int main(int argc, char **argv, char **envp)
 		case 'q':
 			tmate_settings->proxy_port = atoi(optarg);
 			break;
-		case 'h':
-			tmate_settings->tmate_host = xstrdup(optarg);
+		case 's':
+			tmate_settings->use_syslog = true;
+			break;
+		case 'v':
+			tmate_settings->log_level++;
 			break;
 		default:
 			usage();
@@ -147,7 +147,7 @@ int main(int argc, char **argv, char **envp)
 	cmdline = *argv;
 	cmdline_end = *envp;
 
-	init_logging("tmate-ssh",
+	init_logging("tmate-remote-tmux",
 		     tmate_settings->use_syslog, tmate_settings->log_level);
 
 	tmate_preload_trace_lib();
