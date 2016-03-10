@@ -164,14 +164,14 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
+	init_logging("tmate-remote-tmux",
+		     tmate_settings->use_syslog, tmate_settings->log_level);
+
 	if (!tmate_settings->tmate_host)
 		tmate_settings->tmate_host = get_full_hostname();
 
 	cmdline = *argv;
 	cmdline_end = *envp;
-
-	init_logging("tmate-remote-tmux",
-		     tmate_settings->use_syslog, tmate_settings->log_level);
 
 	tmate_preload_trace_lib();
 
