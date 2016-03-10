@@ -104,6 +104,33 @@ static void usage(void)
 	fprintf(stderr, "usage: tmate-slave [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
+static char* get_full_hostname(void)
+{
+	struct addrinfo hints, *info;
+	char hostname[1024];
+	int gai_result;
+	char *ret;
+
+	if (gethostname(hostname, sizeof(hostname)) < 0)
+		tmate_fatal("cannot get hostname");
+	hostname[1023] = '\0';
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_CANONNAME;
+
+	if ((gai_result = getaddrinfo(hostname, NULL, &hints, &info)) != 0) {
+		tmate_warn("cannot lookup hostname: %s", gai_strerror(gai_result));
+		return xstrdup(hostname);
+	}
+
+	ret = xstrdup(info->ai_canonname);
+
+	freeaddrinfo(info);
+	return ret;
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
@@ -137,12 +164,8 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-	if (!tmate_settings->tmate_host) {
-		char hostname[255];
-		if (gethostname(hostname, sizeof(hostname)) < 0)
-			tmate_fatal("cannot get hostname");
-		tmate_settings->tmate_host = xstrdup(hostname);
-	}
+	if (!tmate_settings->tmate_host)
+		tmate_settings->tmate_host = get_full_hostname();
 
 	cmdline = *argv;
 	cmdline_end = *envp;
