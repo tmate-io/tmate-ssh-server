@@ -49,6 +49,13 @@ static void tmate_header(struct tmate_session *session,
 	tmate_send_client_ready();
 }
 
+static void tmate_ready(__unused struct tmate_session *session,
+			__unused struct tmate_unpacker *uk)
+{
+	/* used by the proxy */
+}
+
+
 extern u_int next_window_pane_id;
 
 static void tmate_sync_window_panes(struct window *w,
@@ -376,6 +383,7 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_SYNC_COPY_MODE,	tmate_sync_copy_mode);
 	dispatch(TMATE_OUT_WRITE_COPY_MODE,	tmate_write_copy_mode);
 	dispatch(TMATE_OUT_FIN,			tmate_fin);
+	dispatch(TMATE_OUT_READY,		tmate_ready);
 	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }
