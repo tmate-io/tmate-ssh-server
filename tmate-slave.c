@@ -215,8 +215,8 @@ static char *get_random_token(void)
 	return token;
 }
 
-static void set_session_token(struct tmate_session *session,
-			      const char *token)
+void set_session_token(struct tmate_session *session,
+		       const char *token)
 {
 	char *path;
 	session->session_token = xstrdup(token);

@@ -251,6 +251,7 @@ extern void tmate_get_random_bytes(void *buffer, ssize_t len);
 extern long tmate_get_random_long(void);
 extern void request_server_termination(void);
 extern void tmate_spawn_slave(struct tmate_session *session);
+extern void set_session_token(struct tmate_session *session, const char *token);
 
 /* tmate-proxy.c */
 

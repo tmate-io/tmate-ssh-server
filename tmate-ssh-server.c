@@ -116,7 +116,6 @@ static int auth_pubkey_cb(__unused ssh_session session,
 	switch (signature_state) {
 	case SSH_PUBLICKEY_STATE_VALID:
 		client->username = xstrdup(user);
-
 		if (ssh_pki_export_pubkey_base64(pubkey, &client->pubkey) != SSH_OK)
 			tmate_fatal("error getting public key");
 		return SSH_AUTH_SUCCESS;

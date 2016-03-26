@@ -158,6 +158,18 @@ static void ctl_ssh_exec_response(struct tmate_session *session,
 	free(message);
 }
 
+static void ctl_rename_session(struct tmate_session *session,
+			       struct tmate_unpacker *uk)
+{
+	char *stoken = unpack_string(uk);
+	char *stoken_ro = unpack_string(uk);
+
+	set_session_token(session, stoken);
+
+	free(stoken);
+	free(stoken_ro);
+}
+
 static void tmate_dispatch_proxy_message(struct tmate_session *session,
 					 struct tmate_unpacker *uk)
 {
@@ -169,6 +181,7 @@ static void tmate_dispatch_proxy_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_PANE_KEYS,		ctl_pane_keys);
 	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
 	dispatch(TMATE_CTL_EXEC_RESPONSE,	ctl_ssh_exec_response);
+	dispatch(TMATE_CTL_RENAME_SESSION,	ctl_rename_session);
 	default: tmate_warn("Bad proxy message type: %d", cmd);
 	}
 }

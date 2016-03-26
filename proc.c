@@ -225,6 +225,12 @@ proc_loop(struct tmuxproc *tp, int (*loopcb)(void))
 	do
 		event_loop(EVLOOP_ONCE);
 	while (!tp->exit && (loopcb == NULL || !loopcb ()));
+
+#ifdef TMATE_SLAVE
+	/* flush data on sockets */
+	event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+#endif
+
 	log_debug("%s loop exit", tp->name);
 }
 

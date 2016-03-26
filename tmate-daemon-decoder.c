@@ -368,6 +368,18 @@ static void tmate_fin(__unused struct tmate_session *session,
 	request_server_termination();
 }
 
+static void tmate_reconnect(__unused struct tmate_session *session,
+			    __unused struct tmate_unpacker *uk)
+{
+	/* Used by the proxy */
+}
+
+static void tmate_snapshot(__unused struct tmate_session *session,
+			   __unused struct tmate_unpacker *uk)
+{
+	/* TODO copy info back */
+}
+
 void tmate_dispatch_daemon_message(struct tmate_session *session,
 				   struct tmate_unpacker *uk)
 {
@@ -384,6 +396,8 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_WRITE_COPY_MODE,	tmate_write_copy_mode);
 	dispatch(TMATE_OUT_FIN,			tmate_fin);
 	dispatch(TMATE_OUT_READY,		tmate_ready);
+	dispatch(TMATE_OUT_RECONNECT,		tmate_reconnect);
+	dispatch(TMATE_OUT_SNAPSHOT,		tmate_snapshot);
 	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }
