@@ -372,7 +372,8 @@ static void tmate_fin(__unused struct tmate_session *session,
 static void tmate_reconnect(__unused struct tmate_session *session,
 			    __unused struct tmate_unpacker *uk)
 {
-	/* Used by the proxy */
+	if (!tmate_has_proxy())
+		tmate_fatal("Cannot do reconnections without the proxy");
 }
 
 static void restore_snapshot_grid(struct grid *grid, struct tmate_unpacker *uk)
