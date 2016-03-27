@@ -79,6 +79,7 @@ extern bool unpack_bool(struct tmate_unpacker *uk);
 extern void unpack_buffer(struct tmate_unpacker *uk, const char **buf, size_t *len);
 extern char *unpack_string(struct tmate_unpacker *uk);
 extern void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *nested);
+extern msgpack_object_type unpack_peek_type(struct tmate_unpacker *uk);
 
 #define unpack_each(nested_uk, tmp_uk, uk)						\
 	for (unpack_array(uk, tmp_uk);							\

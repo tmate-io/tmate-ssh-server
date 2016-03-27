@@ -178,9 +178,15 @@ int main(int argc, char **argv, char **envp)
 	if ((dev_urandom_fd = open("/dev/urandom", O_RDONLY)) < 0)
 		tmate_fatal("Cannot open /dev/urandom");
 
-	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
-	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||
+	if ((mkdir(TMATE_WORKDIR, 0701)             < 0 && errno != EEXIST) ||
+	    (mkdir(TMATE_WORKDIR "/sessions", 0703) < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
+		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
+
+	/* The proxy needs to access the /session dir to rename sockets */
+	if ((chmod(TMATE_WORKDIR, 0701)             < 0) ||
+	    (chmod(TMATE_WORKDIR "/sessions", 0703) < 0) ||
+	    (chmod(TMATE_WORKDIR "/jail", 0700)     < 0))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
 	tmate_ssh_server_main(tmate_session,

@@ -374,10 +374,87 @@ static void tmate_reconnect(__unused struct tmate_session *session,
 	/* Used by the proxy */
 }
 
-static void tmate_snapshot(__unused struct tmate_session *session,
-			   __unused struct tmate_unpacker *uk)
+static void restore_snapshot_grid(struct grid *grid, struct tmate_unpacker *uk)
 {
-	/* TODO copy info back */
+	struct grid_cell gc;
+	char *line_str;
+	struct utf8_data *utf8_data;
+	unsigned int i, line_i;
+	unsigned int packed_flags;
+
+	struct tmate_unpacker lines_uk, line_uk, line_flags_uk;
+
+	unpack_array(uk, &lines_uk);
+	for (line_i = 0; lines_uk.argc > 0; line_i++) {
+		while (line_i >= grid->hsize + grid->sy)
+			grid_scroll_history(grid);
+
+		unpack_array(&lines_uk, &line_uk);
+		line_str = unpack_string(&line_uk);
+		utf8_data = utf8_fromcstr(line_str);
+		free(line_str);
+
+		unpack_array(&line_uk, &line_flags_uk);
+		for (i = 0; line_flags_uk.argc > 0; i++) {
+			utf8_copy(&gc.data, &utf8_data[i]);
+			packed_flags = unpack_int(&line_flags_uk);
+			gc.flags = (packed_flags >> 24) & 0xFF;
+			gc.attr  = (packed_flags >> 16) & 0xFF;
+			gc.bg    = (packed_flags >> 8)  & 0xFF;
+			gc.fg    =  packed_flags        & 0xFF;
+			grid_set_cell(grid, i, line_i, &gc);
+		}
+	}
+}
+
+static void restore_snapshot_pane(struct tmate_unpacker *uk)
+{
+	int id;
+	struct window_pane *wp;
+	struct tmate_unpacker grid_uk;
+	struct screen *screen;
+
+	id = unpack_int(uk);
+	wp = window_pane_find_by_id(id);
+	if (!wp)
+		tmate_fatal("can't find pane id=%d (snapshot restore)", id);
+	screen = &wp->base;
+	screen_reinit(screen);
+	wp->flags |= PANE_REDRAW;
+
+	screen->mode = unpack_int(uk);
+
+	unpack_array(uk, &grid_uk);
+	screen->cx = unpack_int(&grid_uk);
+	screen->cy = unpack_int(&grid_uk);
+	grid_clear_history(screen->grid);
+	restore_snapshot_grid(screen->grid, &grid_uk);
+
+	if (wp->saved_grid != NULL) {
+		grid_destroy(wp->saved_grid);
+		wp->saved_grid = NULL;
+	}
+
+	if (unpack_peek_type(uk) == MSGPACK_OBJECT_NIL)
+		return;
+
+	unpack_array(uk, &grid_uk);
+	wp->saved_cx = unpack_int(&grid_uk);
+	wp->saved_cy = unpack_int(&grid_uk);
+	wp->saved_grid = grid_create(screen->grid->sx, screen->grid->sy, 0);
+	restore_snapshot_grid(wp->saved_grid, &grid_uk);
+}
+
+static void tmate_snapshot(__unused struct tmate_session *session,
+			   struct tmate_unpacker *uk)
+{
+	struct tmate_unpacker panes_uk, pane_uk;
+
+	unpack_array(uk, &panes_uk);
+	while (panes_uk.argc > 0) {
+		unpack_array(&panes_uk, &pane_uk);
+		restore_snapshot_pane(&pane_uk);
+	}
 }
 
 void tmate_dispatch_daemon_message(struct tmate_session *session,

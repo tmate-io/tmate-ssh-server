@@ -264,10 +264,19 @@ void unpack_array(struct tmate_unpacker *uk, struct tmate_unpacker *nested)
 	uk->argc--;
 }
 
+msgpack_object_type unpack_peek_type(struct tmate_unpacker *uk)
+{
+	if (uk->argc == 0)
+		tmate_decoder_error();
+	return uk->argv[0].type;
+}
+
+#define UNPACKER_RESERVE_SIZE 1024
+
 void tmate_decoder_init(struct tmate_decoder *decoder, tmate_decoder_reader *reader,
 			void *userdata)
 {
-	if (!msgpack_unpacker_init(&decoder->unpacker, TMATE_MAX_MESSAGE_SIZE))
+	if (!msgpack_unpacker_init(&decoder->unpacker, UNPACKER_RESERVE_SIZE))
 		tmate_fatal("Cannot initialize the unpacker");
 	decoder->reader = reader;
 	decoder->userdata = userdata;
@@ -277,8 +286,7 @@ void tmate_decoder_get_buffer(struct tmate_decoder *decoder,
 			      char **buf, size_t *len)
 {
 	ssize_t current_size = msgpack_unpacker_message_size(&decoder->unpacker);
-	if (!msgpack_unpacker_reserve_buffer(&decoder->unpacker,
-					     TMATE_MAX_MESSAGE_SIZE - current_size))
+	if (!msgpack_unpacker_reserve_buffer(&decoder->unpacker, UNPACKER_RESERVE_SIZE))
 		tmate_fatal("cannot expand decoder buffer");
 
 	*buf = msgpack_unpacker_buffer(&decoder->unpacker);
