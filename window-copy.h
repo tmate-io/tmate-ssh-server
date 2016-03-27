@@ -5,6 +5,7 @@
 
 struct screen *window_copy_init(struct window_pane *);
 void	window_copy_free(struct window_pane *);
+void    window_copy_pagedown(struct window_pane *);
 void	window_copy_resize(struct window_pane *, u_int, u_int);
 void	window_copy_key(struct window_pane *, struct client *, struct session *,
 	    key_code, struct mouse_event *);

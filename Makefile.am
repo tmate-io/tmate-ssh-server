@@ -6,8 +6,8 @@ CLEANFILES = tmate.1.mdoc tmate.1.man
 
 # Distribution tarball options.
 EXTRA_DIST = \
-	CHANGES FAQ README TODO COPYING examples compat/*.[ch] \
-	array.h compat.h tmux.h osdep-*.c mdoc2man.awk tmate.1
+	CHANGES FAQ README TODO COPYING example_tmux.conf compat/*.[ch] \
+	array.h compat.h tmux.h osdep-*.c xmalloc.h mdoc2man.awk tmate.1
 dist-hook:
 	make clean
 	grep "^#found_debug=" configure
@@ -66,7 +66,7 @@ if IS_SUNCC
 CFLAGS += -erroff=E_EMPTY_DECLARATION
 endif
 
-# Set _LINUX_SOURCE_COMPAT for AIX for mallocing 0 bytes
+# Set _LINUX_SOURCE_COMPAT for AIX for malloc(0).
 if IS_AIX
 DEFS += -D_LINUX_SOURCE_COMPAT=1
 endif

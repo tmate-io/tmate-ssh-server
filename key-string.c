@@ -1,7 +1,7 @@
 /* $OpenBSD$ */
 
 /*
- * Copyright (c) 2007 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2007 Nicholas Marriott <nicholas.marriott@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -93,6 +93,9 @@ const struct {
 	KEYC_MOUSE_STRING(MOUSEDRAG1, MouseDrag1),
 	KEYC_MOUSE_STRING(MOUSEDRAG2, MouseDrag2),
 	KEYC_MOUSE_STRING(MOUSEDRAG3, MouseDrag3),
+	KEYC_MOUSE_STRING(MOUSEDRAGEND1, MouseDragEnd1),
+	KEYC_MOUSE_STRING(MOUSEDRAGEND2, MouseDragEnd2),
+	KEYC_MOUSE_STRING(MOUSEDRAGEND3, MouseDragEnd3),
 	KEYC_MOUSE_STRING(WHEELUP, WheelUp),
 	KEYC_MOUSE_STRING(WHEELDOWN, WheelDown),
 };
@@ -149,6 +152,7 @@ key_string_lookup_string(const char *string)
 	struct utf8_data	 ud;
 	u_int			 i;
 	enum utf8_state		 more;
+	wchar_t			 wc;
 
 	/* Is this no key? */
 	if (strcasecmp(string, "None") == 0)
@@ -185,8 +189,9 @@ key_string_lookup_string(const char *string)
 				more = utf8_append(&ud, (u_char)string[i]);
 			if (more != UTF8_DONE)
 				return (KEYC_UNKNOWN);
-			key = utf8_combine(&ud);
-			return (key | modifiers);
+			if (utf8_combine(&ud, &wc) != UTF8_DONE)
+				return (KEYC_UNKNOWN);
+			return (wc | modifiers);
 		}
 
 		/* Otherwise look the key up in the table. */

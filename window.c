@@ -1,7 +1,7 @@
 /* $OpenBSD$ */
 
 /*
- * Copyright (c) 2007 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2007 Nicholas Marriott <nicholas.marriott@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -940,6 +941,7 @@ window_pane_spawn(struct window_pane *wp, int argc, char **argv,
 #ifdef HAVE_UTEMPTER
 	xsnprintf(s, sizeof s, "tmux(%lu).%%%u", (long) getpid(), wp->id);
 	utempter_add_record(wp->fd, s);
+	kill(getpid(), SIGCHLD);
 #endif
 
 	setblocking(wp->fd, 0);
@@ -1128,6 +1130,8 @@ window_pane_set_mode(struct window_pane *wp, const struct window_mode *mode)
 	if ((s = wp->mode->init(wp)) != NULL)
 		wp->screen = s;
 	wp->flags |= (PANE_REDRAW|PANE_CHANGED);
+
+	server_status_window(wp->window);
 	return (0);
 }
 
@@ -1142,6 +1146,8 @@ window_pane_reset_mode(struct window_pane *wp)
 
 	wp->screen = &wp->base;
 	wp->flags |= (PANE_REDRAW|PANE_CHANGED);
+
+	server_status_window(wp->window);
 }
 
 void
