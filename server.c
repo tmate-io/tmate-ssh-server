@@ -214,6 +214,18 @@ server_loop(void)
 	server_client_loop();
 
 #ifdef TMATE_SLAVE
+	if (!ssh_is_connected(tmate_session->ssh_client.session) &&
+	    !tmate_server_request_exit) {
+		/*
+		 * Sometimes, the ssh socket gets closed for some unknown reason,
+		 * and we don't detect it. This in turn make the event loop poll()
+		 * return POLLNVAL, which is not handled by libevent.
+		 * This causes an infinite loop.
+		 * The following check is a workaround to avoid the infinite loop.
+		 */
+		tmate_fatal("SSH socket not connected, but socket close wasn't detected");
+	}
+
 	if (!tmate_server_request_exit)
 		return 0;
 #else
