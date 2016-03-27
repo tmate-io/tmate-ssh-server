@@ -213,6 +213,7 @@ static void tmate_exec_cmd(__unused struct tmate_session *session,
 	tmate_info("Local cmd: %s", cmd_str);
 
 	if (cmd_string_parse(cmd_str, &cmdlist, NULL, 0, &cause) != 0) {
+		tmate_info("parse error: %s", cause);
 		free(cause);
 		goto out;
 	}
