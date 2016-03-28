@@ -264,7 +264,7 @@ extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
 extern void tmate_notify_latency(struct tmate_session *session, struct client *c, int latency_ms);
 
 extern void tmate_send_proxy_daemon_msg(struct tmate_session *session,
-					 struct tmate_unpacker *uk);
+					struct tmate_unpacker *uk);
 extern void tmate_send_proxy_header(struct tmate_session *session);
 extern void tmate_init_proxy(struct tmate_session *session,
 			     on_proxy_error_cb on_proxy_error);
