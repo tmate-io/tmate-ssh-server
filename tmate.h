@@ -94,7 +94,9 @@ extern void printflike(2, 3) tmate_notify_later(int timeout, const char *fmt, ..
 extern void tmate_client_resize(u_int sx, u_int sy);
 extern void tmate_client_legacy_pane_key(int pane_id, int key);
 extern void tmate_client_pane_key(int pane_id, key_code key);
-extern void tmate_client_cmd(int client_id, const char *cmd);
+extern void tmate_client_cmd_str(int client_id, const char *cmd);
+extern void tmate_client_cmd_args(int client_id, int argc, const char **argv);
+extern void tmate_client_cmd(int client_id, struct cmd *cmd);
 extern void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id);
 extern int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd);
 extern void tmate_set_env(const char *name, const char *value);

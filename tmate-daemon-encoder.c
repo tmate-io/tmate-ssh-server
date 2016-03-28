@@ -140,22 +140,91 @@ int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
 	return 0;
 }
 
-void tmate_client_cmd(int client_id, const char *cmd)
+void tmate_client_cmd_str(int client_id, const char *cmd)
 {
 	tmate_info("Remote cmd (cid=%d): %s", client_id, cmd);
 
 	pack(array, 3);
-	pack(int, TMATE_IN_EXEC_CMD);
+	pack(int, TMATE_IN_EXEC_CMD_STR);
 	pack(int, client_id);
 	pack(string, cmd);
 }
 
+struct args_entry {
+	u_char			 flag;
+	char			*value;
+	RB_ENTRY(args_entry)	 entry;
+};
+
+static void extract_cmd(struct cmd *cmd, int *_argc, char ***_argv)
+{
+	struct args_entry *entry;
+	struct args* args = cmd->args;
+	int argc = 0;
+	char **argv;
+	int next = 0, i;
+
+	argc++; /* cmd name */
+	RB_FOREACH(entry, args_tree, &args->tree) {
+		argc++;
+		if (entry->value != NULL)
+			argc++;
+	}
+	argc += args->argc;
+	argv = xmalloc(sizeof(char *) * argc);
+
+	argv[next++] = xstrdup(cmd->entry->name);
+
+	RB_FOREACH(entry, args_tree, &args->tree) {
+		xasprintf(&argv[next++], "-%c", entry->flag);
+		if (entry->value != NULL)
+			argv[next++] = xstrdup(entry->value);
+	}
+
+	for (i = 0; i < args->argc; i++)
+		argv[next++] = xstrdup(args->argv[i]);
+
+	*_argc = argc;
+	*_argv = argv;
+}
+
+void tmate_client_cmd_args(int client_id, int argc, const char **argv)
+{
+	int i;
+
+	pack(array, argc + 2);
+	pack(int, TMATE_IN_EXEC_CMD);
+	pack(int, client_id);
+
+	for (i = 0; i < argc; i++)
+		pack(string, argv[i]);
+}
+
+void tmate_client_cmd(int client_id, struct cmd *cmd)
+{
+	char *cmd_str;
+	int argc;
+	char **argv;
+
+	cmd_str = cmd_print(cmd);
+	if (tmate_session->client_protocol_version < 6) {
+		tmate_client_cmd_str(client_id, cmd_str);
+		free(cmd_str);
+		return;
+	}
+	tmate_info("Remote cmd (cid=%d): %s", client_id, cmd_str);
+	free(cmd_str);
+
+	extract_cmd(cmd, &argc, &argv);
+	tmate_client_cmd_args(client_id, argc, (const char **)argv);
+	cmd_free_argv(argc, argv);
+}
+
 void tmate_client_set_active_pane(int client_id, int win_idx, int pane_id)
 {
-	char cmd[1024];
-
-	sprintf(cmd, "select-pane -t %d.%d", win_idx, pane_id);
-	tmate_client_cmd(client_id, cmd);
+	char target[64];
+	sprintf(target, "%d.%d", win_idx, pane_id);
+	tmate_client_cmd_args(client_id, 3, (const char *[]){"select-pane", "-t", target});
 }
 
 void tmate_send_mc_obj(msgpack_object *obj)

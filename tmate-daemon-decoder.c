@@ -200,8 +200,8 @@ static void tmate_pty_data(__unused struct tmate_session *session,
 	wp->window->flags |= WINDOW_SILENCE;
 }
 
-static void tmate_exec_cmd(__unused struct tmate_session *session,
-			   struct tmate_unpacker *uk)
+static void tmate_exec_cmd_str(__unused struct tmate_session *session,
+			       struct tmate_unpacker *uk)
 {
 	struct cmd_q *cmd_q;
 	struct cmd_list *cmdlist;
@@ -213,6 +213,7 @@ static void tmate_exec_cmd(__unused struct tmate_session *session,
 	tmate_info("Local cmd: %s", cmd_str);
 
 	if (cmd_string_parse(cmd_str, &cmdlist, NULL, 0, &cause) != 0) {
+		tmate_info("parse error: %s", cause);
 		free(cause);
 		goto out;
 	}
@@ -223,6 +224,48 @@ static void tmate_exec_cmd(__unused struct tmate_session *session,
 	cmdq_free(cmd_q);
 out:
 	free(cmd_str);
+}
+
+static void tmate_exec_cmd(__unused struct tmate_session *session,
+			   struct tmate_unpacker *uk)
+{
+	struct cmd_q *cmd_q;
+	struct cmd_list *cmdlist;
+	struct cmd *cmd;
+	char *cmd_str;
+	char *cause;
+	int i;
+	int argc;
+	char **argv;
+
+	argc = uk->argc;
+	argv = xmalloc(sizeof(char *) * argc);
+	for (i = 0; i < argc; i++)
+		argv[i] = unpack_string(uk);
+
+	cmd = cmd_parse(argc, argv, NULL, 0, &cause);
+	if (!cmd) {
+		tmate_info("parse error: %s", cause);
+		free(cause);
+		goto out;
+	}
+
+	cmd_str = cmd_print(cmd);
+	tmate_info("Local cmd: %s", cmd_str);
+	free(cmd_str);
+
+	cmdlist = xcalloc(1, sizeof *cmdlist);
+	cmdlist->references = 1;
+	TAILQ_INIT(&cmdlist->list);
+	TAILQ_INSERT_TAIL(&cmdlist->list, cmd, qentry);
+
+	cmd_q = cmdq_new(NULL);
+	cmdq_run(cmd_q, cmdlist, NULL);
+	cmd_list_free(cmdlist);
+	cmdq_free(cmd_q);
+
+out:
+	cmd_free_argv(argc, argv);
 }
 
 static void tmate_failed_cmd(__unused struct tmate_session *session,
@@ -467,7 +510,7 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_HEADER,		tmate_header);
 	dispatch(TMATE_OUT_SYNC_LAYOUT,		tmate_sync_layout);
 	dispatch(TMATE_OUT_PTY_DATA,		tmate_pty_data);
-	dispatch(TMATE_OUT_EXEC_CMD,		tmate_exec_cmd);
+	dispatch(TMATE_OUT_EXEC_CMD_STR,	tmate_exec_cmd_str);
 	dispatch(TMATE_OUT_FAILED_CMD,		tmate_failed_cmd);
 	dispatch(TMATE_OUT_STATUS,		tmate_status);
 	dispatch(TMATE_OUT_SYNC_COPY_MODE,	tmate_sync_copy_mode);
@@ -476,6 +519,7 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_READY,		tmate_ready);
 	dispatch(TMATE_OUT_RECONNECT,		tmate_reconnect);
 	dispatch(TMATE_OUT_SNAPSHOT,		tmate_snapshot);
+	dispatch(TMATE_OUT_EXEC_CMD,		tmate_exec_cmd);
 	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }

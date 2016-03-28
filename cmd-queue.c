@@ -190,19 +190,18 @@ cmdq_continue_one(struct cmd_q *cmdq)
 	enum cmd_retval	 retval;
 	char		*tmp;
 	int		 flags = !!(cmd->flags & CMD_CONTROL);
+
 #ifdef TMATE_SLAVE
 	int client_id;
+	if (!tmate_should_exec_cmd_locally(cmd->entry)) {
+		client_id = cmdq->client ? cmdq->client->id : -1;
+		tmate_client_cmd(client_id, cmd);
+		return CMD_RETURN_NORMAL;
+	}
 #endif
 
 	tmp = cmd_print(cmd);
 	log_debug("cmdq %p: %s", cmdq, tmp);
-#ifdef TMATE_SLAVE
-	if (!tmate_should_exec_cmd_locally(cmd->entry)) {
-		client_id = cmdq->client ? cmdq->client->id : -1;
-		tmate_client_cmd(client_id, tmp);
-		return CMD_RETURN_NORMAL;
-	}
-#endif
 	free(tmp);
 
 	cmdq->time = time(NULL);
