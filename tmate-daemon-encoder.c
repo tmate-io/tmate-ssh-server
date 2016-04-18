@@ -107,6 +107,11 @@ void tmate_client_pane_key(int pane_id, key_code key)
 		return;
 	}
 
+	if (tmate_session->client_protocol_version == 5 && key & KEYC_BASE) {
+		if ((key & KEYC_MASK_KEY) >= (KEYC_BSPACE & KEYC_MASK_KEY))
+			key -= 9;
+	}
+
 	pack(array, 3);
 	pack(int, TMATE_IN_PANE_KEY);
 	pack(int, pane_id);
