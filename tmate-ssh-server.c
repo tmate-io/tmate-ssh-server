@@ -290,12 +290,20 @@ static void handle_sigchld(__unused int sig)
 	pid_t pid;
 
 	while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
+		/*
+		 * It's not safe to call indirectly malloc() here, because
+		 * of potential deadlocks with ssh_bind_accept() which also
+		 * calls malloc(). (And we can't even block singals because
+		 * the accept() call is blocking.
+		 */
+#if 0
 		if (WIFEXITED(status))
 			tmate_info("Child %d exited (%d)", pid, WEXITSTATUS(status));
 		if (WIFSIGNALED(status))
 			tmate_info("Child %d killed (%d)", pid, WTERMSIG(status));
 		if (WIFSTOPPED(status))
 			tmate_info("Child %d stopped (%d)", pid, WSTOPSIG(status));
+#endif
 	}
 }
 
@@ -309,17 +317,12 @@ static void handle_sigsegv(__unused int sig)
 void tmate_ssh_server_main(struct tmate_session *session,
 			   const char *keys_dir, int port)
 {
-	sigset_t sigchld_set;
 	struct tmate_ssh_client *client = &session->ssh_client;
 	ssh_bind bind;
 	pid_t pid;
 
 	signal(SIGSEGV, handle_sigsegv);
 	signal(SIGCHLD, handle_sigchld);
-
-	sigemptyset(&sigchld_set);
-	sigaddset(&sigchld_set, SIGCHLD);
-	sigprocmask(SIG_BLOCK, &sigchld_set, NULL);
 
 	bind = prepare_ssh(keys_dir, port);
 
@@ -332,10 +335,8 @@ void tmate_ssh_server_main(struct tmate_session *session,
 		if (!client->session)
 			tmate_fatal("Cannot initialize session");
 
-		sigprocmask(SIG_UNBLOCK, &sigchld_set, NULL);
 		if (ssh_bind_accept(bind, client->session) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
-		sigprocmask(SIG_BLOCK, &sigchld_set, NULL);
 
 		if (get_ip(ssh_get_fd(client->session),
 			   client->ip_address, sizeof(client->ip_address)) < 0)
