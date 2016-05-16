@@ -1,5 +1,5 @@
 Name:   tmate-slave
-Version:  20160105
+Version:  20160426
 Release:  1%{?dist}
 Summary:  tmate slave server
 
@@ -26,7 +26,6 @@ tmate-slave is the server side part of tmate.io.
 %setup -q -n tmate-slave-master
 cp -p %SOURCE1 .
 cp -p %SOURCE2 .
-cp -p %SOURCE3 .
 
 
 
@@ -47,7 +46,7 @@ mkdir %{buildroot}%{_sysconfdir}/tmate-slave
 
 %files
 %defattr(-,root,root,-)
-%doc examples create_keys.sh
+%doc create_keys.sh
 %{_bindir}/tmate-slave
 /usr/lib/systemd/system/tmate-slave.service
 %config %{_sysconfdir}/sysconfig/tmate-slave
@@ -56,14 +55,18 @@ mkdir %{buildroot}%{_sysconfdir}/tmate-slave
 %post
 if [ $1 -eq 1 ]; then
   # initial install
+  CONF="/etc/tmate-slave/tmate.conf.sample"
+  touch ${CONF}
   mkdir -p /etc/tmate-slave/keys
   for type in dsa rsa ecdsa; do
-    ssh-keygen -t ${type} -E md5 -f /etc/tmate-slave/keys/ssh_host_${type}_key -N '' &>/dev/null
-    FP=$(ssh-keygen -l -E md5 -f /etc/tmate-slave/keys/ssh_host_${type}_key | awk '{print $2}')
-    echo set -g tmate-server-${type}-fingerprint "${FP}" >> "${CONF}"
+    if [ ! -f /etc/tmate-slave/keys/ssh_host_${type}_key ]; then
+      ssh-keygen -t ${type} -f /etc/tmate-slave/keys/ssh_host_${type}_key -N '' &>/dev/null
+      FP=$(ssh-keygen -l -f /etc/tmate-slave/keys/ssh_host_${type}_key | awk '{print $2}')
+      echo set -g "tmate-server-${type}-fingerprint" "${FP}" >> "${CONF}"
+    fi
   done
-  echo set -g tmate-server-host "${HOSTNAME}" >> "${CONF}"
-  echo set -g tmate-server-port 22000 >> "${CONF}"
+  grep -q tmate-server-host $CONF || echo set -g tmate-server-host "${HOSTNAME}" >> "${CONF}"
+  grep -q tmate-server-port $CONF || echo set -g tmate-server-port 22000 >> "${CONF}"
   systemctl preset tmate-slave.service >/dev/null 2>&1 || :
 fi
 if [ $1 -gt 1 ]; then
@@ -81,6 +84,9 @@ fi
 systemctl daemon-reload >/dev/null 2>&1 || :
 
 %changelog
+* Mon May 16 2016 Scott Merrill <skippy@skippy.net> - 20160426-1
+- use latest upstream code
+- create /etc/tmate-slave/tmate.conf.sample in post script with client-ready content
 * Fri Jan 15 2016 Scott Merrill <skippy@skippy.net> - 20160105-1
 - rebuild using latest master code
 - remove logrotate file, and log option from sysconfig file
