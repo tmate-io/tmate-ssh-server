@@ -19,7 +19,7 @@ RPM
 ---
 RHEL 7 (and derivative) users can build an RPM to install tmate-slave using the `tmate-slave.spec` file in the `SPEC` directory.  This will build the `tmate-slave` binary, set up keys (if necessary), and create a client config file in `/etc/tmate-slave/tmate.config.sample`.
 
-The default configuration will use the options defined in `/etc/sysconfig/tmate-slave` to listen on port 22000 and log to `/var/log/tmate-slave.log`.  A logrotate configuration is included.
+The default configuration will use the options defined in `/etc/sysconfig/tmate-slave` to listen on port 22000 and log to `/var/log/messages`.
 
 Per Fedora and Red Hat packaging guidelines, the daemon will **not** be enabled or started automatically.  To enable and start:
 ```shell
