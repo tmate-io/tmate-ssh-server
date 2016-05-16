@@ -6,6 +6,7 @@
 core
 tags
 .deps/
+compat/.dirstamp
 aclocal.m4
 autom4te.cache/
 config.log
@@ -19,3 +20,5 @@ keys/
 tmate-slave
 cscope.*
 tags
+tmux.1.*
+tmate.1.*

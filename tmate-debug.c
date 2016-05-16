@@ -52,7 +52,7 @@ static int print_resolved_stack_frame(const char *frame)
 }
 #endif
 
-void tmate_print_trace(void)
+void tmate_print_stack_trace(void)
 {
 	void *array[20];
 	size_t size;

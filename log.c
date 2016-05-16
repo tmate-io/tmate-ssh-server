@@ -1,7 +1,7 @@
 /* $Id$ */
 
 /*
- * Copyright (c) 2007 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2007 Nicholas Marriott <nicholas.marriott@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,194 +29,139 @@
 #include "tmux.h"
 #include "tmate.h"
 
-/* Log file, if needed. */
-FILE		*log_file;
+FILE *log_file;
 
-/* Debug level. */
-int		 log_level = 0;
+struct logging_settings {
+	const char *program_name;
+	bool use_syslog;
+	int log_level;
+};
 
-void		 log_event_cb(int, const char *);
-void		 log_vwrite(const char *, va_list);
-__dead void	 log_vfatal(const char *, va_list);
+static struct logging_settings log_settings;
 
-/* Log callback for libevent. */
-void
-log_event_cb(unused int severity, const char *msg)
+static void	log_event_cb(int, const char *);
+static void	log_vwrite(int, const char *, va_list);
+
+static void
+log_event_cb(__unused int severity, const char *msg)
 {
-	log_warnx("%s", msg);
+	log_debug("%s", msg);
 }
 
-/* Open logging to file. */
+/* Increment log level. */
 void
-log_open(int level, const char *path)
+log_add_level(void)
 {
-	FILE *f;
+	log_settings.log_level++;
+}
 
-	if (path) {
-		f = fopen(path, "a");
-		if (!f) {
-			if (log_file) {
-				log_info("cannot reopen log file");
-				return;
-			}
-			fprintf(stderr, "cannot open log file %s\n", path);
-			exit(1);
-		}
+/* Get log level. */
+int
+log_get_level(void)
+{
+	return (log_settings.log_level);
+}
+
+void init_logging(const char *program_name, bool use_syslog, int log_level)
+{
+	log_settings.log_level = log_level;
+	log_settings.use_syslog = use_syslog;
+	log_settings.program_name = xstrdup(program_name);
+
+	if (use_syslog) {
+		openlog(program_name, LOG_CONS | LOG_PID, LOG_USER);
+		setlogmask(LOG_UPTO(log_level));
 	} else {
-		f = fdopen(dup(STDERR_FILENO), "a");
+		log_file = fdopen(dup(STDERR_FILENO), "a");
+		if (!log_file)
+			exit(1);
 	}
 
-	if (log_file)
-		fclose(log_file);
-
-	log_file = f;
-	log_level = level;
-
-	setlinebuf(log_file);
 	event_set_log_callback(log_event_cb);
-
-	tzset();
-}
-
-/* Close logging. */
-void
-log_close(void)
-{
-	if (log_file != NULL)
-		fclose(log_file);
-
-	event_set_log_callback(NULL);
 }
 
 /* Write a log message. */
-void
-log_vwrite(const char *msg, va_list ap)
+static void
+log_vwrite(int level, const char *msg, va_list ap)
 {
-	char time_str[100];
-	time_t now;
-	struct tm *tm;
+	char	*fmt = NULL;
 
-	char	*fmt;
+	const char *token = tmate_session->session_token;
 
-	if (log_file == NULL)
+	if (log_settings.log_level < level)
 		return;
 
-	/* XXX Should we do UTC instead of local time? */
-	now = time(NULL);
-	tm = localtime(&now);
-
-	strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm);
-
-	if (asprintf(&fmt, "%s [%s] %s\n", time_str, tmate_session_token, msg) == -1)
-		exit(1);
-	if (vfprintf(log_file, fmt, ap) == -1)
-		exit(1);
-	fflush(log_file);
-	free(fmt);
-}
-
-/* Log a warning with error string. */
-void printflike1
-log_warn(const char *msg, ...)
-{
-	va_list	 ap;
-	char	*fmt;
-
-	va_start(ap, msg);
-	if (asprintf(&fmt, "%s: %s", msg, strerror(errno)) == -1)
-		exit(1);
-	log_vwrite(fmt, ap);
-	free(fmt);
-	va_end(ap);
-}
-
-/* Log a warning. */
-void printflike1
-log_warnx(const char *msg, ...)
-{
-	va_list	ap;
-
-	va_start(ap, msg);
-	log_vwrite(msg, ap);
-	va_end(ap);
-}
-
-/* Log an informational message. */
-void printflike1
-log_info(const char *msg, ...)
-{
-	va_list	ap;
-
-	if (log_level > -1) {
-		va_start(ap, msg);
-		log_vwrite(msg, ap);
-		va_end(ap);
+	if (token) {
+		if (asprintf(&fmt, "[%s] %s", token, msg) < 0)
+			exit(1);
+		msg = fmt;
 	}
+
+	if (log_settings.use_syslog) {
+		vsyslog(level, msg, ap);
+	} else {
+		fprintf(log_file, "<%d> ", level);
+		vfprintf(log_file, msg, ap);
+		fprintf(log_file, "\n");
+		fflush(log_file);
+	}
+
+	free(fmt);
 }
 
 /* Log a debug message. */
-void printflike1
+void
 log_debug(const char *msg, ...)
 {
 	va_list	ap;
 
-	if (log_level > 0) {
-		va_start(ap, msg);
-		log_vwrite(msg, ap);
-		va_end(ap);
-	}
+	va_start(ap, msg);
+	log_vwrite(LOG_DEBUG, msg, ap);
+	va_end(ap);
 }
 
-/* Log a debug message at level 2. */
-void printflike1
-log_debug2(const char *msg, ...)
-{
-	va_list	ap;
-
-	if (log_level > 1) {
-		va_start(ap, msg);
-		log_vwrite(msg, ap);
-		va_end(ap);
-	}
-}
-
-/* Log a critical error, with error string if necessary, and die. */
+/* Log a critical error with error string and die. */
 __dead void
-log_vfatal(const char *msg, va_list ap)
+fatal(const char *msg, ...)
 {
 	char	*fmt;
+	va_list	 ap;
 
-	if (errno != 0) {
-		if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
-			exit(1);
-		log_vwrite(fmt, ap);
-	} else {
-		if (asprintf(&fmt, "fatal: %s", msg) == -1)
-			exit(1);
-		log_vwrite(fmt, ap);
-	}
-	free(fmt);
-
+	va_start(ap, msg);
+	if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
+		exit(1);
+	log_vwrite(LOG_CRIT, fmt, ap);
 	exit(1);
 }
 
-/* Log a critical error, with error string, and die. */
-__dead void printflike1
-log_fatal(const char *msg, ...)
+/* Log a critical error and die. */
+__dead void
+fatalx(const char *msg, ...)
 {
-	va_list	ap;
+	char	*fmt;
+	va_list	 ap;
 
 	va_start(ap, msg);
-	log_vfatal(msg, ap);
+	if (asprintf(&fmt, "fatal: %s", msg) == -1)
+		exit(1);
+	log_vwrite(LOG_CRIT, fmt, ap);
+	exit(1);
 }
 
-/* Log a critical error and die. */
-__dead void printflike1
-log_fatalx(const char *msg, ...)
+void tmate_log(int level, const char *msg, ...)
 {
+	char *fmt;
 	va_list	ap;
 
-	errno = 0;
+	if (log_settings.log_level < level)
+		return;
+
 	va_start(ap, msg);
-	log_vfatal(msg, ap);
+
+	if (asprintf(&fmt, "(tmate) %s", msg) < 0)
+		exit(1);
+	log_vwrite(level, fmt, ap);
+	va_end(ap);
+
+	free(fmt);
 }

@@ -1,7 +1,5 @@
-/* $Id$ */
-
 /*
- * Copyright (c) 2006 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2006 Nicholas Marriott <nicholas.marriott@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -56,10 +54,12 @@ vasprintf(char **ret, const char *fmt, va_list ap)
 		free(*ret);
 		goto error;
 	}
+	va_end(ap2);
 
 	return (n);
 
 error:
+	va_end(ap2);
 	*ret = NULL;
 	return (-1);
 }

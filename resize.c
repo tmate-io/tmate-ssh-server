@@ -1,7 +1,7 @@
-/* $Id$ */
+/* $OpenBSD$ */
 
 /*
- * Copyright (c) 2007 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2007 Nicholas Marriott <nicholas.marriott@gmail.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,16 +50,16 @@ recalculate_sizes(void)
 	struct client		*c;
 	struct window		*w;
 	struct window_pane	*wp;
-	u_int			 i, j, ssx, ssy, has, limit;
-	int			 flag, has_status, is_zoomed;
+	u_int			 ssx, ssy, has, limit;
+	int			 flag, has_status, is_zoomed, forced;
 
 	RB_FOREACH(s, sessions, &sessions) {
-		has_status = options_get_number(&s->options, "status");
+		has_status = options_get_number(s->options, "status");
 
+		s->attached = 0;
 		ssx = ssy = UINT_MAX;
-		for (j = 0; j < ARRAY_LENGTH(&clients); j++) {
-			c = ARRAY_ITEM(&clients, j);
-			if (c == NULL || c->flags & CLIENT_SUSPENDED)
+		TAILQ_FOREACH(c, &clients, entry) {
+			if (c->flags & CLIENT_SUSPENDED)
 				continue;
 #ifdef TMATE_SLAVE
 			if (c->flags & CLIENT_READONLY)
@@ -74,10 +74,18 @@ recalculate_sizes(void)
 					ssy = c->tty.sy - 1;
 				else if (c->tty.sy < ssy)
 					ssy = c->tty.sy;
+				s->attached++;
 			}
 		}
 
 #ifdef TMATE_SLAVE
+		if (tmate_has_proxy()) {
+			if (tmate_session->proxy_sy < ssy)
+				ssy = tmate_session->proxy_sy;
+			if (tmate_session->proxy_sx < ssx)
+				ssx = tmate_session->proxy_sx;
+		}
+
 		tmate_client_resize(ssx, ssy);
 		return;
 #endif
@@ -101,11 +109,10 @@ recalculate_sizes(void)
 		s->sy = ssy;
 	}
 
-	for (i = 0; i < ARRAY_LENGTH(&windows); i++) {
-		w = ARRAY_ITEM(&windows, i);
-		if (w == NULL)
+	RB_FOREACH(w, windows, &windows) {
+		if (w->active == NULL)
 			continue;
-		flag = options_get_number(&w->options, "aggressive-resize");
+		flag = options_get_number(w->options, "aggressive-resize");
 
 		ssx = ssy = UINT_MAX;
 		RB_FOREACH(s, sessions, &sessions) {
@@ -114,7 +121,7 @@ recalculate_sizes(void)
 			if (flag)
 				has = s->curw->window == w;
 			else
-				has = session_has(s, w) != NULL;
+				has = session_has(s, w);
 			if (has) {
 				if (s->sx < ssx)
 					ssx = s->sx;
@@ -125,17 +132,25 @@ recalculate_sizes(void)
 		if (ssx == UINT_MAX || ssy == UINT_MAX)
 			continue;
 
-		limit = options_get_number(&w->options, "force-width");
-		if (limit != 0 && ssx > limit)
+		forced = 0;
+		limit = options_get_number(w->options, "force-width");
+		if (limit >= PANE_MINIMUM && ssx > limit) {
 			ssx = limit;
-		limit = options_get_number(&w->options, "force-height");
-		if (limit != 0 && ssy > limit)
+			forced |= WINDOW_FORCEWIDTH;
+		}
+		limit = options_get_number(w->options, "force-height");
+		if (limit >= PANE_MINIMUM && ssy > limit) {
 			ssy = limit;
+			forced |= WINDOW_FORCEHEIGHT;
+		}
 
 		if (w->sx == ssx && w->sy == ssy)
 			continue;
 		log_debug("window size %u,%u (was %u,%u)", ssx, ssy, w->sx,
 		    w->sy);
+
+		w->flags &= ~(WINDOW_FORCEWIDTH|WINDOW_FORCEHEIGHT);
+		w->flags |= forced;
 
 		is_zoomed = w->flags & WINDOW_ZOOMED;
 		if (is_zoomed)

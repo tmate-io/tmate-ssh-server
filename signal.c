@@ -1,7 +1,7 @@
-/* $Id$ */
+/* $OpenBSD$ */
 
 /*
- * Copyright (c) 2007 Nicholas Marriott <nicm@users.sourceforge.net>
+ * Copyright (c) 2007 Nicholas Marriott <nicholas.marriott@gmail.com>
  * Copyright (c) 2010 Romain Francoise <rfrancoise@debian.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -17,10 +17,14 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/types.h>
+
 #include <string.h>
 #include <signal.h>
 
 #include "tmux.h"
+
+#ifndef TMATE_SLAVE
 
 struct event	ev_sighup;
 struct event	ev_sigchld;
@@ -30,7 +34,7 @@ struct event	ev_sigusr1;
 struct event	ev_sigwinch;
 
 void
-set_signals(void(*handler)(int, short, unused void *))
+set_signals(void (*handler)(int, short, void *), void *arg)
 {
 	struct sigaction	sigact;
 
@@ -47,17 +51,17 @@ set_signals(void(*handler)(int, short, unused void *))
 	if (sigaction(SIGTSTP, &sigact, NULL) != 0)
 		fatal("sigaction failed");
 
-	signal_set(&ev_sighup, SIGHUP, handler, NULL);
+	signal_set(&ev_sighup, SIGHUP, handler, arg);
 	signal_add(&ev_sighup, NULL);
-	signal_set(&ev_sigchld, SIGCHLD, handler, NULL);
+	signal_set(&ev_sigchld, SIGCHLD, handler, arg);
 	signal_add(&ev_sigchld, NULL);
-	signal_set(&ev_sigcont, SIGCONT, handler, NULL);
+	signal_set(&ev_sigcont, SIGCONT, handler, arg);
 	signal_add(&ev_sigcont, NULL);
-	signal_set(&ev_sigterm, SIGTERM, handler, NULL);
+	signal_set(&ev_sigterm, SIGTERM, handler, arg);
 	signal_add(&ev_sigterm, NULL);
-	signal_set(&ev_sigusr1, SIGUSR1, handler, NULL);
+	signal_set(&ev_sigusr1, SIGUSR1, handler, arg);
 	signal_add(&ev_sigusr1, NULL);
-	signal_set(&ev_sigwinch, SIGWINCH, handler, NULL);
+	signal_set(&ev_sigwinch, SIGWINCH, handler, arg);
 	signal_add(&ev_sigwinch, NULL);
 }
 
@@ -101,3 +105,5 @@ clear_signals(int after_fork)
 		event_del(&ev_sigwinch);
 	}
 }
+
+#endif
