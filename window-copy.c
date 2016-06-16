@@ -1407,6 +1407,11 @@ window_copy_copy_pipe(struct window_pane *wp, struct session *sess,
 	struct format_tree	*ft;
 	char			*expanded;
 
+#ifdef TMATE_SLAVE
+	/* that job_run() is not going to end well */
+	return;
+#endif
+
 	buf = window_copy_get_selection(wp, &len);
 	if (buf == NULL)
 		return;

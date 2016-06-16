@@ -530,6 +530,10 @@ status_print(struct client *c, struct winlink *wl, time_t t,
 	const char	*fmt;
 	char   		*text;
 
+#ifdef TMATE_SLAVE
+	/* TODO use the host winlink status */
+#endif
+
 	style_apply_update(gc, oo, "window-status-style");
 	fmt = options_get_string(oo, "window-status-format");
 	if (wl == s->curw) {
