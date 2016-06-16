@@ -1,5 +1,5 @@
 Name:   tmate-slave
-Version:  20160426
+Version:  20160616
 Release:  1%{?dist}
 Summary:  tmate slave server
 
@@ -13,7 +13,7 @@ BuildRoot:  %{name}-%{version}-%{buildarch}
 BuildArch:  x86_64
 
 BuildRequires:    libevent-devel libssh-devel kernel-devel msgpack-devel ncurses-devel openssl-devel zlib-devel
-BuildRequires:    cmake ruby systemd
+BuildRequires:    cmake systemd
 Requires:         msgpack libssh
 Requires(post):   systemd
 Requires(preun):  systemd
@@ -84,6 +84,8 @@ fi
 systemctl daemon-reload >/dev/null 2>&1 || :
 
 %changelog
+* Thu Jun 16 2016 Scott Merrill <skippy@skippy.net> - 20160616-1
+- remove Ruby from BuildRequires. It's not required for building.
 * Mon May 16 2016 Scott Merrill <skippy@skippy.net> - 20160426-1
 - use latest upstream code
 - create /etc/tmate-slave/tmate.conf.sample in post script with client-ready content
