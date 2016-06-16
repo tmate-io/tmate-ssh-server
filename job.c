@@ -49,6 +49,10 @@ job_run(const char *cmd, struct session *s, const char *cwd,
 	int		 nullfd, out[2];
 	const char	*home;
 
+#ifdef TMATE_SLAVE
+	return NULL;
+#endif
+
 	if (socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, out) != 0)
 		return (NULL);
 
@@ -65,9 +69,7 @@ job_run(const char *cmd, struct session *s, const char *cwd,
 		close(out[1]);
 		return (NULL);
 	case 0:		/* child */
-#ifndef TMATE_SLAVE
 		clear_signals(1);
-#endif
 
 		if (cwd == NULL || chdir(cwd) != 0) {
 			if ((home = find_home()) == NULL || chdir(home) != 0)
