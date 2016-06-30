@@ -254,7 +254,7 @@ static void ssh_log_function(int priority, const char *function,
 	tmate_info("[%d] [%s] %s", priority, function, buffer);
 }
 
-static ssh_bind prepare_ssh(const char *keys_dir, int port)
+static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int port)
 {
 	ssh_bind bind;
 	char buffer[PATH_MAX];
@@ -266,6 +266,8 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	if (!bind)
 		tmate_fatal("Cannot initialize ssh");
 
+	if (bind_addr)
+		ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, bind_addr);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &verbosity);
@@ -279,7 +281,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, int port)
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
 
-	tmate_notice("Accepting connections on %d", port);
+	tmate_notice("Accepting connections on %s:%d", bind_addr ?: "", port);
 
 	return bind;
 }
@@ -314,8 +316,8 @@ static void handle_sigsegv(__unused int sig)
 	tmate_fatal("CRASHED");
 }
 
-void tmate_ssh_server_main(struct tmate_session *session,
-			   const char *keys_dir, int port)
+void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
+			   const char *bind_addr, int port)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 	ssh_bind bind;
@@ -324,7 +326,7 @@ void tmate_ssh_server_main(struct tmate_session *session,
 	signal(SIGSEGV, handle_sigsegv);
 	signal(SIGCHLD, handle_sigchld);
 
-	bind = prepare_ssh(keys_dir, port);
+	bind = prepare_ssh(keys_dir, bind_addr, port);
 
 	for (;;) {
 		client->session = ssh_new();
