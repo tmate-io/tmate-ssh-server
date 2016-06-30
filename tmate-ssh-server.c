@@ -266,7 +266,8 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *host, int port)
 	if (!bind)
 		tmate_fatal("Cannot initialize ssh");
 
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, host);
+	if (host)
+		ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, host);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &verbosity);
@@ -280,7 +281,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *host, int port)
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
 
-	tmate_notice("Accepting connections on %s:%d", host, port);
+	tmate_notice("Accepting connections on %s:%d", (host)?(host):"", port);
 
 	return bind;
 }

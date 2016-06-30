@@ -192,9 +192,6 @@ int main(int argc, char **argv, char **envp)
 
 	setup_locale();
 
-	if (!tmate_settings->bind_ip)
-		tmate_settings->bind_ip = "0.0.0.0";
-
 	if (!tmate_settings->tmate_host)
 		tmate_settings->tmate_host = get_full_hostname();
 
