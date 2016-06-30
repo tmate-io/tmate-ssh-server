@@ -209,7 +209,7 @@ struct tmate_settings {
 	const char *proxy_hostname;
 	int proxy_port;
 	const char *tmate_host;
-	const char *bind_ip;
+	const char *bind_addr;
 	int log_level;
 	bool use_syslog;
 };
