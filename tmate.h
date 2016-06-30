@@ -183,7 +183,7 @@ struct tmate_ssh_client {
 };
 
 extern void tmate_ssh_server_main(struct tmate_session *session,
-				  const char *keys_dir, int port);
+				  const char *keys_dir, const char *host, int port);
 
 /* tmate-slave.c */
 
@@ -209,6 +209,7 @@ struct tmate_settings {
 	const char *proxy_hostname;
 	int proxy_port;
 	const char *tmate_host;
+	const char *bind_ip;
 	int log_level;
 	bool use_syslog;
 };

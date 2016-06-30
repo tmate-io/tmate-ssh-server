@@ -36,6 +36,7 @@ struct tmate_settings _tmate_settings = {
 	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
 	.ssh_port        = TMATE_SSH_DEFAULT_PORT,
 	.proxy_hostname  = NULL,
+	.bind_ip	 = NULL,
 	.proxy_port      = TMATE_DEFAULT_PROXY_PORT,
 	.tmate_host      = NULL,
 	.log_level       = LOG_NOTICE,
@@ -101,7 +102,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-b ip] [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -154,8 +155,11 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "h:k:p:x:q:sv")) != -1) {
+	while ((opt = getopt(argc, argv, "b:h:k:p:x:q:sv")) != -1) {
 		switch (opt) {
+		case 'b':
+			tmate_settings->bind_ip = xstrdup(optarg);
+			break;
 		case 'h':
 			tmate_settings->tmate_host = xstrdup(optarg);
 			break;
@@ -188,6 +192,9 @@ int main(int argc, char **argv, char **envp)
 
 	setup_locale();
 
+	if (!tmate_settings->bind_ip)
+		tmate_settings->bind_ip = "0.0.0.0";
+
 	if (!tmate_settings->tmate_host)
 		tmate_settings->tmate_host = get_full_hostname();
 
@@ -211,7 +218,7 @@ int main(int argc, char **argv, char **envp)
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
 	tmate_ssh_server_main(tmate_session,
-			      tmate_settings->keys_dir, tmate_settings->ssh_port);
+			      tmate_settings->keys_dir, tmate_settings->bind_ip, tmate_settings->ssh_port);
 	return 0;
 }
 
