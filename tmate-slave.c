@@ -393,8 +393,9 @@ static void jail(void)
 		tmate_fatal("Cannot setuid()");
 #endif
 
-	if (nice(1) < 0)
-		tmate_fatal("Cannot nice()");
+	/* this might fail, but it doesn't affect anything
+	   except scheduling priorities, so it is no big deal. */
+	nice(1);
 
 	tmate_info("Dropped priviledges to %s (%d,%d), jailed in %s",
 		   TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
