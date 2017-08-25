@@ -224,24 +224,13 @@ static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
 				   "0123456789";
 #define NUM_DIGITS (sizeof(tmate_token_digits) - 1)
 
-static char *get_random_token(void)
+static char *get_random_token(char *client)
 {
 	struct random_stream rs;
 	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
-	int i;
-	unsigned char c;
 
-	random_stream_init(&rs);
-
-	for (i = 0; i < TMATE_TOKEN_LEN; i++) {
-		do {
-			c = *random_stream_get(&rs, 1);
-		} while (c >= NUM_DIGITS);
-
-		token[i] = tmate_token_digits[c];
-	}
-
-	token[i] = 0;
+	strncpy(token, client, TMATE_TOKEN_LEN );
+	token[TMATE_TOKEN_LEN] = 0;
 
 	return token;
 }
@@ -268,13 +257,15 @@ static void create_session_ro_symlink(struct tmate_session *session)
 #ifdef DEVENV
 	tmp = xstrdup("READONLYTOKENFORDEVENV000");
 #else
-	tmp = get_random_token();
+	char *p = "99999D99";
+	tmp = get_random_token(p);
 #endif
+
 	xasprintf(&token, "ro-%s", tmp);
 	free(tmp);
 
 	session->session_token_ro = token;
-
+	
 	xasprintf(&session_ro_path, TMATE_WORKDIR "/sessions/%s",
 		  session->session_token_ro);
 
@@ -419,12 +410,12 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 #ifdef DEVENV
 	token = xstrdup("SUPERSECURETOKENFORDEVENV");
 #else
-	token = get_random_token();
+	token = get_random_token(client->username);
 #endif
 
 	set_session_token(session, token);
 	free(token);
-
+	
 	tmate_notice("Spawning slave server for %s at %s (%s)",
 		     client->username, client->ip_address, client->pubkey);
 
