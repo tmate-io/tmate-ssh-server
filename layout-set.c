@@ -22,7 +22,7 @@
 
 #include "tmux.h"
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 
 /*
  * Set window layouts - predefined methods to arrange windows. These are

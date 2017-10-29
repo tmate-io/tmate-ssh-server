@@ -27,7 +27,7 @@
 pid_t
 forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 {
-	int	slave = -1;
+	int	replica = -1;
 	char   *path;
 	pid_t	pid;
 
@@ -42,7 +42,7 @@ forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 		goto out;
 	if (name != NULL)
 		strlcpy(name, path, TTY_NAME_MAX);
-	if ((slave = open(path, O_RDWR|O_NOCTTY)) == -1)
+	if ((replica = open(path, O_RDWR|O_NOCTTY)) == -1)
 		goto out;
 
 	switch (pid = fork()) {
@@ -53,35 +53,35 @@ forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 
 		setsid();
 #ifdef TIOCSCTTY
-		if (ioctl(slave, TIOCSCTTY, NULL) == -1)
+		if (ioctl(replica, TIOCSCTTY, NULL) == -1)
 			fatal("ioctl failed");
 #endif
 
-		if (ioctl(slave, I_PUSH, "ptem") == -1)
+		if (ioctl(replica, I_PUSH, "ptem") == -1)
 			fatal("ioctl failed");
-		if (ioctl(slave, I_PUSH, "ldterm") == -1)
+		if (ioctl(replica, I_PUSH, "ldterm") == -1)
 			fatal("ioctl failed");
 
-		if (tio != NULL && tcsetattr(slave, TCSAFLUSH, tio) == -1)
+		if (tio != NULL && tcsetattr(replica, TCSAFLUSH, tio) == -1)
 			fatal("tcsetattr failed");
-		if (ioctl(slave, TIOCSWINSZ, ws) == -1)
+		if (ioctl(replica, TIOCSWINSZ, ws) == -1)
 			fatal("ioctl failed");
 
-		dup2(slave, 0);
-		dup2(slave, 1);
-		dup2(slave, 2);
-		if (slave > 2)
-			close(slave);
+		dup2(replica, 0);
+		dup2(replica, 1);
+		dup2(replica, 2);
+		if (replica > 2)
+			close(replica);
 		return (0);
 	}
 
-	close(slave);
+	close(replica);
 	return (pid);
 
 out:
 	if (*master != -1)
 		close(*master);
-	if (slave != -1)
-		close(slave);
+	if (replica != -1)
+		close(replica);
 	return (-1);
 }

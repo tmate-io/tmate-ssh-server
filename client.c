@@ -64,7 +64,7 @@ void		client_dispatch(struct imsg *, void *);
 void		client_dispatch_attached(struct imsg *);
 void		client_dispatch_wait(struct imsg *, const char *);
 const char     *client_exit_message(void);
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 void client_report_latency(int latency_ms);
 #endif
 
@@ -230,7 +230,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 	struct termios		 tio, saved_tio;
 	size_t			 size;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	/* Ignore SIGCHLD now or daemon() in the server will leave a zombie. */
 	signal(SIGCHLD, SIG_IGN);
 #endif
@@ -267,7 +267,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 		cmd_list_free(cmdlist);
 	}
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	fd = tmate_session->tmux_socket_fd;
 
 	/* Create client process structure (starts logging). */
@@ -311,7 +311,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 		fatal("pledge failed");
 #endif
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	/* Free stuff that is not used in the client. */
 	options_free(global_options);
 	options_free(global_s_options);
@@ -406,7 +406,7 @@ client_send_identify(const char *ttynam, const char *cwd)
 
 	proc_send(client_peer, MSG_IDENTIFY_FLAGS, -1, &flags, sizeof flags);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	proc_send(client_peer, MSG_IDENTIFY_TMATE_IP_ADDRESS, -1,
 		  tmate_session->ssh_client.ip_address,
 		  strlen(tmate_session->ssh_client.ip_address) + 1);
@@ -647,7 +647,7 @@ client_dispatch_wait(struct imsg *imsg, const char *shellcmd)
 		if (datalen == 0 || data[datalen - 1] != '\0')
 			fatalx("bad MSG_SHELL string");
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 		exit(1);
 #else
 		clear_signals(0);
@@ -732,7 +732,7 @@ client_dispatch_attached(struct imsg *imsg)
 	}
 }
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 void client_report_latency(int latency_ms)
 {
 	proc_send(client_peer, MSG_LATENCY, -1, &latency_ms, sizeof(latency_ms));

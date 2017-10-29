@@ -19,7 +19,7 @@
 #ifndef TMUX_H
 #define TMUX_H
 
-#define TMATE_SLAVE
+#define TMATE_REPLICA
 
 #define PROTOCOL_VERSION 8
 
@@ -414,7 +414,7 @@ enum msgtype {
 	MSG_IDENTIFY_CLIENTPID,
 	MSG_IDENTIFY_CWD,
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	/* Next time put this after TMATE_LATENCY */
 	MSG_IDENTIFY_TMATE_IP_ADDRESS,
 	MSG_IDENTIFY_TMATE_PUBKEY,
@@ -439,7 +439,7 @@ enum msgtype {
 	MSG_UNLOCK,
 	MSG_WAKEUP,
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	MSG_LATENCY = 300
 #endif
 };
@@ -873,7 +873,7 @@ struct window_pane {
 
 	struct window	*window;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	struct layout_cell *layout_cell;
 	struct layout_cell *saved_layout_cell;
 #endif
@@ -892,7 +892,7 @@ struct window_pane {
 #define PANE_FOCUSPUSH 0x10
 #define PANE_INPUTOFF 0x20
 #define PANE_CHANGED 0x40
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 #define PANE_KILL 0x80
 #endif
 
@@ -905,7 +905,7 @@ struct window_pane {
 	char		 tty[TTY_NAME_MAX];
 	int		 status;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	struct evbuffer *event_input;
 #else
 	int		 fd;
@@ -957,7 +957,7 @@ struct window {
 
 	int		 lastlayout;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	struct layout_cell *layout_root;
 	struct layout_cell *saved_layout_root;
 	char		*old_layout;
@@ -975,7 +975,7 @@ struct window {
 #define WINDOW_FORCEWIDTH 0x2000
 #define WINDOW_FORCEHEIGHT 0x4000
 #define WINDOW_ALERTFLAGS (WINDOW_BELL|WINDOW_ACTIVITY|WINDOW_SILENCE)
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 #define WINDOW_KILL 0x8000
 #endif
 
@@ -1001,7 +1001,7 @@ struct winlink {
 #define WINLINK_ACTIVITY 0x2
 #define WINLINK_SILENCE 0x4
 #define WINLINK_ALERTFLAGS (WINLINK_BELL|WINLINK_ACTIVITY|WINLINK_SILENCE)
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 #define WINLINK_KILL 0x80
 #endif
 
@@ -1251,7 +1251,7 @@ struct message_entry {
 
 /* Client connection. */
 struct client {
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	int		 id;
 #endif
 	struct tmuxpeer	*peer;
@@ -1305,7 +1305,7 @@ struct client {
 #define CLIENT_256COLOURS 0x20000
 #define CLIENT_IDENTIFIED 0x40000
 #define CLIENT_STATUSFORCE 0x80000
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 #define CLIENT_TMATE_NOTIFIED_JOIN 0x10000000
 #endif
 	int		 flags;
@@ -1339,7 +1339,7 @@ struct client {
 	struct cmd_q	*cmdq;
 	int		 references;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	char		*ip_address;
 	char		*pubkey;
 	int		readonly;
@@ -2012,7 +2012,7 @@ void	 input_reset(struct window_pane *, int);
 struct evbuffer *input_pending(struct window_pane *);
 void	 input_parse(struct window_pane *);
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 /* input-key.c */
 void	 input_key(struct window_pane *, key_code, struct mouse_event *);
 #endif

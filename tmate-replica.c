@@ -102,7 +102,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-b ip] [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-replica [-b ip] [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -255,7 +255,7 @@ void set_session_token(struct tmate_session *session,
 	socket_path = path;
 
 	memset(cmdline, 0, cmdline_end - cmdline);
-	sprintf(cmdline, "tmate-slave [%s] %s %s",
+	sprintf(cmdline, "tmate-replica [%s] %s %s",
 		session->session_token,
 		session->ssh_client.role == TMATE_ROLE_DAEMON ? "(daemon)" : "(pty client)",
 		session->ssh_client.ip_address);
@@ -411,7 +411,7 @@ static void handle_sigterm(__unused int sig)
 	request_server_termination();
 }
 
-static void tmate_spawn_slave_daemon(struct tmate_session *session)
+static void tmate_spawn_replica_daemon(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 	char *token;
@@ -425,7 +425,7 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	set_session_token(session, token);
 	free(token);
 
-	tmate_notice("Spawning slave server for %s at %s (%s)",
+	tmate_notice("Spawning replica server for %s at %s (%s)",
 		     client->username, client->ip_address, client->pubkey);
 
 	session->tmux_socket_fd = server_create_socket();
@@ -456,7 +456,7 @@ static void tmate_spawn_slave_daemon(struct tmate_session *session)
 	/* never reached */
 }
 
-static void tmate_spawn_slave_pty_client(struct tmate_session *session)
+static void tmate_spawn_replica_pty_client(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 	char *argv_rw[] = {(char *)"attach", NULL};
@@ -465,7 +465,7 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 	int argc = 1;
 	char *token = client->username;
 	struct stat fstat;
-	int slave_pty;
+	int replica_pty;
 	int ret;
 
 	if (validate_token(token) < 0) {
@@ -475,7 +475,7 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 
 	set_session_token(session, token);
 
-	tmate_notice("Spawning slave client for %s (%s)",
+	tmate_notice("Spawning replica client for %s (%s)",
 		     client->ip_address, client->pubkey);
 
 	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
@@ -501,14 +501,14 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 		argc = 2;
 	}
 
-	if (openpty(&session->pty, &slave_pty, NULL, NULL, NULL) < 0)
+	if (openpty(&session->pty, &replica_pty, NULL, NULL, NULL) < 0)
 		tmate_fatal("Cannot allocate pty");
 
-	dup2(slave_pty, STDIN_FILENO);
-	dup2(slave_pty, STDOUT_FILENO);
-	dup2(slave_pty, STDERR_FILENO);
+	dup2(replica_pty, STDIN_FILENO);
+	dup2(replica_pty, STDOUT_FILENO);
+	dup2(replica_pty, STDERR_FILENO);
 
-	setup_ncurse(slave_pty, "screen-256color");
+	setup_ncurse(replica_pty, "screen-256color");
 
 	tmate_client_pty_init(session);
 
@@ -527,7 +527,7 @@ static void tmate_spawn_slave_pty_client(struct tmate_session *session)
 	exit(ret);
 }
 
-static void tmate_spawn_slave_exec(struct tmate_session *session)
+static void tmate_spawn_replica_exec(struct tmate_session *session)
 {
 	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1,
@@ -542,11 +542,11 @@ static void tmate_spawn_slave_exec(struct tmate_session *session)
 	exit(0);
 }
 
-void tmate_spawn_slave(struct tmate_session *session)
+void tmate_spawn_replica(struct tmate_session *session)
 {
 	switch (session->ssh_client.role) {
-	case TMATE_ROLE_DAEMON:		tmate_spawn_slave_daemon(session);	break;
-	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_slave_pty_client(session);	break;
-	case TMATE_ROLE_EXEC:		tmate_spawn_slave_exec(session);	break;
+	case TMATE_ROLE_DAEMON:		tmate_spawn_replica_daemon(session);	break;
+	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_replica_pty_client(session);	break;
+	case TMATE_ROLE_EXEC:		tmate_spawn_replica_exec(session);	break;
 	}
 }

@@ -96,7 +96,7 @@ server_client_get_key_table(struct client *c)
 	return (name);
 }
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 u_int	next_client_id;
 #endif
 
@@ -110,7 +110,7 @@ server_client_create(int fd)
 
 	c = xcalloc(1, sizeof *c);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	c->id = next_client_id++;
 	c->ip_address = NULL;
 	c->pubkey = NULL;
@@ -204,7 +204,7 @@ server_client_lost(struct client *c)
 	TAILQ_REMOVE(&clients, c, entry);
 	log_debug("lost client %p", c);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	tmate_notify_client_left(tmate_session, c);
 #endif
 
@@ -252,7 +252,7 @@ server_client_lost(struct client *c)
 	cmdq_free(c->cmdq);
 	c->cmdq = NULL;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	free(c->ip_address);
 	c->ip_address = NULL;
 	free(c->pubkey);
@@ -630,7 +630,7 @@ server_client_handle_key(struct client *c, key_code key)
 		window_unzoom(w);
 		wp = window_pane_at_index(w, key - '0');
 		if (wp != NULL && window_pane_visible(wp))
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 			tmate_client_set_active_pane(c->id, key - '0', wp->id);
 #else
 			window_set_active_pane(w, wp);
@@ -781,7 +781,7 @@ server_client_loop(void)
 	RB_FOREACH(w, windows, &windows) {
 		w->flags &= ~WINDOW_REDRAW;
 		TAILQ_FOREACH(wp, &w->panes, entry) {
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 			if (wp->fd != -1) {
 				server_client_check_focus(wp);
 				server_client_check_resize(wp);
@@ -793,7 +793,7 @@ server_client_loop(void)
 	}
 }
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 /* Check if pane should be resized. */
 void
 server_client_check_resize(struct window_pane *wp)
@@ -1074,7 +1074,7 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 	case MSG_IDENTIFY_ENVIRON:
 	case MSG_IDENTIFY_CLIENTPID:
 	case MSG_IDENTIFY_DONE:
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	case MSG_IDENTIFY_TMATE_IP_ADDRESS:
 	case MSG_IDENTIFY_TMATE_PUBKEY:
 	case MSG_IDENTIFY_TMATE_READONLY:
@@ -1149,7 +1149,7 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 
 		server_client_dispatch_shell(c);
 		break;
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	case MSG_LATENCY:
 		{
 		int latency_ms;
@@ -1280,7 +1280,7 @@ server_client_dispatch_identify(struct client *c, struct imsg *imsg)
 		memcpy(&c->pid, data, sizeof c->pid);
 		log_debug("client %p IDENTIFY_CLIENTPID %ld", c, (long)c->pid);
 		break;
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	case MSG_IDENTIFY_TMATE_IP_ADDRESS:
 		if (datalen == 0 || data[datalen - 1] != '\0')
 			fatalx("bad MSG_IDENTIFY_TMATE_IP_ADDRESS string");
@@ -1344,7 +1344,7 @@ server_client_dispatch_identify(struct client *c, struct imsg *imsg)
 	if (!(c->flags & CLIENT_CONTROL))
 		c->flags |= CLIENT_TERMINAL;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	tmate_notify_client_join(tmate_session, c);
 #endif
 }

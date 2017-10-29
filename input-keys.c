@@ -23,7 +23,7 @@
 
 #include "tmux.h"
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 
 /*
  * This file is rather misleadingly named, it contains the code which takes a

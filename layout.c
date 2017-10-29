@@ -22,7 +22,7 @@
 
 #include "tmux.h"
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 
 /*
  * The window layout is a tree of cells each of which can be one of: a

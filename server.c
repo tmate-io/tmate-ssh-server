@@ -135,7 +135,7 @@ server_create_socket(void)
 int
 server_start(struct event_base *base, int lockfd, char *lockfile)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	server_proc = proc_start("server", base, 0, server_signal);
 #else
 	int	pair[2];
@@ -170,7 +170,7 @@ server_start(struct event_base *base, int lockfd, char *lockfile)
 
 	gettimeofday(&start_time, NULL);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	server_fd = tmate_session->tmux_socket_fd;
 #else
 	server_fd = server_create_socket();
@@ -188,20 +188,20 @@ server_start(struct event_base *base, int lockfd, char *lockfile)
 
 	start_cfg();
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	status_prompt_load_history();
 #endif
 
 	server_add_accept(0);
 
 	proc_loop(server_proc, server_loop);
-#ifndef TMATE_SLAVE
+#ifndef TMATE_REPLICA
 	status_prompt_save_history();
 #endif
 	exit(0);
 }
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 static int tmate_server_request_exit;
 #endif
 
@@ -213,7 +213,7 @@ server_loop(void)
 
 	server_client_loop();
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	if (!ssh_is_connected(tmate_session->ssh_client.session) &&
 	    !tmate_server_request_exit) {
 		/*
@@ -258,7 +258,7 @@ server_send_exit(void)
 	struct client	*c, *c1;
 	struct session	*s, *s1;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE_REPLICA
 	tmate_server_request_exit = 1;
 #endif
 
