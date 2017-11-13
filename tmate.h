@@ -205,6 +205,7 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 
 struct tmate_settings {
 	const char *keys_dir;
+	const char *authorized_keys_path;
 	int ssh_port;
 	const char *proxy_hostname;
 	int proxy_port;

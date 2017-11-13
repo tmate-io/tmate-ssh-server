@@ -33,14 +33,15 @@ extern int server_create_socket(void);
 extern int client_connect(struct event_base *base, const char *path, int start_server);
 
 struct tmate_settings _tmate_settings = {
-	.keys_dir        = TMATE_SSH_DEFAULT_KEYS_DIR,
-	.ssh_port        = TMATE_SSH_DEFAULT_PORT,
-	.proxy_hostname  = NULL,
-	.bind_addr	 = NULL,
-	.proxy_port      = TMATE_DEFAULT_PROXY_PORT,
-	.tmate_host      = NULL,
-	.log_level       = LOG_NOTICE,
-	.use_syslog      = false,
+	.keys_dir        	= TMATE_SSH_DEFAULT_KEYS_DIR,
+	.authorized_keys_path 	= NULL,
+	.ssh_port        	= TMATE_SSH_DEFAULT_PORT,
+	.proxy_hostname  	= NULL,
+	.bind_addr	 	= NULL,
+	.proxy_port      	= TMATE_DEFAULT_PROXY_PORT,
+	.tmate_host      	= NULL,
+	.log_level      	= LOG_NOTICE,
+	.use_syslog      	= false,
 };
 
 struct tmate_settings *tmate_settings = &_tmate_settings;
@@ -102,7 +103,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-slave [-b ip] [-h hostname] [-k keys_dir] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-slave [-b ip] [-h hostname] [-k keys_dir] [-a authorized_keys_path] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -155,7 +156,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:h:k:p:x:q:sv")) != -1) {
+	while ((opt = getopt(argc, argv, "b:h:k:a:p:x:q:sv")) != -1) {
 		switch (opt) {
 		case 'b':
 			tmate_settings->bind_addr = xstrdup(optarg);
@@ -165,6 +166,9 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'k':
 			tmate_settings->keys_dir = xstrdup(optarg);
+			break;
+		case 'a':
+			tmate_settings->authorized_keys_path = xstrdup(optarg);
 			break;
 		case 'p':
 			tmate_settings->ssh_port = atoi(optarg);

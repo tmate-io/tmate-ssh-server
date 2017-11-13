@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <sys/wait.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <event.h>
 #include <arpa/inet.h>
@@ -106,6 +107,61 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 	return client->channel;
 }
 
+static int check_authorized_keys(struct ssh_key_struct *client_pubkey) {
+	#define MAX_PUBKEY_SIZE 0x4000
+
+	const char *authorized_keys_path = tmate_settings->authorized_keys_path;
+	const char *token_delim = " ";
+
+	FILE *file;
+	char key_buf[MAX_PUBKEY_SIZE], *key_type, *key_content;
+	enum ssh_keytypes_e type;
+	ssh_key pkey;
+
+	if (authorized_keys_path == NULL)
+		return SSH_AUTH_SUCCESS;
+
+	file = fopen(authorized_keys_path, "rb");
+	if (file == NULL) {
+		tmate_fatal("Could not open authorized_keys file: \"%s\"", authorized_keys_path);
+		return SSH_AUTH_DENIED;
+	}
+
+	while (fgets(key_buf, MAX_PUBKEY_SIZE, file)) {
+		if (key_buf[0] == '#' || key_buf[0] == '\0')
+			continue;
+
+		key_type = strtok(key_buf, token_delim);
+		if(key_type == NULL)
+			continue;
+
+		type = ssh_key_type_from_name(key_type);
+		if (type == SSH_KEYTYPE_UNKNOWN)
+			continue;
+
+		key_content = strtok(NULL, token_delim);
+		if(key_content == NULL)
+			continue;
+
+		pkey = ssh_key_new();
+		if (ssh_pki_import_pubkey_base64(key_content, type, &pkey) != SSH_OK) {
+			ssh_key_free(pkey);
+			continue;
+		}
+
+		if (!ssh_key_cmp(pkey, client_pubkey, SSH_KEY_CMP_PUBLIC)) {
+			ssh_key_free(pkey);
+			fclose(file);
+			return SSH_AUTH_SUCCESS;
+		}
+
+		ssh_key_free(pkey);
+	}
+
+	fclose(file);
+	return SSH_AUTH_DENIED;
+}
+
 static int auth_pubkey_cb(__unused ssh_session session,
 			  const char *user,
 			  struct ssh_key_struct *pubkey,
@@ -118,7 +174,8 @@ static int auth_pubkey_cb(__unused ssh_session session,
 		client->username = xstrdup(user);
 		if (ssh_pki_export_pubkey_base64(pubkey, &client->pubkey) != SSH_OK)
 			tmate_fatal("error getting public key");
-		return SSH_AUTH_SUCCESS;
+
+		return check_authorized_keys(pubkey);
 	case SSH_PUBLICKEY_STATE_NONE:
 		return SSH_AUTH_SUCCESS;
 	default:
