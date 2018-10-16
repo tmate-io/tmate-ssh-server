@@ -52,4 +52,8 @@ RUN cd /src/tmate-slave &&\
 
 RUN cp /src/tmate-slave/tmate-slave /sbin/
 
+# Clean up
+RUN rm -rf /src
+RUN apt-get --auto-remove purge -y git build-essential automake cmake pkg-config libssl-dev zlib1g-dev libncurses5-dev
+
 ENV LD_LIBRARY_PATH=/usr/local/lib
