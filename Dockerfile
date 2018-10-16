@@ -24,7 +24,7 @@ RUN mkdir /src && cd /src/ &&\
 	# jessie-backports provides 3.6.2 but this pulls too many dependencies in.
 	git clone -b libssh-0.7.6 git://git.libssh.org/projects/libssh.git &&\
 	git clone https://github.com/msgpack/msgpack-c.git &&\
-	git clone https://github.com/digitalautonomy/tmate-slave.git
+	git clone https://github.com/tmate-io/tmate-slave.git
 
 RUN cd /src/libssh &&\
 	mkdir build && cd build && cmake .. && make install
