@@ -20,9 +20,11 @@ RUN apt-get install -y git build-essential automake cmake pkg-config libssl-dev 
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /src && cd /src/ &&\
-	git clone git://git.libssh.org/projects/libssh.git &&\
+        # Latest libssh requires cmake >= 3.3.0 which is not available in jessie.
+	# jessie-backports provides 3.6.2 but this pulls too many dependencies in.
+	git clone -b libssh-0.7.6 git://git.libssh.org/projects/libssh.git &&\
 	git clone https://github.com/msgpack/msgpack-c.git &&\
-	git clone https://github.com/digitalautonomy/tmate-slave.git
+	git clone https://github.com/tmate-io/tmate-slave.git
 
 RUN cd /src/libssh &&\
 	mkdir build && cd build && cmake .. && make install
@@ -49,5 +51,9 @@ RUN cd /src/tmate-slave &&\
 	sh autogen.sh && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure && make
 
 RUN cp /src/tmate-slave/tmate-slave /sbin/
+
+# Clean up
+RUN rm -rf /src
+RUN apt-get --auto-remove purge -y git build-essential automake cmake pkg-config libssl-dev zlib1g-dev libncurses5-dev
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
