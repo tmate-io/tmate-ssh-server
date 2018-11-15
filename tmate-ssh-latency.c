@@ -29,8 +29,8 @@ static void on_keepalive_timer(__unused evutil_socket_t fd,
 {
 	struct tmate_ssh_client *client = arg;
 
-	if (ssh_send_keepalive(client->session) == SSH_ERROR)
-		return;
+	//if (ssh_send_keepalive(client->session) == SSH_ERROR)
+	//	return;
 
 #ifdef ENABLE_LATENCY
 	if (client->keepalive_sent_at.tv_sec == 0) {
