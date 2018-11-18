@@ -308,14 +308,23 @@ static int get_ip(int fd, char *dst, size_t len)
 static void ssh_log_function(int priority, const char *function,
 			     const char *buffer, __unused void *userdata)
 {
-	tmate_info("[%d] [%s] %s", priority, function, buffer);
+	tmate_log(LOG_NOTICE + priority, "[%s] %s", function, buffer);
+}
+
+static inline int max(int a, int b)
+{
+	if (a < b)
+		return b;
+	return a;
 }
 
 static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int port)
 {
 	ssh_bind bind;
 	char buffer[PATH_MAX];
-	int verbosity = SSH_LOG_NOLOG;
+	int ssh_log_level;
+
+	ssh_log_level = SSH_LOG_WARNING + max(log_get_level() - LOG_NOTICE, 0);
 
 	ssh_set_log_callback(ssh_log_function);
 
@@ -327,7 +336,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 		ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, bind_addr);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &verbosity);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &ssh_log_level);
 
 	sprintf(buffer, "%s/ssh_host_rsa_key", keys_dir);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, buffer);

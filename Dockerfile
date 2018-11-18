@@ -32,22 +32,6 @@ RUN cd /src/msgpack-c &&\
 	mkdir build && cd build && cmake .. && make install
 
 RUN cd /src/tmate-slave &&\
-	echo -e 'diff --git a/tmate-ssh-server.c b/tmate-ssh-server.c\n\
-index 73a7df85..c4b387db 100644\n\
---- a/tmate-ssh-server.c\n\
-+++ b/tmate-ssh-server.c\n\
-@@ -315,7 +315,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por\n\
- {\n\
- 	ssh_bind bind;\n\
- 	char buffer[PATH_MAX];\n\
--	int verbosity = SSH_LOG_NOLOG;\n\
-+        int verbosity = SSH_LOG_NOLOG + log_get_level();\n\
- \n\
- 	ssh_set_log_callback(ssh_log_function);\n\
- \n\
-' | git apply
-
-RUN cd /src/tmate-slave &&\
 	sh autogen.sh && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure && make
 
 RUN cp /src/tmate-slave/tmate-slave /sbin/
