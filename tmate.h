@@ -137,7 +137,11 @@ extern void tmate_flush_pty(struct tmate_session *session);
 /* tmate-ssh-server.c */
 
 #define TMATE_SSH_BANNER "tmate"
+#ifdef ENABLE_LATENCY
 #define TMATE_SSH_KEEPALIVE 10
+#else
+#define TMATE_SSH_KEEPALIVE 50
+#endif
 
 #define TMATE_ROLE_DAEMON	1
 #define TMATE_ROLE_PTY_CLIENT	2
