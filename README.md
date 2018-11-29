@@ -1,7 +1,7 @@
 tmate server side
 ==================
 
-tmate-slave is the server side part of [tmate.io](http://tmate.io/).
+tmate-slave is the server side part of [tmate.io](http://tmate.io/). [![Build Status](https://travis-ci.org/swills/tmate-slave.svg?branch=master)](https://travis-ci.org/swills/tmate-slave)
 
 Usage
 -----
