@@ -252,6 +252,10 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &grace_period);
 	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
+	ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, "curve25519-sha256@libssh.org,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512");
+	ssh_options_set(session, SSH_OPTIONS_CIPHERS_C_S, "aes256-gcm@openssh.com,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr");
+	ssh_options_set(session, SSH_OPTIONS_CIPHERS_S_C, "aes256-gcm@openssh.com,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr");
+	ssh_options_set(session, SSH_OPTIONS_HOSTKEYS, "ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-ed25519,ssh-rsa");
 
 	ssh_set_auth_methods(client->session, SSH_AUTH_METHOD_PUBLICKEY);
 
