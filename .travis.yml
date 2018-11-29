@@ -1,4 +1,5 @@
 language: c
+dist: bionic
 matrix:
     include:
         - compiler: gcc
