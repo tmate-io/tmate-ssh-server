@@ -14,4 +14,4 @@ gen_key() {
 }
 
 mkdir -p keys
-gen_key rsa && gen_key ecdsa || exit 1
+gen_key rsa && gen_key ed25519 || exit 1
