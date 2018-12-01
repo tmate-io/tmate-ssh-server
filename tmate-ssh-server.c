@@ -326,6 +326,9 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	ssh_bind bind;
 	char buffer[PATH_MAX];
 	int ssh_log_level;
+	ssh_key rsakey = NULL;
+	ssh_key ecdsakey = NULL;
+	ssh_key ed25519key = NULL;
 
 	ssh_log_level = SSH_LOG_WARNING + max(log_get_level() - LOG_NOTICE, 0);
 
@@ -342,10 +345,16 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &ssh_log_level);
 
 	sprintf(buffer, "%s/ssh_host_rsa_key", keys_dir);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSAKEY, buffer);
+	ssh_pki_import_privkey_file(buffer, NULL, NULL, NULL, &rsakey);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, rsakey);
+
+	sprintf(buffer, "%s/ssh_host_ed25519_key", keys_dir);
+	ssh_pki_import_privkey_file(buffer, NULL, NULL, NULL, &ed25519key);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, ed25519key);
 
 	sprintf(buffer, "%s/ssh_host_ecdsa_key", keys_dir);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_ECDSAKEY, buffer);
+	ssh_pki_import_privkey_file(buffer, NULL, NULL, NULL, &ecdsakey);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, ecdsakey);
 
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
