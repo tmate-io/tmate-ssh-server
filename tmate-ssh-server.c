@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <event.h>
 #include <arpa/inet.h>
+#ifndef IPPROTO_TCP
+#include <netinet/in.h>
+#endif
 
 #include "tmate.h"
 

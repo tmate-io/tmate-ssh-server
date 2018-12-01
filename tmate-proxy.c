@@ -2,6 +2,9 @@
 #include <netinet/tcp.h>
 #include <fcntl.h>
 #include <errno.h>
+#ifndef IPPROTO_TCP
+#include <netinet/in.h>
+#endif
 
 #include "tmate.h"
 #include "tmate-protocol.h"
