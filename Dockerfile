@@ -22,7 +22,7 @@ RUN apt-get install -y git build-essential automake cmake pkg-config libssl-dev 
 RUN mkdir /src && cd /src/ &&\
         # Latest libssh requires cmake >= 3.3.0 which is not available in jessie.
 	# jessie-backports provides 3.6.2 but this pulls too many dependencies in.
-	git clone -b libssh-0.7.6 git://git.libssh.org/projects/libssh.git &&\
+	git clone git://git.libssh.org/projects/libssh.git && cd libssh && git checkout 9dc650b7fbaef422e2a148322563106f3fbacb7a && cd - &&\
 	git clone https://github.com/msgpack/msgpack-c.git &&\
 	git clone https://github.com/tmate-io/tmate-slave.git
 
