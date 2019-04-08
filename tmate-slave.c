@@ -359,7 +359,7 @@ static void jail(void)
 	gid = pw->pw_gid;
 
 	if (getuid() != 0)
-		tmate_fatal("Need root priviledges");
+		tmate_fatal("Need root privileges");
 
 	if (chroot(TMATE_WORKDIR "/jail") < 0)
 		tmate_fatal("Cannot chroot()");
