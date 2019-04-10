@@ -27,7 +27,7 @@ loop do
 
 
   Dir['/proc/*/cmdline'].map do |f|
-    if File.read(f) =~ /^tmate-slave \[(.+)\] \((.+)\) (.+)$/
+    if File.read(f) =~ /^tmate-ssh-server \[(.+)\] \((.+)\) (.+)$/
       token = $1
       role = $2
       ip = $3

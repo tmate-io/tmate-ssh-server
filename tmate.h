@@ -189,7 +189,7 @@ struct tmate_ssh_client {
 extern void tmate_ssh_server_main(struct tmate_session *session,
 				  const char *keys_dir, const char *bind_addr, int port);
 
-/* tmate-slave.c */
+/* tmate-main.c */
 
 #ifdef DEVENV
 #define TMATE_SSH_DEFAULT_PORT 2200
@@ -259,7 +259,7 @@ extern struct tmate_session *tmate_session;
 extern void tmate_get_random_bytes(void *buffer, ssize_t len);
 extern long tmate_get_random_long(void);
 extern void request_server_termination(void);
-extern void tmate_spawn_slave(struct tmate_session *session);
+extern void tmate_spawn(struct tmate_session *session);
 extern void set_session_token(struct tmate_session *session, const char *token);
 
 /* tmate-proxy.c */

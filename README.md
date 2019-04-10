@@ -1,7 +1,7 @@
 tmate server side
 ==================
 
-tmate-slave is the server side part of [tmate.io](http://tmate.io/).
+tmate-ssh-server is the server side part of [tmate.io](http://tmate.io/).
 
 Usage
 -----

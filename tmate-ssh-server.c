@@ -277,7 +277,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	tmate_start_ssh_latency_probes(client, &ssh_server_cb, TMATE_SSH_KEEPALIVE * 1000);
 	register_on_ssh_read(client);
 
-	tmate_spawn_slave(_session);
+	tmate_spawn(_session);
 	/* never reached */
 }
 

@@ -1,7 +1,7 @@
 # Makefile.am
 
 # Obvious program stuff.
-bin_PROGRAMS = tmate-slave
+bin_PROGRAMS = tmate-ssh-server
 CLEANFILES = tmate.1.mdoc tmate.1.man
 
 # Distribution tarball options.
@@ -72,7 +72,7 @@ DEFS += -D_LINUX_SOURCE_COMPAT=1
 endif
 
 # List of sources.
-dist_tmate_slave_SOURCES = \
+dist_tmate_ssh_server_SOURCES = \
 	alerts.c \
 	arguments.c \
 	attributes.c \
@@ -185,7 +185,7 @@ dist_tmate_slave_SOURCES = \
 	tmate-daemon-legacy.c \
 	tmate-msgpack.c \
 	tmate-proxy.c \
-	tmate-slave.c \
+	tmate-main.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-daemon.c \
 	tmate-ssh-exec.c \
@@ -203,63 +203,63 @@ dist_tmate_slave_SOURCES = \
 	window.c \
 	xmalloc.c \
 	xterm-keys.c
-nodist_tmate_slave_SOURCES = osdep-@PLATFORM@.c
+nodist_tmate_ssh_server_SOURCES = osdep-@PLATFORM@.c
 
 # Pile in all the compat/ stuff that is needed.
 if NO_FORKPTY
-nodist_tmate_slave_SOURCES += compat/forkpty-@PLATFORM@.c
+nodist_tmate_ssh_server_SOURCES += compat/forkpty-@PLATFORM@.c
 endif
 if NO_IMSG
-nodist_tmate_slave_SOURCES += compat/imsg.c compat/imsg-buffer.c
+nodist_tmate_ssh_server_SOURCES += compat/imsg.c compat/imsg-buffer.c
 endif
 if NO_CLOSEFROM
-nodist_tmate_slave_SOURCES += compat/closefrom.c
+nodist_tmate_ssh_server_SOURCES += compat/closefrom.c
 endif
 if NO_DAEMON
-nodist_tmate_slave_SOURCES += compat/daemon.c
+nodist_tmate_ssh_server_SOURCES += compat/daemon.c
 endif
 if NO_SETENV
-nodist_tmate_slave_SOURCES += compat/setenv.c
+nodist_tmate_ssh_server_SOURCES += compat/setenv.c
 endif
 if NO_STRLCAT
-nodist_tmate_slave_SOURCES += compat/strlcat.c
+nodist_tmate_ssh_server_SOURCES += compat/strlcat.c
 endif
 if NO_STRLCPY
-nodist_tmate_slave_SOURCES += compat/strlcpy.c
+nodist_tmate_ssh_server_SOURCES += compat/strlcpy.c
 endif
 if NO_ASPRINTF
-nodist_tmate_slave_SOURCES += compat/asprintf.c
+nodist_tmate_ssh_server_SOURCES += compat/asprintf.c
 endif
 if NO_FGETLN
-nodist_tmate_slave_SOURCES += compat/fgetln.c
+nodist_tmate_ssh_server_SOURCES += compat/fgetln.c
 endif
 if NO_FPARSELN
-nodist_tmate_slave_SOURCES += compat/fparseln.c
+nodist_tmate_ssh_server_SOURCES += compat/fparseln.c
 endif
 if NO_GETOPT
-nodist_tmate_slave_SOURCES += compat/getopt.c
+nodist_tmate_ssh_server_SOURCES += compat/getopt.c
 endif
 if NO_STRCASESTR
-nodist_tmate_slave_SOURCES += compat/strcasestr.c
+nodist_tmate_ssh_server_SOURCES += compat/strcasestr.c
 endif
 if NO_STRSEP
-nodist_tmate_slave_SOURCES += compat/strsep.c
+nodist_tmate_ssh_server_SOURCES += compat/strsep.c
 endif
 if NO_VIS
-nodist_tmate_slave_SOURCES += compat/vis.c compat/unvis.c
+nodist_tmate_ssh_server_SOURCES += compat/vis.c compat/unvis.c
 endif
 if NO_STRTONUM
-nodist_tmate_slave_SOURCES += compat/strtonum.c
+nodist_tmate_ssh_server_SOURCES += compat/strtonum.c
 endif
 if NO_B64_NTOP
-nodist_tmate_slave_SOURCES += compat/b64_ntop.c
+nodist_tmate_ssh_server_SOURCES += compat/b64_ntop.c
 endif
 if NO_CFMAKERAW
-nodist_tmate_slave_SOURCES += compat/cfmakeraw.c
+nodist_tmate_ssh_server_SOURCES += compat/cfmakeraw.c
 endif
 if NO_OPENAT
-nodist_tmate_slave_SOURCES += compat/openat.c
+nodist_tmate_ssh_server_SOURCES += compat/openat.c
 endif
 if NO_REALLOCARRAY
-nodist_tmate_slave_SOURCES += compat/reallocarray.c
+nodist_tmate_ssh_server_SOURCES += compat/reallocarray.c
 endif
