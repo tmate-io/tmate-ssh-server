@@ -121,6 +121,7 @@ AC_CHECK_HEADERS(
 
 # Look for library needed for flock.
 AC_SEARCH_LIBS(flock, bsd)
+AC_SEARCH_LIBS(backtrace, execinfo)
 
 # Check for some functions that are replaced or omitted.
 AC_CHECK_FUNCS(
