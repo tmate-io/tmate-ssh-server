@@ -27,5 +27,9 @@ RUN set -ex; \
 	rm -rf /src; \
 	apk del .build-deps
 
-EXPOSE 22
-ENTRYPOINT ["tmate-ssh-server"]
+# TODO not run as root. Instead, use capabilities.
+
+COPY docker-entrypoint.sh /usr/local/bin
+
+EXPOSE 2200
+ENTRYPOINT ["docker-entrypoint.sh"]

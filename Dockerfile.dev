@@ -23,7 +23,10 @@ COPY . .
 RUN set -ex; \
 	./autogen.sh; \
 	./configure --prefix=/usr CFLAGS="-D_GNU_SOURCE"; \
-	make -j "$(nproc)"
+	make -j "$(nproc)"; \
+  ln -s /src/tmate-ssh-server/tmate-ssh-server /usr/bin
 
-EXPOSE 22
-ENTRYPOINT ["/src/tmate-ssh-server/tmate-ssh-server"]
+COPY docker-entrypoint.sh /usr/local/bin
+
+EXPOSE 2200
+ENTRYPOINT ["docker-entrypoint.sh"]
