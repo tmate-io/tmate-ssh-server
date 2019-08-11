@@ -28,5 +28,4 @@ RUN set -ex; \
 
 COPY docker-entrypoint.sh /usr/local/bin
 
-EXPOSE 2200
 ENTRYPOINT ["docker-entrypoint.sh"]
