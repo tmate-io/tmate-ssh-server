@@ -5,8 +5,8 @@ if [ "${USE_PROXY}" == "1" ]; then
   set -- -x localhost "$@"
 fi
 
-if [ ! -z "${HOSTNAME}" ]; then
-  set -- -h "${HOSTNAME}" "$@"
+if [ ! -z "${SSH_HOSTNAME}" ]; then
+  set -- -h "${SSH_HOSTNAME}" "$@"
 fi
 
 exec tmate-ssh-server -p 2200 -k ${SSH_KEYS_PATH} "$@"
