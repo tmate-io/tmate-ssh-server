@@ -26,9 +26,9 @@ static void tmate_header(struct tmate_session *session,
 	tmate_notice("Daemon header: client version: %s, protocol version: %d",
 		     session->client_version, session->client_protocol_version);
 
-	if (tmate_has_proxy()) {
-		/* If we have a proxy, it takes care of all the following notificatons */
-		tmate_send_proxy_header(session);
+	if (tmate_has_websocket()) {
+		/* If we have a websocket, it takes care of all the following notificatons */
+		tmate_send_websocket_header(session);
 		return;
 	}
 
@@ -52,7 +52,7 @@ static void tmate_header(struct tmate_session *session,
 static void tmate_ready(__unused struct tmate_session *session,
 			__unused struct tmate_unpacker *uk)
 {
-	/* used by the proxy */
+	/* used by the websocket */
 }
 
 
@@ -414,8 +414,8 @@ static void tmate_fin(__unused struct tmate_session *session,
 static void tmate_reconnect(__unused struct tmate_session *session,
 			    __unused struct tmate_unpacker *uk)
 {
-	if (!tmate_has_proxy())
-		tmate_fatal("Cannot do reconnections without the proxy");
+	if (!tmate_has_websocket())
+		tmate_fatal("Cannot do reconnections without the websocket server");
 }
 
 static void restore_snapshot_grid(struct grid *grid, struct tmate_unpacker *uk)

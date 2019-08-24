@@ -9,9 +9,14 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
+/*
+ * The websocket refers to the websocket server.
+ * (https://github.com/tmate-io/tmate-websocket)
+ */
+
 #define CONTROL_PROTOCOL_VERSION 2
 
-#define pack(what, ...) _pack(&tmate_session->proxy_encoder, what, __VA_ARGS__)
+#define pack(what, ...) _pack(&tmate_session->websocket_encoder, what, __VA_ARGS__)
 
 static void ctl_daemon_fwd_msg(__unused struct tmate_session *session,
 			       struct tmate_unpacker *uk)
@@ -143,8 +148,8 @@ static void ctl_pane_keys(__unused struct tmate_session *session,
 static void ctl_resize(struct tmate_session *session,
 		       struct tmate_unpacker *uk)
 {
-	session->proxy_sx = (u_int)unpack_int(uk);
-	session->proxy_sy = (u_int)unpack_int(uk);
+	session->websocket_sx = (u_int)unpack_int(uk);
+	session->websocket_sy = (u_int)unpack_int(uk);
 	recalculate_sizes();
 }
 
@@ -173,8 +178,8 @@ static void ctl_rename_session(struct tmate_session *session,
 	free(stoken_ro);
 }
 
-static void tmate_dispatch_proxy_message(struct tmate_session *session,
-					 struct tmate_unpacker *uk)
+static void tmate_dispatch_websocket_message(struct tmate_session *session,
+					     struct tmate_unpacker *uk)
 {
 	int cmd = unpack_int(uk);
 	switch (cmd) {
@@ -185,15 +190,15 @@ static void tmate_dispatch_proxy_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
 	dispatch(TMATE_CTL_EXEC_RESPONSE,	ctl_ssh_exec_response);
 	dispatch(TMATE_CTL_RENAME_SESSION,	ctl_rename_session);
-	default: tmate_warn("Bad proxy message type: %d", cmd);
+	default: tmate_warn("Bad websocket server message type: %d", cmd);
 	}
 }
 
-void tmate_proxy_exec(struct tmate_session *session, const char *command)
+void tmate_websocket_exec(struct tmate_session *session, const char *command)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	pack(array, 5);
@@ -209,7 +214,7 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 {
 	tmate_notice("Client joined (cid=%d)", c->id);
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	c->flags |= CLIENT_TMATE_NOTIFIED_JOIN;
@@ -227,7 +232,7 @@ void tmate_notify_client_left(__unused struct tmate_session *session,
 {
 	tmate_notice("Client left (cid=%d)", c->id);
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	if (!(c->flags & CLIENT_TMATE_NOTIFIED_JOIN))
@@ -245,7 +250,7 @@ void tmate_notify_latency(__unused struct tmate_session *session,
 {
 	int cid;
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	cid = c ? c->id : -1;
@@ -257,12 +262,12 @@ void tmate_notify_latency(__unused struct tmate_session *session,
 	pack(int, latency_ms);
 }
 
-void tmate_send_proxy_daemon_msg(__unused struct tmate_session *session,
-				 struct tmate_unpacker *uk)
+void tmate_send_websocket_daemon_msg(__unused struct tmate_session *session,
+				     struct tmate_unpacker *uk)
 {
 	int i;
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	pack(array, 2);
@@ -273,12 +278,12 @@ void tmate_send_proxy_daemon_msg(__unused struct tmate_session *session,
 		pack(object, uk->argv[i]);
 }
 
-void tmate_send_proxy_header(struct tmate_session *session)
+void tmate_send_websocket_header(struct tmate_session *session)
 {
 	char port_arg[16] = {0};
 	char ssh_cmd_fmt[512];
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
 	pack(array, 9);
@@ -298,89 +303,89 @@ void tmate_send_proxy_header(struct tmate_session *session)
 	pack(int, session->client_protocol_version);
 }
 
-static void on_proxy_decoder_read(void *userdata, struct tmate_unpacker *uk)
+static void on_websocket_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
-	tmate_dispatch_proxy_message(session, uk);
+	tmate_dispatch_websocket_message(session, uk);
 }
 
-static void on_proxy_read(__unused struct bufferevent *bev, void *_session)
+static void on_websocket_read(__unused struct bufferevent *bev, void *_session)
 {
 	struct tmate_session *session = _session;
-	struct evbuffer *proxy_in;
+	struct evbuffer *websocket_in;
 	ssize_t written;
 	char *buf;
 	size_t len;
 
-	proxy_in = bufferevent_get_input(session->bev_proxy);
+	websocket_in = bufferevent_get_input(session->bev_websocket);
 
-	while (evbuffer_get_length(proxy_in)) {
-		tmate_decoder_get_buffer(&session->proxy_decoder, &buf, &len);
+	while (evbuffer_get_length(websocket_in)) {
+		tmate_decoder_get_buffer(&session->websocket_decoder, &buf, &len);
 
 		if (len == 0)
 			tmate_fatal("No more room in client decoder. Message too big?");
 
-		written = evbuffer_remove(proxy_in, buf, len);
+		written = evbuffer_remove(websocket_in, buf, len);
 		if (written < 0)
-			tmate_fatal("Cannot read proxy buffer");
+			tmate_fatal("Cannot read websocket buffer");
 
-		tmate_decoder_commit(&session->proxy_decoder, written);
+		tmate_decoder_commit(&session->websocket_decoder, written);
 	}
 }
 
-static void on_proxy_encoder_write(void *userdata, struct evbuffer *buffer)
+static void on_websocket_encoder_write(void *userdata, struct evbuffer *buffer)
 {
 	struct tmate_session *session = userdata;
-	struct evbuffer *proxy_out;
+	struct evbuffer *websocket_out;
 
-	proxy_out = bufferevent_get_output(session->bev_proxy);
+	websocket_out = bufferevent_get_output(session->bev_websocket);
 
-	if (evbuffer_add_buffer(proxy_out, buffer) < 0)
-		tmate_fatal("Cannot write to proxy buffer");
+	if (evbuffer_add_buffer(websocket_out, buffer) < 0)
+		tmate_fatal("Cannot write to websocket buffer");
 }
 
-static void on_proxy_event_default(__unused struct tmate_session *session, short events)
+static void on_websocket_event_default(__unused struct tmate_session *session, short events)
 {
 	if (events & BEV_EVENT_EOF)
-		tmate_fatal("Connection to proxy closed");
+		tmate_fatal("Connection to websocket closed");
 
 	if (events & BEV_EVENT_ERROR)
-		tmate_fatal("Connection to proxy error: %s",
+		tmate_fatal("Connection to websocket error: %s",
 			    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 }
 
-static void on_proxy_event(__unused struct bufferevent *bev, short events, void *_session)
+static void on_websocket_event(__unused struct bufferevent *bev, short events, void *_session)
 {
 	struct tmate_session *session = _session;
-	session->on_proxy_error(session, events);
+	session->on_websocket_error(session, events);
 }
 
-void tmate_init_proxy(struct tmate_session *session,
-		      on_proxy_error_cb on_proxy_error)
+void tmate_init_websocket(struct tmate_session *session,
+			  on_websocket_error_cb on_websocket_error)
 {
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return;
 
-	session->proxy_sx = -1;
-	session->proxy_sy = -1;
+	session->websocket_sx = -1;
+	session->websocket_sy = -1;
 
-	/* session->proxy_fd is already connected */
-	session->bev_proxy = bufferevent_socket_new(session->ev_base, session->proxy_fd,
+	/* session->websocket_fd is already connected */
+	session->bev_websocket = bufferevent_socket_new(session->ev_base, session->websocket_fd,
 						    BEV_OPT_CLOSE_ON_FREE);
-	if (!session->bev_proxy)
+	if (!session->bev_websocket)
 		tmate_fatal("Cannot setup socket bufferevent");
 
-	session->on_proxy_error = on_proxy_error ?: on_proxy_event_default;
+	session->on_websocket_error = on_websocket_error ?: on_websocket_event_default;
 
-	bufferevent_setcb(session->bev_proxy,
-			  on_proxy_read, NULL, on_proxy_event, session);
-	bufferevent_enable(session->bev_proxy, EV_READ | EV_WRITE);
+	bufferevent_setcb(session->bev_websocket,
+			  on_websocket_read, NULL, on_websocket_event, session);
+	bufferevent_enable(session->bev_websocket, EV_READ | EV_WRITE);
 
-	tmate_encoder_init(&session->proxy_encoder, on_proxy_encoder_write, session);
-	tmate_decoder_init(&session->proxy_decoder, on_proxy_decoder_read, session);
+	tmate_encoder_init(&session->websocket_encoder, on_websocket_encoder_write, session);
+	tmate_decoder_init(&session->websocket_decoder, on_websocket_decoder_read, session);
 }
 
-static int _tmate_connect_to_proxy(const char *hostname, int port)
+static int _tmate_connect_to_websocket(const char *hostname, int port)
 {
 	int sockfd = -1;
 	struct sockaddr_in servaddr;
@@ -400,24 +405,24 @@ static int _tmate_connect_to_proxy(const char *hostname, int port)
 	servaddr.sin_port = htons(port);
 
 	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-		tmate_fatal("Cannot connect to proxy at %s:%d", hostname, port);
+		tmate_fatal("Cannot connect to websocket at %s:%d", hostname, port);
 
 	{
 	int flag = 1;
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0)
-		tmate_fatal("Can't set proxy socket to TCP_NODELAY");
+		tmate_fatal("Can't set websocket socket to TCP_NODELAY");
 	}
 
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
-		tmate_fatal("Can't set proxy socket to non-blocking");
+		tmate_fatal("Can't set websocket socket to non-blocking");
 
-	tmate_notice("Connected to proxy at %s:%d", hostname, port);
+	tmate_notice("Connected to websocket at %s:%d", hostname, port);
 
 	return sockfd;
 }
 
-int tmate_connect_to_proxy(void)
+int tmate_connect_to_websocket(void)
 {
-	return _tmate_connect_to_proxy(tmate_settings->proxy_hostname,
-				       tmate_settings->proxy_port);
+	return _tmate_connect_to_websocket(tmate_settings->websocket_hostname,
+					   tmate_settings->websocket_port);
 }

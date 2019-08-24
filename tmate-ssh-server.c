@@ -67,7 +67,7 @@ static int exec_request(__unused ssh_session session,
 	if (client->role)
 		return 1;
 
-	if (!tmate_has_proxy())
+	if (!tmate_has_websocket())
 		return 1;
 
 	client->role = TMATE_ROLE_EXEC;
@@ -242,12 +242,12 @@ static void client_bootstrap(struct tmate_session *_session)
 	alarm(grace_period);
 
 	/*
-	 * We should die early if we can't connect to proxy. This way the
-	 * tmate daemon will pick another server to work on.
+	 * We should die early if we can't connect to websocket server. This
+	 * way the tmate daemon will pick another server to work on.
 	 */
-	_session->proxy_fd = -1;
-	if (tmate_has_proxy())
-		_session->proxy_fd = tmate_connect_to_proxy();
+	_session->websocket_fd = -1;
+	if (tmate_has_websocket())
+		_session->websocket_fd = tmate_connect_to_websocket();
 
 	ssh_server_cb.userdata = client;
 	ssh_callbacks_init(&ssh_server_cb);

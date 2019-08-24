@@ -17,9 +17,9 @@ void tmate_dump_exec_response(struct tmate_session *session,
 		tmate_fatal("cannot stop event loop");
 }
 
-static void on_proxy_error(struct tmate_session *session, __unused short events)
+static void on_websocket_error(struct tmate_session *session, __unused short events)
 {
-	tmate_warn("Lost proxy connection");
+	tmate_warn("Lost websocket server connection");
 	tmate_dump_exec_response(session, 1, "Internal Error\r\n");
 }
 
@@ -31,7 +31,7 @@ void tmate_client_exec_init(struct tmate_session *session)
 	ssh_callbacks_init(&client->channel_cb);
 	ssh_set_channel_callbacks(client->channel, &client->channel_cb);
 
-	tmate_init_proxy(session, on_proxy_error);
+	tmate_init_websocket(session, on_websocket_error);
 
-	tmate_proxy_exec(session, client->exec_command);
+	tmate_websocket_exec(session, client->exec_command);
 }

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-if [ "${USE_PROXY}" == "1" ]; then
+if [ "${HAS_WEBSOCKET}" == "1" ]; then
   set -- -x localhost "$@"
 fi
 

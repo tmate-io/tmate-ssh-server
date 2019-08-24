@@ -36,9 +36,9 @@ struct tmate_settings _tmate_settings = {
 	.keys_dir        	= TMATE_SSH_DEFAULT_KEYS_DIR,
 	.authorized_keys_path 	= NULL,
 	.ssh_port        	= TMATE_SSH_DEFAULT_PORT,
-	.proxy_hostname  	= NULL,
+	.websocket_hostname  	= NULL,
 	.bind_addr	 	= NULL,
-	.proxy_port      	= TMATE_DEFAULT_PROXY_PORT,
+	.websocket_port      	= TMATE_DEFAULT_WEBSOCKET_PORT,
 	.tmate_host      	= NULL,
 	.log_level      	= LOG_NOTICE,
 	.use_syslog      	= false,
@@ -103,7 +103,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-a authorized_keys_path] [-p port] [-x proxy_hostname] [-q proxy_port] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-a authorized_keys_path] [-p port] [-x websocket_hostname] [-q websocket_port] [-s] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -174,10 +174,10 @@ int main(int argc, char **argv, char **envp)
 			tmate_settings->ssh_port = atoi(optarg);
 			break;
 		case 'x':
-			tmate_settings->proxy_hostname = xstrdup(optarg);
+			tmate_settings->websocket_hostname = xstrdup(optarg);
 			break;
 		case 'q':
-			tmate_settings->proxy_port = atoi(optarg);
+			tmate_settings->websocket_port = atoi(optarg);
 			break;
 		case 's':
 			tmate_settings->use_syslog = true;
@@ -212,7 +212,7 @@ int main(int argc, char **argv, char **envp)
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
-	/* The proxy needs to access the /session dir to rename sockets */
+	/* The websocket server needs to access the /session dir to rename sockets */
 	if ((chmod(TMATE_WORKDIR, 0701)             < 0) ||
 	    (chmod(TMATE_WORKDIR "/sessions", 0703) < 0) ||
 	    (chmod(TMATE_WORKDIR "/jail", 0700)     < 0))
@@ -449,7 +449,7 @@ static void tmate_spawn_daemon(struct tmate_session *session)
 	close_fds_except((int[]){session->tmux_socket_fd,
 				 ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1,
-				 session->proxy_fd}, 4);
+				 session->websocket_fd}, 4);
 
 	jail();
 	event_reinit(session->ev_base);
@@ -516,7 +516,7 @@ static void tmate_spawn_pty_client(struct tmate_session *session)
 
 	tmate_client_pty_init(session);
 
-	/* the unused session->proxy_fd will get closed automatically */
+	/* the unused session->websocket_fd will get closed automatically */
 
 	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
 				 session->tmux_socket_fd,
@@ -535,7 +535,7 @@ static void tmate_spawn_exec(struct tmate_session *session)
 {
 	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1,
-				 session->proxy_fd}, 3);
+				 session->websocket_fd}, 3);
 	jail();
 	event_reinit(session->ev_base);
 

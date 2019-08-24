@@ -184,7 +184,7 @@ dist_tmate_ssh_server_SOURCES = \
 	tmate-daemon-encoder.c \
 	tmate-daemon-legacy.c \
 	tmate-msgpack.c \
-	tmate-proxy.c \
+	tmate-websocket.c \
 	tmate-main.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-daemon.c \

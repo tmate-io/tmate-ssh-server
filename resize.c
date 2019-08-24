@@ -79,11 +79,11 @@ recalculate_sizes(void)
 		}
 
 #ifdef TMATE_SLAVE
-		if (tmate_has_proxy()) {
-			if (tmate_session->proxy_sy < ssy)
-				ssy = tmate_session->proxy_sy;
-			if (tmate_session->proxy_sx < ssx)
-				ssx = tmate_session->proxy_sx;
+		if (tmate_has_websocket()) {
+			if (tmate_session->websocket_sy < ssy)
+				ssy = tmate_session->websocket_sy;
+			if (tmate_session->websocket_sx < ssx)
+				ssx = tmate_session->websocket_sx;
 		}
 
 		tmate_client_resize(ssx, ssy);

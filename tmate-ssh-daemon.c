@@ -11,7 +11,7 @@ static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
 
-	tmate_send_proxy_daemon_msg(session, uk);
+	tmate_send_websocket_daemon_msg(session, uk);
 	tmate_dispatch_daemon_message(session, uk);
 }
 
@@ -85,7 +85,7 @@ void tmate_daemon_init(struct tmate_session *session)
 	tmate_encoder_init(&session->daemon_encoder, on_daemon_encoder_write, session);
 	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
-	tmate_init_proxy(session, NULL);
+	tmate_init_websocket(session, NULL);
 
 	tmate_add_ssh_latency_callback(client, on_latency_callback, session);
 }

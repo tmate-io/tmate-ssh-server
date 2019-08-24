@@ -201,7 +201,7 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 
 #define TMATE_SSH_DEFAULT_KEYS_DIR "keys"
 
-#define TMATE_DEFAULT_PROXY_PORT 4002
+#define TMATE_DEFAULT_WEBSOCKET_PORT 4002
 
 #define TMATE_TOKEN_LEN 25
 #define TMATE_WORKDIR "/tmp/tmate"
@@ -211,8 +211,8 @@ struct tmate_settings {
 	const char *keys_dir;
 	const char *authorized_keys_path;
 	int ssh_port;
-	const char *proxy_hostname;
-	int proxy_port;
+	const char *websocket_hostname;
+	int websocket_port;
 	const char *tmate_host;
 	const char *bind_addr;
 	int log_level;
@@ -220,7 +220,7 @@ struct tmate_settings {
 };
 extern struct tmate_settings *tmate_settings;
 
-typedef void on_proxy_error_cb(struct tmate_session *session, short events);
+typedef void on_websocket_error_cb(struct tmate_session *session, short events);
 
 struct tmate_session {
 	struct event_base *ev_base;
@@ -237,12 +237,12 @@ struct tmate_session {
 	int client_protocol_version;
 	struct event ev_notify_timer;
 
-	int proxy_fd;
-	struct bufferevent *bev_proxy;
-	struct tmate_encoder proxy_encoder;
-	struct tmate_decoder proxy_decoder;
-	u_int proxy_sx, proxy_sy;
-	on_proxy_error_cb *on_proxy_error;
+	int websocket_fd;
+	struct bufferevent *bev_websocket;
+	struct tmate_encoder websocket_encoder;
+	struct tmate_decoder websocket_decoder;
+	u_int websocket_sx, websocket_sy;
+	on_websocket_error_cb *on_websocket_error;
 
 	/* only for role client-pty */
 	int pty;
@@ -262,23 +262,23 @@ extern void request_server_termination(void);
 extern void tmate_spawn(struct tmate_session *session);
 extern void set_session_token(struct tmate_session *session, const char *token);
 
-/* tmate-proxy.c */
+/* tmate-websocket.c */
 
-extern void tmate_proxy_exec(struct tmate_session *session, const char *command);
+extern void tmate_websocket_exec(struct tmate_session *session, const char *command);
 extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
 extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
 extern void tmate_notify_latency(struct tmate_session *session, struct client *c, int latency_ms);
 
-extern void tmate_send_proxy_daemon_msg(struct tmate_session *session,
+extern void tmate_send_websocket_daemon_msg(struct tmate_session *session,
 					struct tmate_unpacker *uk);
-extern void tmate_send_proxy_header(struct tmate_session *session);
-extern void tmate_init_proxy(struct tmate_session *session,
-			     on_proxy_error_cb on_proxy_error);
+extern void tmate_send_websocket_header(struct tmate_session *session);
+extern void tmate_init_websocket(struct tmate_session *session,
+				 on_websocket_error_cb on_websocket_error);
 
-extern int tmate_connect_to_proxy(void);
-static inline bool tmate_has_proxy(void)
+extern int tmate_connect_to_websocket(void);
+static inline bool tmate_has_websocket(void)
 {
-	return !!tmate_settings->proxy_hostname;
+	return !!tmate_settings->websocket_hostname;
 }
 
 /* tmate-debug.c */
