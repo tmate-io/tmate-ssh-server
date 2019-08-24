@@ -238,9 +238,6 @@ static void client_bootstrap(struct tmate_session *_session)
 		   &flag, sizeof(flag));
 	}
 
-	signal(SIGALRM, handle_sigalrm);
-	alarm(grace_period);
-
 	/*
 	 * We should die early if we can't connect to websocket server. This
 	 * way the tmate daemon will pick another server to work on.
@@ -281,7 +278,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	/* never reached */
 }
 
-static int get_ip(int fd, char *dst, size_t len)
+static int get_client_ip(int fd, char *dst, size_t len)
 {
 	struct sockaddr sa;
 	socklen_t sa_len = sizeof(sa);
@@ -367,9 +364,7 @@ static void handle_sigchld(__unused int sig)
 	while ((pid = waitpid(WAIT_ANY, &status, WNOHANG)) > 0) {
 		/*
 		 * It's not safe to call indirectly malloc() here, because
-		 * of potential deadlocks with ssh_bind_accept() which also
-		 * calls malloc(). (And we can't even block singals because
-		 * the accept() call is blocking.
+		 * of potential deadlocks with other malloc() calls.
 		 */
 #if 0
 		if (WIFEXITED(status))
@@ -395,39 +390,52 @@ void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 	struct tmate_ssh_client *client = &session->ssh_client;
 	ssh_bind bind;
 	pid_t pid;
+	int fd;
 
 	signal(SIGSEGV, handle_sigsegv);
 	signal(SIGCHLD, handle_sigchld);
 
 	bind = prepare_ssh(keys_dir, bind_addr, port);
 
+	client->session = ssh_new();
+	client->channel = NULL;
+	client->winsize_pty.ws_col = 80;
+	client->winsize_pty.ws_row = 24;
+	session->session_token = "init";
+
+	if (!client->session)
+		tmate_fatal("Cannot initialize session");
+
 	for (;;) {
-		client->session = ssh_new();
-		client->channel = NULL;
-		client->winsize_pty.ws_col = 80;
-		client->winsize_pty.ws_row = 24;
-
-		if (!client->session)
-			tmate_fatal("Cannot initialize session");
-
-		if (ssh_bind_accept(bind, client->session) < 0)
-			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
-
-		if (get_ip(ssh_get_fd(client->session),
-			   client->ip_address, sizeof(client->ip_address)) < 0)
-			tmate_fatal("Error getting IP address from connection");
+		fd = accept(ssh_bind_get_fd(bind), NULL, NULL);
+		if (fd < 0)
+			tmate_fatal("Error accepting connection");
 
 		if ((pid = fork()) < 0)
 			tmate_fatal("Can't fork");
 
 		if (pid) {
-			tmate_info("Child spawned pid=%d, ip=%s",
-				    pid, client->ip_address);
-			ssh_free(client->session);
-		} else {
-			ssh_bind_free(bind);
-			session->session_token = "init";
-			client_bootstrap(session);
+			/* Parent process */
+			close(fd);
+			continue;
 		}
+
+		/* Child process */
+
+		signal(SIGALRM, handle_sigalrm);
+		alarm(TMATE_SSH_GRACE_PERIOD);
+
+		if (get_client_ip(fd, client->ip_address, sizeof(client->ip_address)) < 0)
+			tmate_fatal("Error getting Client IP from connection");
+
+		tmate_info("Connection accepted ip=%s", client->ip_address);
+
+		if (ssh_bind_accept_fd(bind, client->session, fd) < 0)
+			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
+
+		ssh_bind_free(bind);
+
+		client_bootstrap(session);
+		/* never reached */
 	}
 }
