@@ -1,8 +1,12 @@
 #!/bin/sh
 set -e
 
+if [ "${USE_PROXY_PROTOCOL}" == "1" ]; then
+  set -- -x
+fi
+
 if [ "${HAS_WEBSOCKET}" == "1" ]; then
-  set -- -x localhost "$@"
+  set -- -w localhost "$@"
 fi
 
 if [ ! -z "${SSH_HOSTNAME}" ]; then

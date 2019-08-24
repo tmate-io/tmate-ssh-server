@@ -216,6 +216,7 @@ struct tmate_settings {
 	const char *tmate_host;
 	const char *bind_addr;
 	int log_level;
+	bool use_proxy_protocol;
 	bool use_syslog;
 };
 extern struct tmate_settings *tmate_settings;

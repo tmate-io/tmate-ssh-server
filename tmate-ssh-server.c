@@ -278,7 +278,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	/* never reached */
 }
 
-static int get_client_ip(int fd, char *dst, size_t len)
+static int get_client_ip_socket(int fd, char *dst, size_t len)
 {
 	struct sockaddr sa;
 	socklen_t sa_len = sizeof(sa);
@@ -303,6 +303,62 @@ static int get_client_ip(int fd, char *dst, size_t len)
 	}
 
 	return 0;
+}
+
+static void read_single_line(int fd, char *dst, size_t len)
+{
+	/*
+	 * This reads exactly one line from fd.
+	 * We cannot read bytes after the new line.
+	 * We could use recv() with MSG_PEEK to do this more efficiently.
+	 */
+	for (size_t i = 0; i < len; i++) {
+		if (read(fd, &dst[i], 1) <= 0)
+			break;
+
+		if (dst[i] == '\r')
+			i--;
+
+		if (dst[i] == '\n') {
+			dst[i] = '\0';
+			return;
+		}
+	}
+
+	tmate_fatal("Cannot read proxy header. Load balancer may be misconfigured");
+}
+
+static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
+{
+	char header[110];
+	const char *signature = "PROXY ";
+
+	if (read(fd, header, strlen(signature)) != (ssize_t)strlen(signature))
+		tmate_fatal("Cannot read proxy header");
+
+	if (memcmp(header, signature, strlen(signature)))
+		tmate_fatal("No proxy header found. Load balancer may be misconfigured");
+
+	read_single_line(fd, header, sizeof(header));
+
+	int tok_num = 0;
+	for (char *tok = strtok(header, " "); tok; tok = strtok(NULL, " "), tok_num++) {
+		if (tok_num == 1)
+			strncpy(dst, tok, len);
+	}
+
+	if (tok_num != 5)
+		tmate_fatal("Proxy header is invalid");
+
+	return 0;
+}
+
+static int get_client_ip(int fd, char *dst, size_t len)
+{
+	if (tmate_settings->use_proxy_protocol)
+		return get_client_ip_proxy_protocol(fd, dst, len);
+	else
+		return get_client_ip_socket(fd, dst, len);
 }
 
 static void ssh_log_function(int priority, const char *function,
@@ -426,7 +482,7 @@ void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 		alarm(TMATE_SSH_GRACE_PERIOD);
 
 		if (get_client_ip(fd, client->ip_address, sizeof(client->ip_address)) < 0)
-			tmate_fatal("Error getting Client IP from connection");
+			tmate_fatal("Error getting client IP from connection");
 
 		tmate_info("Connection accepted ip=%s", client->ip_address);
 
