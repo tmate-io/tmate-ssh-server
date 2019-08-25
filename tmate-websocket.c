@@ -341,16 +341,16 @@ static void on_websocket_encoder_write(void *userdata, struct evbuffer *buffer)
 	websocket_out = bufferevent_get_output(session->bev_websocket);
 
 	if (evbuffer_add_buffer(websocket_out, buffer) < 0)
-		tmate_fatal("Cannot write to websocket buffer");
+		tmate_fatal("Cannot write to websocket server buffer");
 }
 
 static void on_websocket_event_default(__unused struct tmate_session *session, short events)
 {
 	if (events & BEV_EVENT_EOF)
-		tmate_fatal("Connection to websocket closed");
+		tmate_fatal("Connection to websocket server closed");
 
 	if (events & BEV_EVENT_ERROR)
-		tmate_fatal("Connection to websocket error: %s",
+		tmate_fatal("Connection to websocket server error: %s",
 			    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 }
 
@@ -405,18 +405,18 @@ static int _tmate_connect_to_websocket(const char *hostname, int port)
 	servaddr.sin_port = htons(port);
 
 	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-		tmate_fatal("Cannot connect to websocket at %s:%d", hostname, port);
+		tmate_fatal("Cannot connect to websocket server at %s:%d", hostname, port);
 
 	{
 	int flag = 1;
 	if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0)
-		tmate_fatal("Can't set websocket socket to TCP_NODELAY");
+		tmate_fatal("Can't set websocket server socket to TCP_NODELAY");
 	}
 
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
-		tmate_fatal("Can't set websocket socket to non-blocking");
+		tmate_fatal("Can't set websocket server socket to non-blocking");
 
-	tmate_notice("Connected to websocket at %s:%d", hostname, port);
+	tmate_notice("Connected to websocket server at %s:%d", hostname, port);
 
 	return sockfd;
 }

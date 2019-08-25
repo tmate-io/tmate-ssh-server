@@ -341,6 +341,8 @@ static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 
 	read_single_line(fd, header, sizeof(header));
 
+	tmate_debug("proxy header: %s", header);
+
 	int tok_num = 0;
 	for (char *tok = strtok(header, " "); tok; tok = strtok(NULL, " "), tok_num++) {
 		if (tok_num == 1)

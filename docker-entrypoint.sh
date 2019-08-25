@@ -2,7 +2,7 @@
 set -e
 
 if [ "${USE_PROXY_PROTOCOL}" == "1" ]; then
-  set -- -x
+  set -- -x "$@"
 fi
 
 if [ "${HAS_WEBSOCKET}" == "1" ]; then
