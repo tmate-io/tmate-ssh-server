@@ -433,8 +433,8 @@ static void tmate_spawn_daemon(struct tmate_session *session)
 	set_session_token(session, token);
 	free(token);
 
-	tmate_notice("Spawning daemon for %s at %s (%s)",
-		     client->username, client->ip_address, client->pubkey);
+	tmate_info("Spawning daemon for %s at %s (%s)",
+		   client->username, client->ip_address, client->pubkey);
 
 	session->tmux_socket_fd = server_create_socket();
 	if (session->tmux_socket_fd < 0)
@@ -483,8 +483,8 @@ static void tmate_spawn_pty_client(struct tmate_session *session)
 
 	set_session_token(session, token);
 
-	tmate_notice("Spawning pty client for %s (%s)",
-		     client->ip_address, client->pubkey);
+	tmate_info("Spawning pty client for %s (%s)",
+		   client->ip_address, client->pubkey);
 
 	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
 	if (session->tmux_socket_fd < 0) {

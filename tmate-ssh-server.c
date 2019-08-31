@@ -215,7 +215,8 @@ static void register_on_ssh_read(struct tmate_ssh_client *client)
 
 static void handle_sigalrm(__unused int sig)
 {
-	tmate_fatal("Connection grace period (%d) passed", TMATE_SSH_GRACE_PERIOD);
+	tmate_debug("Connection grace period (%ds) passed", TMATE_SSH_GRACE_PERIOD);
+	exit(1);
 }
 
 static void client_bootstrap(struct tmate_session *_session)
@@ -225,7 +226,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	ssh_event mainloop;
 	ssh_session session = client->session;
 
-	tmate_notice("Bootstrapping ssh client ip=%s", client->ip_address);
+	tmate_info("Bootstrapping ssh client ip=%s", client->ip_address);
 
 	_session->ev_base = osdep_event_init();
 
@@ -255,7 +256,7 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	ssh_set_auth_methods(client->session, SSH_AUTH_METHOD_PUBLICKEY);
 
-	tmate_info("Exchanging DH keys");
+	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
 		tmate_fatal("Error doing the key exchange: %s",
 				    ssh_get_error(session));

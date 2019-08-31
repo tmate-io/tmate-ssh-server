@@ -212,7 +212,7 @@ void tmate_websocket_exec(struct tmate_session *session, const char *command)
 void tmate_notify_client_join(__unused struct tmate_session *session,
 			      struct client *c)
 {
-	tmate_notice("Client joined (cid=%d)", c->id);
+	tmate_info("Client joined (cid=%d)", c->id);
 
 	if (!tmate_has_websocket())
 		return;
@@ -230,7 +230,7 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 void tmate_notify_client_left(__unused struct tmate_session *session,
 			      struct client *c)
 {
-	tmate_notice("Client left (cid=%d)", c->id);
+	tmate_info("Client left (cid=%d)", c->id);
 
 	if (!tmate_has_websocket())
 		return;
@@ -416,7 +416,7 @@ static int _tmate_connect_to_websocket(const char *hostname, int port)
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
 		tmate_fatal("Can't set websocket server socket to non-blocking");
 
-	tmate_notice("Connected to websocket server at %s:%d", hostname, port);
+	tmate_info("Connected to websocket server at %s:%d", hostname, port);
 
 	return sockfd;
 }
