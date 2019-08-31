@@ -262,9 +262,12 @@ void set_session_token(struct tmate_session *session,
 	xasprintf(&path, TMATE_WORKDIR "/sessions/%s", token);
 	socket_path = path;
 
+	xasprintf((char **)&session->obfuscated_session_token, "%.4s...",
+		  session->session_token);
+
 	memset(cmdline, 0, cmdline_end - cmdline);
 	sprintf(cmdline, "tmate-ssh-server [%s] %s %s",
-		session->session_token,
+		tmate_session->obfuscated_session_token,
 		session->ssh_client.role == TMATE_ROLE_DAEMON ? "(daemon)" : "(pty client)",
 		session->ssh_client.ip_address);
 }

@@ -215,8 +215,7 @@ static void register_on_ssh_read(struct tmate_ssh_client *client)
 
 static void handle_sigalrm(__unused int sig)
 {
-	tmate_debug("Connection grace period (%ds) passed", TMATE_SSH_GRACE_PERIOD);
-	exit(1);
+	tmate_fatal_info("Connection grace period (%ds) passed", TMATE_SSH_GRACE_PERIOD);
 }
 
 static void client_bootstrap(struct tmate_session *_session)
@@ -258,8 +257,7 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
-		tmate_fatal("Error doing the key exchange: %s",
-				    ssh_get_error(session));
+		tmate_fatal_info("Error doing the key exchange: %s", ssh_get_error(session));
 
 	mainloop = ssh_event_new();
 	ssh_event_add_session(mainloop, session);
@@ -271,7 +269,7 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	alarm(0);
 
-	/* The latency is callback set later */
+	/* The latency callback is set later */
 	tmate_start_ssh_latency_probes(client, &ssh_server_cb, TMATE_SSH_KEEPALIVE * 1000);
 	register_on_ssh_read(client);
 

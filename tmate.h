@@ -26,6 +26,11 @@ extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
 	tmate_log(LOG_CRIT, "fatal: " str, ##__VA_ARGS__);	\
  	exit(1);						\
 })
+#define tmate_fatal_info(str, ...)				\
+({								\
+	tmate_log(LOG_INFO, "fatal: " str, ##__VA_ARGS__);	\
+ 	exit(1);						\
+})
 
 /* tmate-msgpack.c */
 
@@ -231,6 +236,7 @@ struct tmate_session {
 	/* only for role deamon */
 	const char *session_token;
 	const char *session_token_ro;
+	const char *obfuscated_session_token; /* for logging purposes */
 
 	struct tmate_encoder daemon_encoder;
 	struct tmate_decoder daemon_decoder;

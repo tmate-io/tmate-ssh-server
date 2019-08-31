@@ -86,7 +86,7 @@ log_vwrite(int level, const char *msg, va_list ap)
 {
 	char	*fmt = NULL;
 
-	const char *token = tmate_session->session_token;
+	const char *token = tmate_session->obfuscated_session_token;
 
 	if (log_settings.log_level < level)
 		return;
