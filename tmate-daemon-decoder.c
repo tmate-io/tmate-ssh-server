@@ -9,8 +9,7 @@ char *tmate_left_status, *tmate_right_status;
 static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
-	char port_arg[16] = {0};
-	char tmp[512];
+	char *ssh_conn_str;
 
 	session->client_protocol_version = unpack_int(uk);
 	if (session->client_protocol_version <= 4) {
@@ -32,19 +31,16 @@ static void tmate_header(struct tmate_session *session,
 		return;
 	}
 
-	if (tmate_settings->ssh_port != 22)
-		sprintf(port_arg, " -p%d", tmate_settings->ssh_port);
-
-	sprintf(tmp, "ssh%s %s@%s", port_arg, session->session_token_ro, tmate_settings->tmate_host);
-
+	ssh_conn_str = get_ssh_conn_string(session->session_token_ro);
 	tmate_notify("Note: clear your terminal before sharing readonly access");
-	tmate_notify("ssh session read only: %s", tmp);
+	tmate_notify("ssh session read only: %s", ssh_conn_str);
+	tmate_set_env("tmate_ssh_ro", ssh_conn_str);
+	free(ssh_conn_str);
 
-	sprintf(tmp, "ssh%s %s@%s", port_arg, session->session_token, tmate_settings->tmate_host);
-	tmate_notify("ssh session: %s", tmp);
-
-	tmate_set_env("tmate_ssh_ro", tmp);
-	tmate_set_env("tmate_ssh", tmp);
+	ssh_conn_str = get_ssh_conn_string(session->session_token);
+	tmate_notify("ssh session: %s", ssh_conn_str);
+	tmate_set_env("tmate_ssh", ssh_conn_str);
+	free(ssh_conn_str);
 
 	tmate_send_client_ready();
 }

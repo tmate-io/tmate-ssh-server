@@ -47,7 +47,7 @@ static int print_resolved_stack_frame(const char *frame)
 		return -1;
 
 	line[strlen(line)-1] = 0; /* remove \n */
-	tmate_info("%s(%s) [%s]", file, line, address);
+	tmate_crit("%s(%s) [%s]", file, line, address);
 	return 0;
 }
 #endif
@@ -62,13 +62,13 @@ void tmate_print_stack_trace(void)
 	size = backtrace(array, 20);
 	strings = backtrace_symbols(array, size);
 
-	tmate_info("============ %zd stack frames ============", size);
+	tmate_crit("============ %zd stack frames ============", size);
 
 	for (i = 1; i < size; i++) {
 #if DEBUG
 		if (print_resolved_stack_frame(strings[i]) < 0)
 #endif
-			tmate_info("%s", strings[i]);
+			tmate_crit("%s", strings[i]);
 	}
 
 	free(strings);

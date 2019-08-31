@@ -280,9 +280,6 @@ void tmate_send_websocket_daemon_msg(__unused struct tmate_session *session,
 
 void tmate_send_websocket_header(struct tmate_session *session)
 {
-	char port_arg[16] = {0};
-	char ssh_cmd_fmt[512];
-
 	if (!tmate_has_websocket())
 		return;
 
@@ -294,10 +291,9 @@ void tmate_send_websocket_header(struct tmate_session *session)
 	pack(string, session->session_token);
 	pack(string, session->session_token_ro);
 
-	if (tmate_settings->ssh_port != 22)
-		sprintf(port_arg, " -p%d", tmate_settings->ssh_port);
-	sprintf(ssh_cmd_fmt, "ssh%s %%s@%s", port_arg, tmate_settings->tmate_host);
+	char *ssh_cmd_fmt = get_ssh_conn_string("%s");
 	pack(string, ssh_cmd_fmt);
+	free(ssh_cmd_fmt);
 
 	pack(string, session->client_version);
 	pack(int, session->client_protocol_version);

@@ -36,6 +36,7 @@ struct tmate_settings _tmate_settings = {
 	.keys_dir        	= TMATE_SSH_DEFAULT_KEYS_DIR,
 	.authorized_keys_path 	= NULL,
 	.ssh_port        	= TMATE_SSH_DEFAULT_PORT,
+	.ssh_port_advertized    = -1,
 	.websocket_hostname  	= NULL,
 	.bind_addr	 	= NULL,
 	.websocket_port      	= TMATE_DEFAULT_WEBSOCKET_PORT,
@@ -104,7 +105,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-a authorized_keys_path] [-p port] [-w websocket_hostname] [-q websocket_port] [-x] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-a authorized_keys_path] [-p listen_port] [-q ssh_port_advertized] [-w websocket_hostname] [-z websocket_port] [-x] [-s] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -157,7 +158,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:h:k:a:p:w:q:xsv")) != -1) {
+	while ((opt = getopt(argc, argv, "b:h:k:a:p:q:w:z:xsv")) != -1) {
 		switch (opt) {
 		case 'b':
 			tmate_settings->bind_addr = xstrdup(optarg);
@@ -174,10 +175,13 @@ int main(int argc, char **argv, char **envp)
 		case 'p':
 			tmate_settings->ssh_port = atoi(optarg);
 			break;
+		case 'q':
+			tmate_settings->ssh_port_advertized = atoi(optarg);
+			break;
 		case 'w':
 			tmate_settings->websocket_hostname = xstrdup(optarg);
 			break;
-		case 'q':
+		case 'z':
 			tmate_settings->websocket_port = atoi(optarg);
 			break;
 		case 'x':

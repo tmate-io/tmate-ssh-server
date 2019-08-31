@@ -13,4 +13,7 @@ if [ ! -z "${SSH_HOSTNAME}" ]; then
   set -- -h "${SSH_HOSTNAME}" "$@"
 fi
 
-exec tmate-ssh-server -p ${SSH_PORT:-2200} -k ${SSH_KEYS_PATH} "$@"
+SSH_PORT_LISTEN=${SSH_PORT_LISTEN:-2200}
+SSH_PORT_ADVERTIZE=${SSH_PORT_ADVERTIZE:-${SSH_PORT_LISTEN}}
+
+exec tmate-ssh-server -p ${SSH_PORT_LISTEN} -q ${SSH_PORT_ADVERTIZE} -k ${SSH_KEYS_PATH} "$@"

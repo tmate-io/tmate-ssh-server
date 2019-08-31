@@ -21,14 +21,15 @@ extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
 #define tmate_info(str, ...)	tmate_log(LOG_INFO, str, ##__VA_ARGS__)
 #define tmate_notice(str, ...)	tmate_log(LOG_NOTICE, str, ##__VA_ARGS__)
 #define tmate_warn(str, ...)	tmate_log(LOG_WARNING, str, ##__VA_ARGS__)
+#define tmate_crit(str, ...)	tmate_log(LOG_CRIT, str, ##__VA_ARGS__)
 #define tmate_fatal(str, ...)					\
 ({								\
-	tmate_log(LOG_CRIT, "fatal: " str, ##__VA_ARGS__);	\
+	tmate_crit("fatal: " str, ##__VA_ARGS__);		\
  	exit(1);						\
 })
 #define tmate_fatal_info(str, ...)				\
 ({								\
-	tmate_log(LOG_INFO, "fatal: " str, ##__VA_ARGS__);	\
+	tmate_info("fatal: " str, ##__VA_ARGS__);		\
  	exit(1);						\
 })
 
@@ -154,6 +155,7 @@ extern void tmate_flush_pty(struct tmate_session *session);
 
 struct tmate_ssh_client;
 typedef void ssh_client_latency_cb(void *userdata, int latency_ms);
+extern char *get_ssh_conn_string(const char *session_token);
 extern void tmate_start_ssh_latency_probes(struct tmate_ssh_client *client,
 					   struct ssh_server_callbacks_struct *server_callbacks,
 					   int keepalive_interval_ms);
@@ -216,6 +218,7 @@ struct tmate_settings {
 	const char *keys_dir;
 	const char *authorized_keys_path;
 	int ssh_port;
+	int ssh_port_advertized;
 	const char *websocket_hostname;
 	int websocket_port;
 	const char *tmate_host;

@@ -14,6 +14,21 @@
 
 #include "tmate.h"
 
+char *get_ssh_conn_string(const char *session_token)
+{
+	char port_arg[16] = {0};
+	char *ret;
+
+	int ssh_port_advertized = tmate_settings->ssh_port_advertized == -1 ?
+		tmate_settings->ssh_port :
+		tmate_settings->ssh_port_advertized;
+
+	if (ssh_port_advertized != 22)
+		sprintf(port_arg, " -p%d", ssh_port_advertized);
+	xasprintf(&ret, "ssh%s %s@%s", port_arg, session_token, tmate_settings->tmate_host);
+	return ret;
+}
+
 static int pty_request(__unused ssh_session session,
 		       __unused ssh_channel channel,
 		       __unused const char *term,
@@ -330,6 +345,7 @@ static void read_single_line(int fd, char *dst, size_t len)
 static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 {
 	char header[110];
+	int tok_num;
 	const char *signature = "PROXY ";
 
 	if (read(fd, header, strlen(signature)) != (ssize_t)strlen(signature))
@@ -342,10 +358,12 @@ static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 
 	tmate_debug("proxy header: %s", header);
 
-	int tok_num = 0;
+	tok_num = 0;
 	for (char *tok = strtok(header, " "); tok; tok = strtok(NULL, " "), tok_num++) {
-		if (tok_num == 1)
+		if (tok_num == 1) {
 			strncpy(dst, tok, len);
+			dst[len-1] = '\0';
+		}
 	}
 
 	if (tok_num != 5)
@@ -436,7 +454,7 @@ static void handle_sigchld(__unused int sig)
 
 static void handle_sigsegv(__unused int sig)
 {
-	tmate_info("CRASH, printing stack trace");
+	tmate_crit("CRASH, printing stack trace");
 	tmate_print_stack_trace();
 	tmate_fatal("CRASHED");
 }
