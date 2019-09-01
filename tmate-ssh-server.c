@@ -279,7 +279,7 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	while (!client->role) {
 		if (ssh_event_dopoll(mainloop, -1) == SSH_ERROR)
-			tmate_fatal("Error polling ssh socket: %s", ssh_get_error(session));
+			tmate_fatal_info("Error polling ssh socket: %s", ssh_get_error(session));
 	}
 
 	alarm(0);
