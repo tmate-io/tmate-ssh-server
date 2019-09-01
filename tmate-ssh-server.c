@@ -393,13 +393,26 @@ static inline int max(int a, int b)
 	return a;
 }
 
+static void ssh_import_key(ssh_bind bind, const char *keys_dir, const char *name)
+{
+	char path[PATH_MAX];
+	ssh_key key = NULL;
+
+	sprintf(path, "%s/%s", keys_dir, name);
+
+	if (access(path, F_OK) < 0) {
+		tmate_warn("Skipping host key %s", path);
+		return;
+	}
+
+	ssh_pki_import_privkey_file(path, NULL, NULL, NULL, &key);
+	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, key);
+}
+
 static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int port)
 {
 	ssh_bind bind;
-	char buffer[PATH_MAX];
 	int ssh_log_level;
-	ssh_key rsakey = NULL;
-	ssh_key ed25519key = NULL;
 
 	ssh_log_level = SSH_LOG_WARNING + max(log_get_level() - LOG_NOTICE, 0);
 
@@ -415,13 +428,8 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BANNER, TMATE_SSH_BANNER);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_LOG_VERBOSITY, &ssh_log_level);
 
-	sprintf(buffer, "%s/ssh_host_rsa_key", keys_dir);
-	ssh_pki_import_privkey_file(buffer, NULL, NULL, NULL, &rsakey);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, rsakey);
-
-	sprintf(buffer, "%s/ssh_host_ed25519_key", keys_dir);
-	ssh_pki_import_privkey_file(buffer, NULL, NULL, NULL, &ed25519key);
-	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, ed25519key);
+	ssh_import_key(bind, keys_dir, "ssh_host_rsa_key");
+	ssh_import_key(bind, keys_dir, "ssh_host_ed25519_key");
 
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
