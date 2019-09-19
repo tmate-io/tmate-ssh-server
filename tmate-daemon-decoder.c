@@ -26,7 +26,7 @@ static void tmate_header(struct tmate_session *session,
 		     session->client_version, session->client_protocol_version);
 
 	if (tmate_has_websocket()) {
-		/* If we have a websocket, it takes care of all the following notificatons */
+		/* If we have a websocket server, it takes care of all the following notificatons */
 		tmate_send_websocket_header(session);
 		return;
 	}
