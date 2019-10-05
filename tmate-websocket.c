@@ -342,8 +342,16 @@ static void on_websocket_encoder_write(void *userdata, struct evbuffer *buffer)
 
 static void on_websocket_event_default(__unused struct tmate_session *session, short events)
 {
-	if (events & BEV_EVENT_EOF)
+	if (events & BEV_EVENT_EOF) {
+		if (session->fin_received) {
+			/*
+			 * This is expected. The websocket will close the
+			 * connection upon receiving the fin message.
+			 */
+			exit(0);
+		}
 		tmate_fatal("Connection to websocket server closed");
+	}
 
 	if (events & BEV_EVENT_ERROR)
 		tmate_fatal("Connection to websocket server error: %s",

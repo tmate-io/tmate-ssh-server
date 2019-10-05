@@ -246,6 +246,7 @@ struct tmate_session {
 	const char *client_version;
 	int client_protocol_version;
 	struct event ev_notify_timer;
+	bool fin_received;
 
 	int websocket_fd;
 	struct bufferevent *bev_websocket;

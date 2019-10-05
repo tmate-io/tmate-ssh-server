@@ -404,6 +404,7 @@ static void tmate_write_copy_mode(__unused struct tmate_session *session,
 static void tmate_fin(__unused struct tmate_session *session,
 		      __unused struct tmate_unpacker *uk)
 {
+	session->fin_received = true;
 	request_server_termination();
 }
 
