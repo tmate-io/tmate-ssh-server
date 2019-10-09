@@ -400,10 +400,10 @@ static void ssh_import_key(ssh_bind bind, const char *keys_dir, const char *name
 
 	sprintf(path, "%s/%s", keys_dir, name);
 
-	if (access(path, F_OK) < 0) {
-		tmate_warn("Skipping host key %s", path);
+	if (access(path, F_OK) < 0)
 		return;
-	}
+
+	tmate_notice("Loading key %s", path);
 
 	ssh_pki_import_privkey_file(path, NULL, NULL, NULL, &key);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, key);
