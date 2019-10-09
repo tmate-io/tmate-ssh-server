@@ -22,7 +22,7 @@ COPY . .
 
 RUN set -ex; \
 	./autogen.sh; \
-	./configure --prefix=/usr CFLAGS="-D_GNU_SOURCE"; \
+	./configure --enable-latency --prefix=/usr CFLAGS="-D_GNU_SOURCE"; \
 	make -j "$(nproc)"; \
   ln -s /src/tmate-ssh-server/tmate-ssh-server /usr/bin
 

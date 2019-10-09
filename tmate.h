@@ -146,7 +146,7 @@ extern void tmate_flush_pty(struct tmate_session *session);
 #ifdef ENABLE_LATENCY
 #define TMATE_SSH_KEEPALIVE 10
 #else
-#define TMATE_SSH_KEEPALIVE 50
+#define TMATE_SSH_KEEPALIVE 300
 #endif
 
 #define TMATE_ROLE_DAEMON	1

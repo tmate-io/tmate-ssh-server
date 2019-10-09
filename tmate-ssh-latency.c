@@ -30,10 +30,11 @@ static void on_keepalive_timer(__unused evutil_socket_t fd,
 	struct tmate_ssh_client *client = arg;
 
 	/*
-	 * libssh-0.8.4 or higher have a broken keepalive implementation due
-	 * to packet filtering.
+	 * libssh 0.8.4, 0.8.5, and 0.8.6 can't handle the response of the
+	 * keepalives due to packet filtering.
 	 */
-	if (ssh_version(SSH_VERSION_INT(0,8,4)))
+
+	if (ssh_version(SSH_VERSION_INT(0,8,4)) && !ssh_version(SSH_VERSION_INT(0,8,7)))
 		return;
 
 	if (ssh_send_keepalive(client->session) == SSH_ERROR)
