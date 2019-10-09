@@ -24,13 +24,6 @@ PKG_PROG_PKG_CONFIG
 test "$sysconfdir" = '${prefix}/etc' && sysconfdir=/etc
 
 AC_ARG_ENABLE(
-	latency,
-	AC_HELP_STRING(--enable-latency, "enable latency (requires libssh head)"),
-	found_latency=$enable_latency
-)
-AM_CONDITIONAL(IS_LATENCY, test "x$found_latency" = xyes)
-
-AC_ARG_ENABLE(
 	devenv,
 	AC_HELP_STRING(--enable-devenv, "dev env (port 2200, no random tokens)"),
 	found_devenv=$enable_devenv

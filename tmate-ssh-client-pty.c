@@ -5,12 +5,6 @@
 #include "tmate.h"
 
 extern void client_signal(int sig);
-extern void client_report_latency(int latency_ms);
-
-static void on_latency_callback(__unused void *userdata, int latency_ms)
-{
-	client_report_latency(latency_ms);
-}
 
 static int on_ssh_channel_read(__unused ssh_session _session,
 			       __unused ssh_channel channel,
@@ -116,6 +110,4 @@ void tmate_client_pty_init(struct tmate_session *session)
 	event_set(&session->ev_pty, session->pty,
 		  EV_READ | EV_PERSIST, __on_pty_event, session);
 	event_add(&session->ev_pty, NULL);
-
-	tmate_add_ssh_latency_callback(client, on_latency_callback, session);
 }

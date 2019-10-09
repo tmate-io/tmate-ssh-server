@@ -64,9 +64,6 @@ void		client_dispatch(struct imsg *, void *);
 void		client_dispatch_attached(struct imsg *);
 void		client_dispatch_wait(struct imsg *, const char *);
 const char     *client_exit_message(void);
-#ifdef TMATE_SLAVE
-void client_report_latency(int latency_ms);
-#endif
 
 /*
  * Get server create lock. If already held then server start is happening in
@@ -731,10 +728,3 @@ client_dispatch_attached(struct imsg *imsg)
 		break;
 	}
 }
-
-#ifdef TMATE_SLAVE
-void client_report_latency(int latency_ms)
-{
-	proc_send(client_peer, MSG_LATENCY, -1, &latency_ms, sizeof(latency_ms));
-}
-#endif

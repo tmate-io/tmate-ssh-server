@@ -245,23 +245,6 @@ void tmate_notify_client_left(__unused struct tmate_session *session,
 	pack(int, c->id);
 }
 
-void tmate_notify_latency(__unused struct tmate_session *session,
-			  struct client *c, int latency_ms)
-{
-	int cid;
-
-	if (!tmate_has_websocket())
-		return;
-
-	cid = c ? c->id : -1;
-	tmate_debug("Client latency (cid=%d): %dms", cid, latency_ms);
-
-	pack(array, 3);
-	pack(int, TMATE_CTL_LATENCY);
-	pack(int, cid);
-	pack(int, latency_ms);
-}
-
 void tmate_send_websocket_daemon_msg(__unused struct tmate_session *session,
 				     struct tmate_unpacker *uk)
 {

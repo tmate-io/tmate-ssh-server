@@ -25,10 +25,6 @@ if IS_DEVENV
 CFLAGS += -DDEVENV
 endif
 
-if IS_LATENCY
-CFLAGS += -DENABLE_LATENCY
-endif
-
 if IS_LINUX
 CFLAGS += -rdynamic # for stack traces
 endif

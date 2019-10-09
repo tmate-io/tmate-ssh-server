@@ -1,12 +1,6 @@
 #include "tmate.h"
 #include <errno.h>
 
-static void on_latency_callback(void *userdata, int latency_ms)
-{
-	struct tmate_session *session = userdata;
-	tmate_notify_latency(session, NULL, latency_ms);
-}
-
 static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
@@ -86,6 +80,4 @@ void tmate_daemon_init(struct tmate_session *session)
 	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
 	tmate_init_websocket(session, NULL);
-
-	tmate_add_ssh_latency_callback(client, on_latency_callback, session);
 }

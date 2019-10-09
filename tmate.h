@@ -143,11 +143,7 @@ extern void tmate_flush_pty(struct tmate_session *session);
 /* tmate-ssh-server.c */
 
 #define TMATE_SSH_BANNER "tmate"
-#ifdef ENABLE_LATENCY
-#define TMATE_SSH_KEEPALIVE 10
-#else
-#define TMATE_SSH_KEEPALIVE 300
-#endif
+#define TMATE_SSH_KEEPALIVE_SEC 300
 
 #define TMATE_ROLE_DAEMON	1
 #define TMATE_ROLE_PTY_CLIENT	2
@@ -156,11 +152,7 @@ extern void tmate_flush_pty(struct tmate_session *session);
 struct tmate_ssh_client;
 typedef void ssh_client_latency_cb(void *userdata, int latency_ms);
 extern char *get_ssh_conn_string(const char *session_token);
-extern void tmate_start_ssh_latency_probes(struct tmate_ssh_client *client,
-					   struct ssh_server_callbacks_struct *server_callbacks,
-					   int keepalive_interval_ms);
-extern void tmate_add_ssh_latency_callback(struct tmate_ssh_client *client,
-					   ssh_client_latency_cb cb, void *userdata);
+extern void start_keepalive_timer(struct tmate_ssh_client *client, int timeout_ms);
 
 struct tmate_ssh_client {
 	char ip_address[64];
@@ -186,11 +178,6 @@ struct tmate_ssh_client {
 
 	struct event ev_keepalive_timer;
 	int keepalive_interval_ms;
-#ifdef ENABLE_LATENCY
-	ssh_client_latency_cb *latency_cb;
-	void *latency_cb_userdata;
-	struct timespec keepalive_sent_at;
-#endif
 };
 
 extern void tmate_ssh_server_main(struct tmate_session *session,
@@ -278,7 +265,6 @@ extern void set_session_token(struct tmate_session *session, const char *token);
 extern void tmate_websocket_exec(struct tmate_session *session, const char *command);
 extern void tmate_notify_client_join(struct tmate_session *s, struct client *c);
 extern void tmate_notify_client_left(struct tmate_session *s, struct client *c);
-extern void tmate_notify_latency(struct tmate_session *session, struct client *c, int latency_ms);
 
 extern void tmate_send_websocket_daemon_msg(struct tmate_session *session,
 					struct tmate_unpacker *uk);

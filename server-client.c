@@ -1149,17 +1149,6 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 
 		server_client_dispatch_shell(c);
 		break;
-#ifdef TMATE_SLAVE
-	case MSG_LATENCY:
-		{
-		int latency_ms;
-		if (datalen != sizeof(latency_ms))
-			fatalx("bad MSG_LATENCY size");
-		memcpy(&latency_ms, data, sizeof(latency_ms));
-		tmate_notify_latency(tmate_session, c, latency_ms);
-		}
-		break;
-#endif
 	}
 }
 
