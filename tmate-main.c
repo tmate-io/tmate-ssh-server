@@ -231,9 +231,10 @@ int main(int argc, char **argv, char **envp)
 	return 0;
 }
 
-static char tmate_token_digits[] = "abcdefghijklmnopqrstuvwxyz"
-				   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-				   "0123456789";
+static char tmate_token_digits[] = "abcdefghjkmnpqrstuvwxyz"
+				   "ABCDEFGHJKLMNPQRSTUVWXYZ"
+				   "23456789";
+
 #define NUM_DIGITS (sizeof(tmate_token_digits) - 1)
 
 static char *get_random_token(void)
