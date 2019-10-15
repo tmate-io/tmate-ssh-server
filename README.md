@@ -27,6 +27,9 @@ The following environment variables are used to configure the server:
 * `SSH_PORT_ADVERTISE`: configures the SSH port to advertise to tmate hosts.
   Defaults to `SSH_PORT_LISTEN`.
 
+Note that you need to add the *SYS_ADMIN* capability to the container.
+This is needed to create nested containers (namespaces) to secure sessions.
+
 License
 --------
 
