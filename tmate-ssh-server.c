@@ -201,8 +201,21 @@ static int auth_pubkey_cb(__unused ssh_session session,
 	}
 }
 
+static int auth_none_cb(ssh_session session, const char *user, void *userdata)
+{
+	(void)session;
+
+	struct tmate_ssh_client *client = userdata;
+
+	client->username = xstrdup(user);
+	client->pubkey = xstrdup("none");
+
+	return SSH_AUTH_SUCCESS;
+}
+
 static struct ssh_server_callbacks_struct ssh_server_cb = {
 	.auth_pubkey_function = auth_pubkey_cb,
+	.auth_none_function = auth_none_cb,
 	.channel_open_request_session_function = channel_open_request_cb,
 };
 
@@ -268,7 +281,10 @@ static void client_bootstrap(struct tmate_session *_session)
 	ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &grace_period);
 	ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes");
 
-	ssh_set_auth_methods(client->session, SSH_AUTH_METHOD_PUBLICKEY);
+	unsigned int auth_flags = SSH_AUTH_METHOD_PUBLICKEY;
+	if (!tmate_settings->authorized_keys_path)
+		auth_flags |= SSH_AUTH_METHOD_NONE;
+	ssh_set_auth_methods(client->session, auth_flags);
 
 	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
