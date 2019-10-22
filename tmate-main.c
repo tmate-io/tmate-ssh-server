@@ -32,6 +32,8 @@ static int dev_urandom_fd;
 extern int server_create_socket(void);
 extern int client_connect(struct event_base *base, const char *path, int start_server);
 
+static void tmate_spawn_exec(struct tmate_session *session);
+
 struct tmate_settings _tmate_settings = {
 	.keys_dir        	= TMATE_SSH_DEFAULT_KEYS_DIR,
 	.authorized_keys_path 	= NULL,
@@ -496,6 +498,13 @@ static void tmate_spawn_pty_client(struct tmate_session *session)
 
 	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
 	if (session->tmux_socket_fd < 0) {
+		if (tmate_has_websocket()) {
+			/* Turn the response into an exec to show a better error */
+			client->exec_command = xstrdup("explain-session-not-found");
+			tmate_spawn_exec(session);
+			/* No return */
+		}
+
 		random_sleep(); /* for making timing attacks harder */
 		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
 		tmate_fatal("Expired token");
