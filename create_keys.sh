@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eu
 
+SIG=''
 gen_key() {
   keytype=$1
   ks="${keytype}_"
