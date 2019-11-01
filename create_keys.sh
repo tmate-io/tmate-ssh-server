@@ -7,8 +7,9 @@ gen_key() {
   key="keys/ssh_host_${ks}key"
   if [ ! -e "${key}" ] ; then
     ssh-keygen -t ${keytype} -f "${key}" -N ''
-    SIG=$(ssh-keygen -l -E SHA256 -f $key.pub | cut -d ' ' -f 2)
+    echo ""
   fi
+  SIG=$(ssh-keygen -l -E SHA256 -f $key.pub | cut -d ' ' -f 2)
 }
 
 mkdir -p keys
@@ -18,7 +19,6 @@ gen_key ed25519
 ED25519_SIG=$SIG
 
 
-echo ""
 echo "You may use the following settings this in your .tmate.conf:"
 echo ""
 echo "set -g tmate-server-host localhost"
