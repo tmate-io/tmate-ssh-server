@@ -1,8 +1,19 @@
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <regex.h>
+#include <signal.h>
 #include "tmate.h"
+
+#ifndef HAVE_BACKTRACE
+
+void tmate_print_stack_trace(void) {}
+void tmate_catch_sigsegv(void) {}
+void tmate_preload_trace_lib(void) {}
+
+#else
 
 #if DEBUG
 
@@ -47,7 +58,7 @@ static int print_resolved_stack_frame(const char *frame)
 		return -1;
 
 	line[strlen(line)-1] = 0; /* remove \n */
-	tmate_crit("%s(%s) [%s]", file, line, address);
+	tmate_debug("%s(%s) [%s]", file, line, address);
 	return 0;
 }
 #endif
@@ -59,23 +70,42 @@ void tmate_print_stack_trace(void)
 	char **strings;
 	size_t i;
 
-	size = backtrace(array, 20);
-	strings = backtrace_symbols(array, size);
+	size = backtrace (array, 20);
+	strings = backtrace_symbols (array, size);
 
-	tmate_crit("============ %zd stack frames ============", size);
+	tmate_info ("============ %zd stack frames ============", size);
 
 	for (i = 1; i < size; i++) {
 #if DEBUG
 		if (print_resolved_stack_frame(strings[i]) < 0)
 #endif
-			tmate_crit("%s", strings[i]);
+			tmate_info("%s", strings[i]);
 	}
 
-	free(strings);
+	free (strings);
+}
+
+static void handle_crash(__unused int sig)
+{
+	/*
+	 * XXX we are in a signal handler, we are not allowed to use malloc
+	 * and friends, which is what we do
+	 */
+	tmate_info("CRASH, printing stack trace");
+	tmate_print_stack_trace();
+	tmate_fatal("CRASHED");
+}
+
+void tmate_catch_sigsegv(void)
+{
+	signal(SIGSEGV, handle_crash);
+	signal(SIGABRT, handle_crash);
 }
 
 void tmate_preload_trace_lib(void)
 {
-	void *array[1];
-	backtrace(array, 1);
+       void *array[1];
+       backtrace(array, 1);
 }
+
+#endif

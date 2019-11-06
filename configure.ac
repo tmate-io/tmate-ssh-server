@@ -100,6 +100,7 @@ AC_CHECK_HEADERS(
 		inttypes.h \
 		libutil.h \
 		ncurses.h \
+		execinfo.h \
 		ndir.h \
 		paths.h \
 		pty.h \
@@ -121,6 +122,7 @@ AC_CHECK_FUNCS(
 	[ \
 		dirfd \
 		flock \
+		backtrace \
 		setproctitle \
 		sysconf \
 		cfmakeraw \

@@ -282,6 +282,7 @@ static inline bool tmate_has_websocket(void)
 
 extern void tmate_preload_trace_lib(void);
 extern void tmate_print_stack_trace(void);
+extern void tmate_catch_sigsegv(void);
 
 /* tmux.c */
 

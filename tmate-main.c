@@ -213,6 +213,7 @@ int main(int argc, char **argv, char **envp)
 	cmdline_end = *envp;
 
 	tmate_preload_trace_lib();
+	tmate_catch_sigsegv();
 
 	if ((dev_urandom_fd = open("/dev/urandom", O_RDONLY)) < 0)
 		tmate_fatal("Cannot open /dev/urandom");
