@@ -207,10 +207,7 @@ static int auth_none_cb(ssh_session session, const char *user, void *userdata)
 
 	struct tmate_ssh_client *client = userdata;
 
-	client->username = xstrdup(user);
-	client->pubkey = xstrdup("none");
-
-	return SSH_AUTH_SUCCESS;
+	return SSH_AUTH_DENIED;
 }
 
 static struct ssh_server_callbacks_struct ssh_server_cb = {
