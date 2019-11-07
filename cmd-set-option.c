@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "tmux.h"
+#include "tmate.h"
 
 /*
  * Set an option.
@@ -112,6 +113,11 @@ cmd_set_option_exec(struct cmd *self, struct cmd_q *cmdq)
 		valstr = NULL;
 	else
 		valstr = args->argv[1];
+
+#ifdef TMATE_SLAVE
+	if (!args_has(args, 'u'))
+		tmate_hook_set_option(optstr, valstr);
+#endif
 
 	/* Is this a user option? */
 	if (*optstr == '@')

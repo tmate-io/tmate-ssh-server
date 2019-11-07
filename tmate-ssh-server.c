@@ -127,7 +127,7 @@ static ssh_channel channel_open_request_cb(ssh_session session, void *userdata)
 
 static int auth_pubkey_cb(__unused ssh_session session,
 			  const char *user,
-			  struct ssh_key_struct *pubkey,
+			  ssh_key pubkey,
 			  char signature_state, void *userdata)
 {
 	struct tmate_ssh_client *client = userdata;
@@ -135,8 +135,23 @@ static int auth_pubkey_cb(__unused ssh_session session,
 	switch (signature_state) {
 	case SSH_PUBLICKEY_STATE_VALID:
 		client->username = xstrdup(user);
-		if (ssh_pki_export_pubkey_base64(pubkey, &client->pubkey) != SSH_OK)
+
+		const char *key_type = ssh_key_type_to_char(ssh_key_type(pubkey));
+
+		char *b64_key;
+		if (ssh_pki_export_pubkey_base64(pubkey, &b64_key) != SSH_OK)
 			tmate_fatal("error getting public key");
+
+		char *pubkey64;
+		xasprintf(&pubkey64, "%s %s", key_type, b64_key);
+		free(b64_key);
+
+		if (!would_tmate_session_allow_auth(user, pubkey64)) {
+			free(pubkey64);
+			return SSH_AUTH_DENIED;
+		}
+
+		client->pubkey = pubkey64;
 
 		return SSH_AUTH_SUCCESS;
 	case SSH_PUBLICKEY_STATE_NONE:
@@ -146,14 +161,15 @@ static int auth_pubkey_cb(__unused ssh_session session,
 	}
 }
 
-static int auth_none_cb(ssh_session session, const char *user, void *userdata)
+static int auth_none_cb(__unused ssh_session session, const char *user, void *userdata)
 {
-	(void)session;
-
 	struct tmate_ssh_client *client = userdata;
 
+	if (!would_tmate_session_allow_auth(user, NULL))
+		return SSH_AUTH_DENIED;
+
 	client->username = xstrdup(user);
-	client->pubkey = xstrdup("none");
+	client->pubkey = NULL;
 
 	return SSH_AUTH_SUCCESS;
 }

@@ -6,20 +6,43 @@
 
 char *tmate_left_status, *tmate_right_status;
 
+static void tmate_ready(struct tmate_session *session,
+			__unused struct tmate_unpacker *uk)
+{
+	/* This message is also used by the websocket server */
+
+	/*
+	 * We only start accepting connections once the host is ready, this
+	 * way we have the authorized keys loaded correctly
+	 */
+
+	if (session->authorized_keys) {
+		int count = get_num_authorized_keys(session->authorized_keys);
+		tmate_info("Restricting ssh access, num_keys=%d", count);
+	}
+	server_add_accept(0);
+}
+
 static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	char *ssh_conn_str;
 
 	session->client_protocol_version = unpack_int(uk);
-	if (session->client_protocol_version <= 4) {
-		session->daemon_encoder.mpac_version = 4;
-	}
 
 	if (session->client_protocol_version >= 3) {
 		session->client_version = unpack_string(uk);
 	} else {
 		session->client_version = xstrdup("1.8.5");
+	}
+
+	if (session->client_protocol_version < 6) {
+		/* older clients don't send a ready message */
+		tmate_ready(session, NULL);
+	}
+
+	if (session->client_protocol_version < 5) {
+		session->daemon_encoder.mpac_version = 4;
 	}
 
 	tmate_notice("Daemon header: client version: %s, protocol version: %d",
@@ -44,13 +67,6 @@ static void tmate_header(struct tmate_session *session,
 
 	tmate_send_client_ready();
 }
-
-static void tmate_ready(__unused struct tmate_session *session,
-			__unused struct tmate_unpacker *uk)
-{
-	/* used by the websocket */
-}
-
 
 extern u_int next_window_pane_id;
 

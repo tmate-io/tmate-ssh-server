@@ -1,7 +1,7 @@
 #include "tmate.h"
 #include "tmate-protocol.h"
 
-#define pack(what, ...) _pack(&tmate_session->daemon_encoder, what, __VA_ARGS__)
+#define pack(what, ...) _pack(&tmate_session->daemon_encoder, what, ##__VA_ARGS__)
 
 static void __tmate_notify(const char *msg)
 {

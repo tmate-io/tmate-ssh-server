@@ -33,6 +33,12 @@ extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
  	exit(1);						\
 })
 
+/* tmate-auth-keys.c */
+extern void tmate_hook_set_option(const char *name, const char *val);
+extern bool tmate_allow_auth(const char *pubkey);
+extern bool would_tmate_session_allow_auth(const char *token, const char *pubkey);
+extern int get_num_authorized_keys(ssh_key *keys);
+
 /* tmate-msgpack.c */
 
 typedef void tmate_encoder_write_cb(void *userdata, struct evbuffer *buffer);
@@ -57,7 +63,7 @@ extern void msgpack_pack_boolean(msgpack_packer *pk, bool value);
 extern int _msgpack_pack_object(msgpack_packer *pk, msgpack_object d);
 #define msgpack_pack_object _msgpack_pack_object
 
-#define _pack(enc, what, ...) msgpack_pack_##what(&(enc)->pk, __VA_ARGS__)
+#define _pack(enc, what, ...) msgpack_pack_##what(&(enc)->pk, ##__VA_ARGS__)
 
 struct tmate_unpacker;
 struct tmate_decoder;
@@ -222,6 +228,8 @@ struct tmate_session {
 	int tmux_socket_fd;
 
 	/* only for role deamon */
+	ssh_key *authorized_keys; /* array with NULL as last element */
+
 	const char *session_token;
 	const char *session_token_ro;
 	const char *obfuscated_session_token; /* for logging purposes */

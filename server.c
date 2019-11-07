@@ -190,9 +190,8 @@ server_start(struct event_base *base, int lockfd, char *lockfile)
 
 #ifndef TMATE_SLAVE
 	status_prompt_load_history();
-#endif
-
 	server_add_accept(0);
+#endif
 
 	proc_loop(server_proc, server_loop);
 #ifndef TMATE_SLAVE
@@ -379,6 +378,7 @@ server_signal(int sig)
 	case SIGCHLD:
 		server_child_signal();
 		break;
+#ifndef TMATE_SLAVE
 	case SIGUSR1:
 		event_del(&server_ev_accept);
 		fd = server_create_socket();
@@ -389,6 +389,7 @@ server_signal(int sig)
 		}
 		server_add_accept(0);
 		break;
+#endif
 	}
 }
 

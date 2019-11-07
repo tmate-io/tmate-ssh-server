@@ -16,7 +16,14 @@
 
 #define CONTROL_PROTOCOL_VERSION 2
 
-#define pack(what, ...) _pack(&tmate_session->websocket_encoder, what, __VA_ARGS__)
+#define pack(what, ...) _pack(&tmate_session->websocket_encoder, what, ##__VA_ARGS__)
+
+#define pack_string_or_nil(str) ({ \
+	if (str) \
+		pack(string, str); \
+	else \
+		pack(nil); \
+})
 
 static void ctl_daemon_fwd_msg(__unused struct tmate_session *session,
 			       struct tmate_unpacker *uk)
@@ -205,7 +212,7 @@ void tmate_websocket_exec(struct tmate_session *session, const char *command)
 	pack(int, TMATE_CTL_EXEC);
 	pack(string, client->username);
 	pack(string, client->ip_address);
-	pack(string, client->pubkey);
+	pack_string_or_nil(client->pubkey);
 	pack(string, command);
 }
 
@@ -223,7 +230,7 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 	pack(int, TMATE_CTL_CLIENT_JOIN);
 	pack(int, c->id);
 	pack(string, c->ip_address);
-	pack(string, c->pubkey);
+	pack_string_or_nil(c->pubkey);
 	pack(boolean, c->readonly);
 }
 
@@ -270,7 +277,7 @@ void tmate_send_websocket_header(struct tmate_session *session)
 	pack(int, TMATE_CTL_HEADER);
 	pack(int, CONTROL_PROTOCOL_VERSION);
 	pack(string, session->ssh_client.ip_address);
-	pack(string, session->ssh_client.pubkey);
+	pack_string_or_nil(session->ssh_client.pubkey);
 	pack(string, session->session_token);
 	pack(string, session->session_token_ro);
 

@@ -175,6 +175,7 @@ dist_tmate_ssh_server_SOURCES = \
 	signal.c \
 	status.c \
 	style.c \
+	tmate-auth-keys.c \
 	tmate-daemon-decoder.c \
 	tmate-daemon-encoder.c \
 	tmate-daemon-legacy.c \

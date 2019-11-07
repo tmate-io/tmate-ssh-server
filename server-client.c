@@ -266,7 +266,9 @@ server_client_lost(struct client *c)
 
 	server_client_unref(c);
 
+#ifndef TMATE_SLAVE
 	server_add_accept(0); /* may be more file descriptors now */
+#endif
 
 	recalculate_sizes();
 	server_check_unattached();
@@ -1057,6 +1059,11 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 	if (c->flags & CLIENT_DEAD)
 		return;
 
+#ifdef TMATE_SLAVE
+	if (c->flags & CLIENT_EXIT)
+		return;
+#endif
+
 	if (imsg == NULL) {
 		server_client_lost(c);
 		return;
@@ -1064,6 +1071,24 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 
 	data = imsg->data;
 	datalen = imsg->hdr.len - IMSG_HEADER_SIZE;
+
+#ifdef TMATE_SLAVE
+	switch (imsg->hdr.type) {
+	case MSG_IDENTIFY_TMATE_IP_ADDRESS:
+	case MSG_IDENTIFY_TMATE_AUTH_NONE:
+	case MSG_IDENTIFY_TMATE_AUTH_PUBKEY:
+	case MSG_IDENTIFY_TMATE_READONLY:
+		server_client_dispatch_identify(c, imsg);
+		return;
+	}
+
+	if (!(c->flags & CLIENT_TMATE_AUTHENTICATED)) {
+		control_write(c, "Authentication needed");
+		tmate_warn("Dropping unauthenticated client");
+		c->flags |= CLIENT_EXIT;
+		return;
+	}
+#endif
 
 	switch (imsg->hdr.type) {
 	case MSG_IDENTIFY_FLAGS:
@@ -1074,13 +1099,18 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 	case MSG_IDENTIFY_ENVIRON:
 	case MSG_IDENTIFY_CLIENTPID:
 	case MSG_IDENTIFY_DONE:
-#ifdef TMATE_SLAVE
-	case MSG_IDENTIFY_TMATE_IP_ADDRESS:
-	case MSG_IDENTIFY_TMATE_PUBKEY:
-	case MSG_IDENTIFY_TMATE_READONLY:
-#endif
 		server_client_dispatch_identify(c, imsg);
-		break;
+		return;
+	}
+
+#ifdef TMATE_SLAVE
+	if (!(c->flags & CLIENT_IDENTIFIED)) {
+		tmate_warn("dropping unidentified client message: %d", imsg->hdr.type);
+		return;
+	}
+#endif
+
+	switch (imsg->hdr.type) {
 	case MSG_COMMAND:
 		server_client_dispatch_command(c, imsg);
 		break;
@@ -1205,6 +1235,15 @@ error:
 	c->flags |= CLIENT_EXIT;
 }
 
+static void handle_tmate_auth(struct client *c)
+{
+	bool allow = tmate_allow_auth(c->pubkey);
+	if (allow)
+		c->flags |= CLIENT_TMATE_AUTHENTICATED;
+
+	proc_send(c->peer, MSG_TMATE_AUTH_STATUS, -1, &allow, sizeof(allow));
+}
+
 /* Handle identify message. */
 void
 server_client_dispatch_identify(struct client *c, struct imsg *imsg)
@@ -1275,11 +1314,19 @@ server_client_dispatch_identify(struct client *c, struct imsg *imsg)
 			fatalx("bad MSG_IDENTIFY_TMATE_IP_ADDRESS string");
 		c->ip_address = xstrdup(data);
 		break;
-	case MSG_IDENTIFY_TMATE_PUBKEY:
+
+	case MSG_IDENTIFY_TMATE_AUTH_NONE:
+		assert(!c->pubkey);
+		handle_tmate_auth(c);
+		break;
+
+	case MSG_IDENTIFY_TMATE_AUTH_PUBKEY:
 		if (datalen == 0 || data[datalen - 1] != '\0')
 			fatalx("bad MSG_IDENTIFY_TMATE_PUBKEY string");
 		c->pubkey = xstrdup(data);
+		handle_tmate_auth(c);
 		break;
+
 	case MSG_IDENTIFY_TMATE_READONLY:
 		if (datalen != 1)
 			fatalx("bad MSG_IDENTIFY_TMATE_READONLY size");
@@ -1370,6 +1417,9 @@ server_client_push_stdout(struct client *c)
 	struct msg_stdout_data data;
 	size_t                 sent, left;
 
+	if (!(c->flags & CLIENT_TMATE_AUTHENTICATED))
+		return;
+
 	left = EVBUFFER_LENGTH(c->stdout_data);
 	while (left != 0) {
 		sent = left;
@@ -1410,6 +1460,9 @@ server_client_push_stderr(struct client *c)
 {
 	struct msg_stderr_data data;
 	size_t                 sent, left;
+
+	if (!(c->flags & CLIENT_TMATE_AUTHENTICATED))
+		return;
 
 	if (c->stderr_data == c->stdout_data) {
 		server_client_push_stdout(c);

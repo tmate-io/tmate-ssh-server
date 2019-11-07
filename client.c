@@ -401,20 +401,24 @@ client_send_identify(const char *ttynam, const char *cwd)
 	int		  fd, flags = client_flags;
 	pid_t		  pid;
 
-	proc_send(client_peer, MSG_IDENTIFY_FLAGS, -1, &flags, sizeof flags);
-
 #ifdef TMATE_SLAVE
-	proc_send(client_peer, MSG_IDENTIFY_TMATE_IP_ADDRESS, -1,
-		  tmate_session->ssh_client.ip_address,
-		  strlen(tmate_session->ssh_client.ip_address) + 1);
-
-	proc_send(client_peer, MSG_IDENTIFY_TMATE_PUBKEY, -1,
-		  tmate_session->ssh_client.pubkey,
-		  strlen(tmate_session->ssh_client.pubkey) + 1);
+	if (tmate_session->ssh_client.pubkey) {
+		proc_send(client_peer, MSG_IDENTIFY_TMATE_AUTH_PUBKEY, -1,
+			  tmate_session->ssh_client.pubkey,
+			  strlen(tmate_session->ssh_client.pubkey) + 1);
+	} else {
+		proc_send(client_peer, MSG_IDENTIFY_TMATE_AUTH_NONE, -1, NULL, 0);
+	}
 
 	proc_send(client_peer, MSG_IDENTIFY_TMATE_READONLY,
 		  -1, &tmate_session->readonly, 1);
+
+	proc_send(client_peer, MSG_IDENTIFY_TMATE_IP_ADDRESS, -1,
+		  tmate_session->ssh_client.ip_address,
+		  strlen(tmate_session->ssh_client.ip_address) + 1);
 #endif
+
+	proc_send(client_peer, MSG_IDENTIFY_FLAGS, -1, &flags, sizeof flags);
 
 	if ((s = getenv("TERM")) == NULL)
 		s = "";
@@ -657,6 +661,8 @@ client_dispatch_wait(struct imsg *imsg, const char *shellcmd)
 		break;
 	case MSG_EXITED:
 		proc_exit(client_proc);
+		break;
+	case MSG_TMATE_AUTH_STATUS:
 		break;
 	}
 }
