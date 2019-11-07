@@ -217,7 +217,7 @@ status_redraw_get_left(struct client *c, time_t t, struct grid_cell *gc,
 	char		*left;
 	size_t		 leftlen;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	left = xstrdup(tmate_left_status ?: "");
 #else
 	style_apply_update(gc, s->options, "status-left-style");
@@ -243,7 +243,7 @@ status_redraw_get_right(struct client *c, time_t t, struct grid_cell *gc,
 	char		*right;
 	size_t		 rightlen;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	right = xstrdup(tmate_right_status ?: "");
 #else
 	style_apply_update(gc, s->options, "status-right-style");
@@ -530,7 +530,7 @@ status_print(struct client *c, struct winlink *wl, time_t t,
 	const char	*fmt;
 	char   		*text;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	/* TODO use the host winlink status */
 #endif
 

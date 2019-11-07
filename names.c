@@ -25,7 +25,7 @@
 
 #include "tmux.h"
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 
 char *
 default_window_name(struct window *w)

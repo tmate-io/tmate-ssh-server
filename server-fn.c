@@ -294,7 +294,7 @@ void
 server_destroy_pane(struct window_pane *wp, int hooks)
 {
 	struct window		*w = wp->window;
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	int			 old_fd;
 	struct screen_write_ctx	 ctx;
 	struct grid_cell	 gc;
@@ -330,7 +330,7 @@ server_destroy_pane(struct window_pane *wp, int hooks)
 #endif
 
 	server_unzoom_window(w);
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	layout_close_pane(wp);
 	window_remove_pane(w, wp);
 

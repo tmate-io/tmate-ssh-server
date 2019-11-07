@@ -49,7 +49,7 @@ job_run(const char *cmd, struct session *s, const char *cwd,
 	int		 nullfd, out[2];
 	const char	*home;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	return NULL;
 #endif
 

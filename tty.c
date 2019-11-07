@@ -166,7 +166,7 @@ tty_init(struct tty *tty, struct client *c, int fd, char *term)
 	tty->fd = fd;
 	tty->client = c;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	tty->path = NULL;
 #else
 	if ((path = ttyname(fd)) == NULL)

@@ -191,7 +191,7 @@ cmdq_continue_one(struct cmd_q *cmdq)
 	char		*tmp;
 	int		 flags = !!(cmd->flags & CMD_CONTROL);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	int client_id;
 	if (!tmate_should_exec_cmd_locally(cmd->entry)) {
 		client_id = cmdq->client ? cmdq->client->id : -1;

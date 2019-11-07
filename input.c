@@ -839,7 +839,7 @@ input_parse(struct window_pane *wp)
 {
 	struct input_ctx		*ictx = wp->ictx;
 	const struct input_transition	*itr;
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	struct evbuffer			*evb = wp->event_input;
 #else
 	struct evbuffer			*evb = wp->event->input;
@@ -961,7 +961,7 @@ input_get(struct input_ctx *ictx, u_int validx, int minval, int defval)
 void
 input_reply(struct input_ctx *ictx, const char *fmt, ...)
 {
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	va_list	ap;
 	char   *reply;
 

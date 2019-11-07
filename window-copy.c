@@ -61,7 +61,7 @@ window_copy_init(struct window_pane *wp)
 	data->searchtype = WINDOW_COPY_OFF;
 	data->searchstr = NULL;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	if (wp->fd != -1)
 		bufferevent_disable(wp->event, EV_READ|EV_WRITE);
 #endif
@@ -125,7 +125,7 @@ window_copy_free(struct window_pane *wp)
 {
 	struct window_copy_mode_data	*data = wp->modedata;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	if (wp->fd != -1)
 		bufferevent_enable(wp->event, EV_READ|EV_WRITE);
 #endif
@@ -1407,7 +1407,7 @@ window_copy_copy_pipe(struct window_pane *wp, struct session *sess,
 	struct format_tree	*ft;
 	char			*expanded;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	/* that job_run() is not going to end well */
 	return;
 #endif

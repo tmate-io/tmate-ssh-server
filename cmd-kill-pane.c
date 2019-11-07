@@ -44,7 +44,7 @@ const struct cmd_entry cmd_kill_pane_entry = {
 enum cmd_retval
 cmd_kill_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	return (CMD_RETURN_ERROR);
 #else
 	struct winlink		*wl = cmdq->state.tflag.wl;

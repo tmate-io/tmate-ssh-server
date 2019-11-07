@@ -297,7 +297,7 @@ window_create1(u_int sx, u_int sy)
 	TAILQ_INIT(&w->panes);
 	w->active = NULL;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	w->lastlayout = -1;
 	w->layout_root = NULL;
 #endif
@@ -327,7 +327,7 @@ window_create(const char *name, int argc, char **argv, const char *path,
 
 	w = window_create1(sx, sy);
 	wp = window_add_pane(w, hlimit);
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	layout_init(w, wp);
 #endif
 
@@ -352,7 +352,7 @@ window_destroy(struct window *w)
 {
 	RB_REMOVE(windows, &windows, w);
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	if (w->layout_root != NULL)
 		layout_free_cell(w->layout_root);
 	if (w->saved_layout_root != NULL)
@@ -523,7 +523,7 @@ window_zoom(struct window_pane *wp)
 	if (w->active != wp)
 		window_set_active_pane(w, wp);
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	TAILQ_FOREACH(wp1, &w->panes, entry) {
 		wp1->saved_layout_cell = wp1->layout_cell;
 		wp1->layout_cell = NULL;
@@ -548,7 +548,7 @@ window_unzoom(struct window *w)
 
 	w->flags &= ~WINDOW_ZOOMED;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	layout_free(w);
 	w->layout_root = w->saved_layout_root;
 	w->saved_layout_root = NULL;
@@ -752,7 +752,7 @@ window_pane_create(struct window *w, u_int sx, u_int sy, u_int hlimit)
 	wp->shell = NULL;
 	wp->cwd = NULL;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	wp->event_input = evbuffer_new();
 #else
 	wp->fd = -1;
@@ -761,7 +761,7 @@ window_pane_create(struct window *w, u_int sx, u_int sy, u_int hlimit)
 
 	wp->mode = NULL;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	wp->layout_cell = NULL;
 #endif
 
@@ -798,7 +798,7 @@ window_pane_destroy(struct window_pane *wp)
 	if (event_initialized(&wp->timer))
 		evtimer_del(&wp->timer);
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	evbuffer_free(wp->event_input);
 #else
 	if (wp->fd != -1) {
@@ -834,7 +834,7 @@ window_pane_spawn(struct window_pane *wp, int argc, char **argv,
     const char *path, const char *shell, const char *cwd, struct environ *env,
     struct termios *tio, char **cause)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	return 0;
 #else
 	struct winsize	 ws;
@@ -967,7 +967,7 @@ void
 window_pane_read_callback(__unused struct bufferevent *bufev, void *data)
 {
 	struct window_pane	*wp = data;
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	struct evbuffer		*evb = wp->event_input;
 #else
 	struct evbuffer		*evb = wp->event->input;
@@ -1154,7 +1154,7 @@ void
 window_pane_key(struct window_pane *wp, struct client *c, struct session *s,
     key_code key, struct mouse_event *m)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	/*
 	 * pane_id == -1,  which means that we should send the keys to
 	 * the active pane. This is better due to latency issues in
@@ -1199,7 +1199,7 @@ window_pane_visible(struct window_pane *wp)
 {
 	struct window	*w = wp->window;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	if (wp->layout_cell == NULL)
 		return (0);
 #endif

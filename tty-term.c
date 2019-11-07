@@ -407,7 +407,7 @@ tty_term_find(char *name, int fd, char **cause)
 	LIST_INSERT_HEAD(&tty_terms, term, entry);
 
 	/* we are in a jail, no access to files */
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	/* Set up curses terminal. */
 	if (setupterm(name, fd, &error) != OK) {
 		switch (error) {
@@ -537,7 +537,7 @@ error:
 void
 tty_term_free(struct tty_term *term)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	/*
 	 * We need to keep the term in memory, because we are in a jail, with
 	 * no file system, so we can't reload them.

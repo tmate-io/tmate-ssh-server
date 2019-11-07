@@ -24,7 +24,7 @@
 
 #include "tmux.h"
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 
 struct event	ev_sighup;
 struct event	ev_sigchld;

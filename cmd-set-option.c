@@ -114,7 +114,7 @@ cmd_set_option_exec(struct cmd *self, struct cmd_q *cmdq)
 	else
 		valstr = args->argv[1];
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	if (!args_has(args, 'u'))
 		tmate_hook_set_option(optstr, valstr);
 #endif
@@ -191,7 +191,7 @@ cmd_set_option_exec(struct cmd *self, struct cmd_q *cmdq)
 	}
 
 	/* Start or stop timers if necessary. */
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	if (strcmp(oe->name, "automatic-rename") == 0) {
 		RB_FOREACH(w, windows, &windows) {
 			if (options_get_number(w->options, "automatic-rename"))

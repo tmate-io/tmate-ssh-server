@@ -23,7 +23,7 @@
 
 #include "tmux.h"
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 
 struct layout_cell     *layout_find_bottomright(struct layout_cell *);
 u_short			layout_checksum(const char *);

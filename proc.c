@@ -172,7 +172,7 @@ proc_start(const char *name, struct event_base *base, int forkflag,
 	struct tmuxproc	*tp;
 	struct utsname	 u;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	if (forkflag)
 		fatal("can't fork");
 #else
@@ -210,7 +210,7 @@ proc_start(const char *name, struct event_base *base, int forkflag,
 	tp = xcalloc(1, sizeof *tp);
 	tp->name = xstrdup(name);
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	tp->signalcb = signalcb;
 	set_signals(proc_signal_cb, tp);
 #endif
@@ -226,7 +226,7 @@ proc_loop(struct tmuxproc *tp, int (*loopcb)(void))
 		event_loop(EVLOOP_ONCE);
 	while (!tp->exit && (loopcb == NULL || !loopcb ()));
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	/* flush data on sockets */
 	event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
 #endif

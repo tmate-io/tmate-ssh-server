@@ -44,7 +44,7 @@ struct hooks	*global_hooks;
 struct timeval	 start_time;
 const char	*socket_path;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 __dead void	 usage(void);
 static char	*make_label(const char *);
 
@@ -167,7 +167,7 @@ setblocking(int fd, int state)
 	}
 }
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 const char * find_home(void) { return NULL; }
 int areshell(__unused const char *shell) { return 0; }
 #else
@@ -350,7 +350,7 @@ main(int argc, char **argv)
 }
 #endif
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 void tmux_server_init(void)
 {
 	global_hooks = hooks_create(NULL);

@@ -227,7 +227,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 	struct termios		 tio, saved_tio;
 	size_t			 size;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	/* Ignore SIGCHLD now or daemon() in the server will leave a zombie. */
 	signal(SIGCHLD, SIG_IGN);
 #endif
@@ -264,7 +264,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 		cmd_list_free(cmdlist);
 	}
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	fd = tmate_session->tmux_socket_fd;
 
 	/* Create client process structure (starts logging). */
@@ -308,7 +308,7 @@ client_main(struct event_base *base, int argc, char **argv, int flags,
 		fatal("pledge failed");
 #endif
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 	/* Free stuff that is not used in the client. */
 	options_free(global_options);
 	options_free(global_s_options);
@@ -401,7 +401,7 @@ client_send_identify(const char *ttynam, const char *cwd)
 	int		  fd, flags = client_flags;
 	pid_t		  pid;
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	if (tmate_session->ssh_client.pubkey) {
 		proc_send(client_peer, MSG_IDENTIFY_TMATE_AUTH_PUBKEY, -1,
 			  tmate_session->ssh_client.pubkey,
@@ -648,7 +648,7 @@ client_dispatch_wait(struct imsg *imsg, const char *shellcmd)
 		if (datalen == 0 || data[datalen - 1] != '\0')
 			fatalx("bad MSG_SHELL string");
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 		exit(1);
 #else
 		clear_signals(0);

@@ -69,7 +69,7 @@ cmd_join_pane_exec(struct cmd *self, struct cmd_q *cmdq)
 enum cmd_retval
 join_pane(struct cmd *self, struct cmd_q *cmdq, int not_same_window)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	return (CMD_RETURN_ERROR);
 #else
 	struct args		*args = self->args;

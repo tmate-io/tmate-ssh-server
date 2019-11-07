@@ -80,7 +80,7 @@ control_notify_window_layout_changed(struct window *w)
 		if (winlink_find_by_window_id(&s->windows, w->id) == NULL)
 			continue;
 
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 		/*
 		 * When the last pane in a window is closed it won't have a
 		 * layout root and we don't need to inform the client about the

@@ -51,7 +51,7 @@ const struct cmd_entry cmd_split_window_entry = {
 enum cmd_retval
 cmd_split_window_exec(struct cmd *self, struct cmd_q *cmdq)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	return (CMD_RETURN_ERROR);
 #else
 	struct args		*args = self->args;

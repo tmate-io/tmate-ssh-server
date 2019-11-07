@@ -47,7 +47,7 @@ const struct cmd_entry cmd_switch_client_entry = {
 enum cmd_retval
 cmd_switch_client_exec(struct cmd *self, struct cmd_q *cmdq)
 {
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	cmdq_error(cmdq, "client switch is not supported");
 	return (CMD_RETURN_ERROR);
 #else

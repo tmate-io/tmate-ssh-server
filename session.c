@@ -344,7 +344,7 @@ session_new(struct session *s, const char *name, int argc, char **argv,
 		shell = _PATH_BSHELL;
 
 	hlimit = options_get_number(s->options, "history-limit");
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 	hlimit = hlimit > TMATE_HLIMIT ? TMATE_HLIMIT : hlimit;
 #endif
 	w = window_create(name, argc, argv, path, shell, cwd, env, s->tio,

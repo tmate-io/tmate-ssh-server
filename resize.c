@@ -61,7 +61,7 @@ recalculate_sizes(void)
 		TAILQ_FOREACH(c, &clients, entry) {
 			if (c->flags & CLIENT_SUSPENDED)
 				continue;
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 			if (c->flags & CLIENT_READONLY)
 				continue;
 #endif
@@ -78,7 +78,7 @@ recalculate_sizes(void)
 			}
 		}
 
-#ifdef TMATE_SLAVE
+#ifdef TMATE
 		if (tmate_has_websocket()) {
 			if (tmate_session->websocket_sy < ssy)
 				ssy = tmate_session->websocket_sy;
@@ -155,7 +155,7 @@ recalculate_sizes(void)
 		is_zoomed = w->flags & WINDOW_ZOOMED;
 		if (is_zoomed)
 			window_unzoom(w);
-#ifndef TMATE_SLAVE
+#ifndef TMATE
 		layout_resize(w, ssx, ssy);
 #endif
 		window_resize(w, ssx, ssy);
