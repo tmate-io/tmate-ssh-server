@@ -176,8 +176,7 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 
 	set_session_token(session, token);
 
-	tmate_info("Spawning pty client for %s (%s)",
-		   client->ip_address, client->pubkey);
+	tmate_info("Spawning pty client ip=%s", client->ip_address);
 
 	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
 	if (session->tmux_socket_fd < 0) {

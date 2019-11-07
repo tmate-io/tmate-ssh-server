@@ -197,7 +197,7 @@ static void tmate_dispatch_websocket_message(struct tmate_session *session,
 	dispatch(TMATE_CTL_RESIZE,		ctl_resize);
 	dispatch(TMATE_CTL_EXEC_RESPONSE,	ctl_ssh_exec_response);
 	dispatch(TMATE_CTL_RENAME_SESSION,	ctl_rename_session);
-	default: tmate_warn("Bad websocket server message type: %d", cmd);
+	default: tmate_info("Bad websocket server message type: %d", cmd);
 	}
 }
 
@@ -237,6 +237,9 @@ void tmate_notify_client_join(__unused struct tmate_session *session,
 void tmate_notify_client_left(__unused struct tmate_session *session,
 			      struct client *c)
 {
+	if (!(c->flags & CLIENT_IDENTIFIED))
+		return;
+
 	tmate_info("Client left (cid=%d)", c->id);
 
 	if (!tmate_has_websocket())
@@ -410,7 +413,7 @@ static int _tmate_connect_to_websocket(const char *hostname, int port)
 	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0)
 		tmate_fatal("Can't set websocket server socket to non-blocking");
 
-	tmate_info("Connected to websocket server at %s:%d", hostname, port);
+	tmate_debug("Connected to websocket server at %s:%d", hostname, port);
 
 	return sockfd;
 }

@@ -247,6 +247,8 @@ server_loop(void)
 	if (!TAILQ_EMPTY(&clients))
 		return (0);
 
+	tmate_info("Session terminated");
+
 	return (1);
 }
 

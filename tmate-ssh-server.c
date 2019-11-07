@@ -186,7 +186,7 @@ static void on_ssh_read(__unused evutil_socket_t fd, __unused short what, void *
 	ssh_execute_message_callbacks(client->session);
 
 	if (!ssh_is_connected(client->session)) {
-		tmate_warn("SSH Disconnected");
+		tmate_debug("ssh disconnected");
 
 		event_del(&client->ev_ssh);
 
@@ -204,7 +204,7 @@ static void register_on_ssh_read(struct tmate_ssh_client *client)
 
 static void handle_sigalrm(__unused int sig)
 {
-	tmate_fatal_info("Connection grace period (%ds) passed", TMATE_SSH_GRACE_PERIOD);
+	tmate_fatal_quiet("Connection grace period (%ds) passed", TMATE_SSH_GRACE_PERIOD);
 }
 
 static void client_bootstrap(struct tmate_session *_session)
@@ -214,7 +214,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	ssh_event mainloop;
 	ssh_session session = client->session;
 
-	tmate_info("Bootstrapping ssh client ip=%s", client->ip_address);
+	tmate_debug("Bootstrapping ssh client ip=%s", client->ip_address);
 
 	_session->ev_base = osdep_event_init();
 
@@ -247,14 +247,14 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	tmate_debug("Exchanging DH keys");
 	if (ssh_handle_key_exchange(session) < 0)
-		tmate_fatal_info("Error doing the key exchange: %s", ssh_get_error(session));
+		tmate_fatal_quiet("Error doing the key exchange: %s", ssh_get_error(session));
 
 	mainloop = ssh_event_new();
 	ssh_event_add_session(mainloop, session);
 
 	while (!client->role) {
 		if (ssh_event_dopoll(mainloop, -1) == SSH_ERROR)
-			tmate_fatal_info("Error polling ssh socket: %s", ssh_get_error(session));
+			tmate_fatal_quiet("Error polling ssh socket: %s", ssh_get_error(session));
 	}
 
 	alarm(0);
@@ -298,7 +298,7 @@ static int get_client_ip_socket(int fd, char *dst, size_t len)
 	return 0;
 }
 
-static void read_single_line(int fd, char *dst, size_t len)
+static int read_single_line(int fd, char *dst, size_t len)
 {
 	/*
 	 * This reads exactly one line from fd.
@@ -314,26 +314,30 @@ static void read_single_line(int fd, char *dst, size_t len)
 
 		if (dst[i] == '\n') {
 			dst[i] = '\0';
-			return;
+			return i;
 		}
 	}
 
-	tmate_fatal("Cannot read proxy header. Load balancer may be misconfigured");
+	return -1;
 }
 
 static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 {
 	char header[110];
 	int tok_num;
-	const char *signature = "PROXY ";
 
-	if (read(fd, header, strlen(signature)) != (ssize_t)strlen(signature))
-		tmate_fatal("Cannot read proxy header");
+#define SIGNATURE "PROXY "
+	ssize_t ret = read(fd, header, sizeof(SIGNATURE)-1);
+	if (ret <= 0)
+		tmate_fatal_quiet("Disconnected, health checker?");
+	if (ret != sizeof(SIGNATURE)-1)
+		return -1;
+	if (memcmp(header, SIGNATURE, sizeof(SIGNATURE)-1))
+		return -1;
+#undef SIGNATURE
 
-	if (memcmp(header, signature, strlen(signature)))
-		tmate_fatal("No proxy header found. Load balancer may be misconfigured");
-
-	read_single_line(fd, header, sizeof(header));
+	if (read_single_line(fd, header, sizeof(header)) < 0)
+		return -1;
 
 	tmate_debug("proxy header: %s", header);
 
@@ -344,7 +348,7 @@ static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 	}
 
 	if (tok_num != 5)
-		tmate_fatal("Proxy header is invalid");
+		return -1;
 
 	return 0;
 }
@@ -360,7 +364,8 @@ static int get_client_ip(int fd, char *dst, size_t len)
 static void ssh_log_function(int priority, const char *function,
 			     const char *buffer, __unused void *userdata)
 {
-	tmate_log(LOG_NOTICE + priority, "[%s] %s", function, buffer);
+	/* loglevel already applied */
+	log_emit(LOG_DEBUG, "[%s] %s", function, buffer);
 }
 
 static inline int max(int a, int b)
@@ -380,7 +385,7 @@ static void ssh_import_key(ssh_bind bind, const char *keys_dir, const char *name
 	if (access(path, F_OK) < 0)
 		return;
 
-	tmate_notice("Loading key %s", path);
+	tmate_info("Loading key %s", path);
 
 	ssh_pki_import_privkey_file(path, NULL, NULL, NULL, &key);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_IMPORT_KEY, key);
@@ -391,7 +396,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	ssh_bind bind;
 	int ssh_log_level;
 
-	ssh_log_level = SSH_LOG_WARNING + max(log_get_level() - LOG_NOTICE, 0);
+	ssh_log_level = SSH_LOG_WARNING + max(log_get_level() - LOG_INFO, 0);
 
 	ssh_set_log_callback(ssh_log_function);
 
@@ -411,7 +416,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	if (ssh_bind_listen(bind) < 0)
 		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
 
-	tmate_notice("Accepting connections on %s:%d", bind_addr ?: "", port);
+	tmate_info("Accepting connections on %s:%d", bind_addr ?: "", port);
 
 	return bind;
 }
@@ -428,18 +433,18 @@ static void handle_sigchld(__unused int sig)
 		 */
 #if 0
 		if (WIFEXITED(status))
-			tmate_info("Child %d exited (%d)", pid, WEXITSTATUS(status));
+			tmate_debug("Child %d exited (%d)", pid, WEXITSTATUS(status));
 		if (WIFSIGNALED(status))
-			tmate_info("Child %d killed (%d)", pid, WTERMSIG(status));
+			tmate_debug("Child %d killed (%d)", pid, WTERMSIG(status));
 		if (WIFSTOPPED(status))
-			tmate_info("Child %d stopped (%d)", pid, WSTOPSIG(status));
+			tmate_debug("Child %d stopped (%d)", pid, WSTOPSIG(status));
 #endif
 	}
 }
 
 static void handle_sigsegv(__unused int sig)
 {
-	tmate_crit("CRASH, printing stack trace");
+	tmate_info("CRASH, printing stack trace");
 	tmate_print_stack_trace();
 	tmate_fatal("CRASHED");
 }
@@ -485,10 +490,14 @@ void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 		signal(SIGALRM, handle_sigalrm);
 		alarm(TMATE_SSH_GRACE_PERIOD);
 
-		if (get_client_ip(fd, client->ip_address, sizeof(client->ip_address)) < 0)
-			tmate_fatal("Error getting client IP from connection");
+		if (get_client_ip(fd, client->ip_address, sizeof(client->ip_address)) < 0) {
+			if (tmate_settings->use_proxy_protocol)
+				tmate_fatal("Proxy header invalid. Load balancer may be misconfigured");
+			else
+				tmate_fatal("Error getting client IP from connection");
+		}
 
-		tmate_info("Connection accepted ip=%s", client->ip_address);
+		tmate_debug("Connection accepted ip=%s", client->ip_address);
 
 		if (ssh_bind_accept_fd(bind, client->session, fd) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));

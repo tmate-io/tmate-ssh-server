@@ -16,7 +16,6 @@
 #include <term.h>
 #include <time.h>
 #include <fcntl.h>
-#include <sys/syslog.h>
 #include <sched.h>
 #include <signal.h>
 #include "tmate.h"
@@ -32,9 +31,8 @@ struct tmate_settings _tmate_settings = {
 	.bind_addr	 	= NULL,
 	.websocket_port      	= TMATE_DEFAULT_WEBSOCKET_PORT,
 	.tmate_host      	= NULL,
-	.log_level      	= LOG_NOTICE,
+	.log_level      	= LOG_INFO,
 	.use_proxy_protocol	= false,
-	.use_syslog      	= false,
 };
 
 struct tmate_settings *tmate_settings = &_tmate_settings;
@@ -51,7 +49,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-p listen_port] [-q ssh_port_advertized] [-w websocket_hostname] [-z websocket_port] [-x] [-s] [-v]\n");
+	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-p listen_port] [-q ssh_port_advertized] [-w websocket_hostname] [-z websocket_port] [-x] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -71,7 +69,7 @@ static char* get_full_hostname(void)
 	hints.ai_flags = AI_CANONNAME;
 
 	if ((gai_result = getaddrinfo(hostname, NULL, &hints, &info)) != 0) {
-		tmate_warn("cannot lookup hostname: %s", gai_strerror(gai_result));
+		tmate_info("cannot lookup hostname: %s", gai_strerror(gai_result));
 		return xstrdup(hostname);
 	}
 
@@ -104,7 +102,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:h:k:p:q:w:z:xsv")) != -1) {
+	while ((opt = getopt(argc, argv, "b:h:k:p:q:w:z:xv")) != -1) {
 		switch (opt) {
 		case 'b':
 			tmate_settings->bind_addr = xstrdup(optarg);
@@ -130,9 +128,6 @@ int main(int argc, char **argv, char **envp)
 		case 'x':
 			tmate_settings->use_proxy_protocol = true;
 			break;
-		case 's':
-			tmate_settings->use_syslog = true;
-			break;
 		case 'v':
 			tmate_settings->log_level++;
 			break;
@@ -142,8 +137,7 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-	init_logging("tmate-remote-tmux",
-		     tmate_settings->use_syslog, tmate_settings->log_level);
+	init_logging(tmate_settings->log_level);
 
 	setup_locale();
 
@@ -196,11 +190,17 @@ void set_session_token(struct tmate_session *session, const char *token)
 	xasprintf((char **)&session->obfuscated_session_token, "%.4s...",
 		  session->session_token);
 
-	memset(cmdline, 0, cmdline_end - cmdline);
-	sprintf(cmdline, "tmate-ssh-server [%s] %s %s",
+	size_t size = cmdline_end - cmdline;
+	memset(cmdline, 0, size);
+	snprintf(cmdline, size-1, "tmate-ssh-server [%s] %s %s",
 		tmate_session->obfuscated_session_token,
 		session->ssh_client.role == TMATE_ROLE_DAEMON ? "(daemon)" : "(pty client)",
 		session->ssh_client.ip_address);
+
+	char *log_prefix;
+	xasprintf(&log_prefix, "[%s] ", session->obfuscated_session_token);
+	set_log_prefix(log_prefix);
+	free(log_prefix);
 }
 
 void close_fds_except(int *fd_to_preserve, int num_fds)
@@ -273,8 +273,8 @@ void get_in_jail(void)
 
 	nice(1);
 
-	tmate_info("Dropped priviledges to %s (%d,%d), jailed in %s",
-		   TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
+	tmate_debug("Dropped priviledges to %s (%d,%d), jailed in %s",
+		    TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
 }
 
 void setup_ncurse(int fd, const char *name)

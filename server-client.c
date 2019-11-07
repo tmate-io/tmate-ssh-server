@@ -1084,7 +1084,7 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 
 	if (!(c->flags & CLIENT_TMATE_AUTHENTICATED)) {
 		control_write(c, "Authentication needed");
-		tmate_warn("Dropping unauthenticated client");
+		tmate_info("Dropping unauthenticated client");
 		c->flags |= CLIENT_EXIT;
 		return;
 	}
@@ -1105,7 +1105,7 @@ server_client_dispatch(struct imsg *imsg, void *arg)
 
 #ifdef TMATE
 	if (!(c->flags & CLIENT_IDENTIFIED)) {
-		tmate_warn("dropping unidentified client message: %d", imsg->hdr.type);
+		tmate_info("dropping unidentified client message: %d", imsg->hdr.type);
 		return;
 	}
 #endif

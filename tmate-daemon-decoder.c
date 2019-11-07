@@ -45,8 +45,8 @@ static void tmate_header(struct tmate_session *session,
 		session->daemon_encoder.mpac_version = 4;
 	}
 
-	tmate_notice("Daemon header: client version: %s, protocol version: %d",
-		     session->client_version, session->client_protocol_version);
+	tmate_info("Daemon header: version=%s, protocol=%d",
+		   session->client_version, session->client_protocol_version);
 
 	if (tmate_has_websocket()) {
 		/* If we have a websocket server, it takes care of all the following notificatons */
@@ -222,10 +222,10 @@ static void tmate_exec_cmd_str(__unused struct tmate_session *session,
 
 	cmd_str = unpack_string(uk);
 
-	tmate_info("Local cmd: %s", cmd_str);
+	tmate_debug("Local cmd: %s", cmd_str);
 
 	if (cmd_string_parse(cmd_str, &cmdlist, NULL, 0, &cause) != 0) {
-		tmate_info("parse error: %s", cause);
+		tmate_debug("parse error: %s", cause);
 		free(cause);
 		goto out;
 	}
@@ -257,13 +257,13 @@ static void tmate_exec_cmd(__unused struct tmate_session *session,
 
 	cmd = cmd_parse(argc, argv, NULL, 0, &cause);
 	if (!cmd) {
-		tmate_info("parse error: %s", cause);
+		tmate_debug("parse error: %s", cause);
 		free(cause);
 		goto out;
 	}
 
 	cmd_str = cmd_print(cmd);
-	tmate_info("Local cmd: %s", cmd_str);
+	tmate_debug("Local cmd: %s", cmd_str);
 	free(cmd_str);
 
 	cmdlist = xcalloc(1, sizeof *cmdlist);

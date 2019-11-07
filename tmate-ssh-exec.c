@@ -14,12 +14,12 @@ void tmate_dump_exec_response(struct tmate_session *session,
 	ssh_channel_close(client->channel);
 
 	if (event_base_loopexit(session->ev_base, NULL) < 0)
-		tmate_fatal("cannot stop event loop");
+		tmate_fatal("Cannot stop event loop");
 }
 
 static void on_websocket_error(struct tmate_session *session, __unused short events)
 {
-	tmate_warn("Lost websocket server connection");
+	tmate_info("Lost websocket server connection");
 	tmate_dump_exec_response(session, 1, "Internal Error\r\n");
 }
 
@@ -38,6 +38,10 @@ static void tmate_client_exec_init(struct tmate_session *session)
 
 void tmate_spawn_exec(struct tmate_session *session)
 {
+	struct tmate_ssh_client *client = &session->ssh_client;
+
+	tmate_info("Spawning exec client ip=%s", client->ip_address);
+
 	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
 				 log_file ? fileno(log_file) : -1,
 				 session->websocket_fd}, 3);

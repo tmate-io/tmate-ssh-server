@@ -1,7 +1,6 @@
 #ifndef TMATE_H
 #define TMATE_H
 
-#include <sys/syslog.h>
 #include <sys/types.h>
 #include <msgpack.h>
 #include <libssh/libssh.h>
@@ -14,24 +13,10 @@ struct tmate_session;
 
 /* log.c */
 
-extern void init_logging(const char *program_name, bool use_syslog, int log_level);
-extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
-
-#define tmate_debug(str, ...)	tmate_log(LOG_DEBUG, str, ##__VA_ARGS__)
-#define tmate_info(str, ...)	tmate_log(LOG_INFO, str, ##__VA_ARGS__)
-#define tmate_notice(str, ...)	tmate_log(LOG_NOTICE, str, ##__VA_ARGS__)
-#define tmate_warn(str, ...)	tmate_log(LOG_WARNING, str, ##__VA_ARGS__)
-#define tmate_crit(str, ...)	tmate_log(LOG_CRIT, str, ##__VA_ARGS__)
-#define tmate_fatal(str, ...)					\
-({								\
-	tmate_crit("fatal: " str, ##__VA_ARGS__);		\
- 	exit(1);						\
-})
-#define tmate_fatal_info(str, ...)				\
-({								\
-	tmate_info("fatal: " str, ##__VA_ARGS__);		\
- 	exit(1);						\
-})
+#define tmate_debug(...) log_emit(LOG_DEBUG, __VA_ARGS__)
+#define tmate_info(...)  log_emit(LOG_INFO,  __VA_ARGS__)
+#define tmate_fatal(...) fatalx( __VA_ARGS__)
+#define tmate_fatal_quiet(...)  ({tmate_debug(__VA_ARGS__); exit(1);})
 
 /* tmate-auth-keys.c */
 extern void tmate_hook_set_option_auth(const char *name, const char *val);
@@ -217,7 +202,6 @@ struct tmate_settings {
 	const char *bind_addr;
 	int log_level;
 	bool use_proxy_protocol;
-	bool use_syslog;
 };
 extern struct tmate_settings *tmate_settings;
 

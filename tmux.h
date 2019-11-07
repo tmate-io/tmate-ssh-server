@@ -2386,7 +2386,13 @@ void	log_add_level(void);
 int	log_get_level(void);
 void	log_open(const char *);
 void	log_close(void);
-void printflike(1, 2) log_debug(const char *, ...);
+#define LOG_ERROR	0
+#define LOG_INFO	1
+#define LOG_DEBUG	2
+#define log_debug(...) log_emit(LOG_DEBUG+1, __VA_ARGS__)
+void init_logging(int log_level);
+void set_log_prefix(char *_log_prefix);
+void printflike(2, 3) log_emit(int level, const char *, ...);
 __dead void printflike(1, 2) fatal(const char *, ...);
 __dead void printflike(1, 2) fatalx(const char *, ...);
 

@@ -147,7 +147,7 @@ int tmate_should_exec_cmd_locally(const struct cmd_entry *cmd)
 
 void tmate_client_cmd_str(int client_id, const char *cmd)
 {
-	tmate_info("Remote cmd (cid=%d): %s", client_id, cmd);
+	tmate_debug("Remote cmd (cid=%d): %s", client_id, cmd);
 
 	pack(array, 3);
 	pack(int, TMATE_IN_EXEC_CMD_STR);
@@ -217,7 +217,7 @@ void tmate_client_cmd(int client_id, struct cmd *cmd)
 		free(cmd_str);
 		return;
 	}
-	tmate_info("Remote cmd (cid=%d): %s", client_id, cmd_str);
+	tmate_debug("Remote cmd (cid=%d): %s", client_id, cmd_str);
 	free(cmd_str);
 
 	extract_cmd(cmd, &argc, &argv);

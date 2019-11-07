@@ -216,7 +216,7 @@ bool would_tmate_session_allow_auth(const char *token, const char *pubkey)
 	    recv_msg.hdr.len == sizeof(recv_msg))
 		ret = recv_msg.allow;
 
-	tmate_info("(preauth) allow=%d", ret);
+	tmate_debug("(preauth) allow=%d", ret);
 
 out:
 	if (sock_fd != -1)

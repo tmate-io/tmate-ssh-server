@@ -59,8 +59,8 @@ static void on_daemon_encoder_write(void *userdata, struct evbuffer *buffer)
 
 		written = ssh_channel_write(session->ssh_client.channel, buf, len);
 		if (written < 0) {
-			tmate_warn("Error writing to channel: %s",
-				    ssh_get_error(session->ssh_client.session));
+			tmate_info("Error writing to channel: %s",
+				   ssh_get_error(session->ssh_client.session));
 			request_server_termination();
 			break;
 		}
@@ -156,8 +156,8 @@ void tmate_spawn_daemon(struct tmate_session *session)
 	set_session_token(session, token);
 	free(token);
 
-	tmate_info("Spawning daemon for %s at %s (%s)",
-		   client->username, client->ip_address, client->pubkey);
+	tmate_info("Spawning daemon username=%s ip=%s",
+		    client->username, client->ip_address);
 
 	session->tmux_socket_fd = server_create_socket();
 	if (session->tmux_socket_fd < 0)
@@ -197,8 +197,8 @@ static void handle_session_name_options(const char *name, __unused const char *v
 	    !strcmp(name, "tmate-session-name-ro")) {
 		static bool warned;
 		if (!warned) {
-			tmate_warn("/!\\ Named sessions are not supported without the websocket server");
-			tmate_notify("/!\\ Named sessions are not supported without the websocket server");
+			tmate_info("Named sessions are not supported (no websocket server)");
+			tmate_notify("Named sessions are not supported (no websocket server)");
 		}
 		warned = true;
 	}

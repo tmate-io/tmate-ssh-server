@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -31,16 +30,11 @@
 
 FILE *log_file;
 
-struct logging_settings {
-	const char *program_name;
-	bool use_syslog;
-	int log_level;
-};
-
-static struct logging_settings log_settings;
-
 static void	log_event_cb(int, const char *);
-static void	log_vwrite(int, const char *, va_list);
+static void	log_vwrite(const char *, va_list);
+
+static int log_level;
+char *log_prefix;
 
 static void
 log_event_cb(__unused int severity, const char *msg)
@@ -52,72 +46,69 @@ log_event_cb(__unused int severity, const char *msg)
 void
 log_add_level(void)
 {
-	log_settings.log_level++;
+	log_level++;
 }
 
 /* Get log level. */
 int
 log_get_level(void)
 {
-	return (log_settings.log_level);
+	return log_level;
 }
 
-void init_logging(const char *program_name, bool use_syslog, int log_level)
+void init_logging(int _log_level)
 {
-	log_settings.log_level = log_level;
-	log_settings.use_syslog = use_syslog;
-	log_settings.program_name = xstrdup(program_name);
+	log_level = _log_level;
+	log_prefix = xstrdup("");
 
-	if (use_syslog) {
-		openlog(program_name, LOG_CONS | LOG_PID, LOG_USER);
-		setlogmask(LOG_UPTO(log_level));
-	} else {
-		log_file = fdopen(dup(STDERR_FILENO), "a");
-		if (!log_file)
-			exit(1);
-	}
+	log_file = fdopen(dup(STDERR_FILENO), "a");
+	if (!log_file)
+		exit(1);
 
 	event_set_log_callback(log_event_cb);
 }
 
-/* Write a log message. */
-__attribute__((__format__(__printf__, 2, 0)))
-static void
-log_vwrite(int level, const char *msg, va_list ap)
+void set_log_prefix(char *_log_prefix)
 {
-	char	*fmt = NULL;
+	free(log_prefix);
+	log_prefix = xstrdup(_log_prefix);
+}
 
-	const char *token = tmate_session->obfuscated_session_token;
+/* Write a log message. */
+__attribute__((__format__(__printf__, 1, 0)))
+static void
+log_vwrite(const char *msg, va_list ap)
+{
+	char		*fmt, *out;
+	struct timeval	 tv;
 
-	if (log_settings.log_level < level)
+	if (log_file == NULL)
 		return;
 
-	if (token) {
-		if (asprintf(&fmt, "[%s] %s", token, msg) < 0)
-			exit(1);
-		msg = fmt;
-	}
+	if (vasprintf(&fmt, msg, ap) == -1)
+		exit(1);
+	if (stravis(&out, fmt, VIS_OCTAL|VIS_CSTYLE|VIS_TAB|VIS_NL) == -1)
+		exit(1);
 
-	if (log_settings.use_syslog) {
-		vsyslog(level, msg, ap);
-	} else {
-		fprintf(log_file, "<%d> ", level);
-		vfprintf(log_file, msg, ap);
-		fprintf(log_file, "\n");
-		fflush(log_file);
-	}
+	if (fprintf(log_file, "%s%s\n", log_prefix, out) == -1)
+		exit(1);
 
+	fflush(log_file);
+
+	free(out);
 	free(fmt);
 }
 
-/* Log a debug message. */
 void
-log_debug(const char *msg, ...)
+log_emit(int level, const char *msg, ...)
 {
 	va_list	ap;
 
+	if (log_level < level)
+		return;
+
 	va_start(ap, msg);
-	log_vwrite(LOG_DEBUG, msg, ap);
+	log_vwrite(msg, ap);
 	va_end(ap);
 }
 
@@ -133,7 +124,7 @@ fatal(const char *msg, ...)
 	if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
 		exit(1);
 	msg = fmt;
-	log_vwrite(LOG_CRIT, msg, ap);
+	log_vwrite(msg, ap);
 	exit(1);
 }
 
@@ -149,26 +140,6 @@ fatalx(const char *msg, ...)
 	if (asprintf(&fmt, "fatal: %s", msg) == -1)
 		exit(1);
 	msg = fmt;
-	log_vwrite(LOG_CRIT, msg, ap);
+	log_vwrite(msg, ap);
 	exit(1);
-}
-
-__attribute__((__format__(__printf__, 2, 0)))
-void tmate_log(int level, const char *msg, ...)
-{
-	char *fmt;
-	va_list	ap;
-
-	if (log_settings.log_level < level)
-		return;
-
-	va_start(ap, msg);
-
-	if (asprintf(&fmt, "(tmate) %s", msg) < 0)
-		exit(1);
-	msg = fmt;
-	log_vwrite(level, msg, ap);
-	va_end(ap);
-
-	free(fmt);
 }
