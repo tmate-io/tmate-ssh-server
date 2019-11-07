@@ -1,5 +1,6 @@
 #include "tmate.h"
 #include <errno.h>
+#include <signal.h>
 
 struct tmate_session _tmate_session, *tmate_session = &_tmate_session;
 

@@ -564,6 +564,7 @@ session_group_index(struct session_group *sg)
 	}
 
 	fatalx("session group not found");
+	for(;;);
 }
 
 /*

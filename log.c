@@ -81,6 +81,7 @@ void init_logging(const char *program_name, bool use_syslog, int log_level)
 }
 
 /* Write a log message. */
+__attribute__((__format__(__printf__, 2, 0)))
 static void
 log_vwrite(int level, const char *msg, va_list ap)
 {
@@ -121,6 +122,7 @@ log_debug(const char *msg, ...)
 }
 
 /* Log a critical error with error string and die. */
+__attribute__((__format__(__printf__, 1, 0)))
 __dead void
 fatal(const char *msg, ...)
 {
@@ -130,11 +132,13 @@ fatal(const char *msg, ...)
 	va_start(ap, msg);
 	if (asprintf(&fmt, "fatal: %s: %s", msg, strerror(errno)) == -1)
 		exit(1);
-	log_vwrite(LOG_CRIT, fmt, ap);
+	msg = fmt;
+	log_vwrite(LOG_CRIT, msg, ap);
 	exit(1);
 }
 
 /* Log a critical error and die. */
+__attribute__((__format__(__printf__, 1, 0)))
 __dead void
 fatalx(const char *msg, ...)
 {
@@ -144,10 +148,12 @@ fatalx(const char *msg, ...)
 	va_start(ap, msg);
 	if (asprintf(&fmt, "fatal: %s", msg) == -1)
 		exit(1);
-	log_vwrite(LOG_CRIT, fmt, ap);
+	msg = fmt;
+	log_vwrite(LOG_CRIT, msg, ap);
 	exit(1);
 }
 
+__attribute__((__format__(__printf__, 2, 0)))
 void tmate_log(int level, const char *msg, ...)
 {
 	char *fmt;
@@ -160,7 +166,8 @@ void tmate_log(int level, const char *msg, ...)
 
 	if (asprintf(&fmt, "(tmate) %s", msg) < 0)
 		exit(1);
-	log_vwrite(level, fmt, ap);
+	msg = fmt;
+	log_vwrite(level, msg, ap);
 	va_end(ap);
 
 	free(fmt);

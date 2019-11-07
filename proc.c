@@ -100,6 +100,7 @@ proc_event_cb(__unused int fd, short events, void *arg)
 	proc_update_event(peer);
 }
 
+#ifndef TMATE
 static void
 proc_signal_cb(int signo, __unused short events, void *arg)
 {
@@ -107,6 +108,7 @@ proc_signal_cb(int signo, __unused short events, void *arg)
 
 	tp->signalcb(signo);
 }
+#endif
 
 static int
 peer_check_version(struct tmuxpeer *peer, struct imsg *imsg)

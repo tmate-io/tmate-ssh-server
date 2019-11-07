@@ -339,10 +339,8 @@ static int get_client_ip_proxy_protocol(int fd, char *dst, size_t len)
 
 	tok_num = 0;
 	for (char *tok = strtok(header, " "); tok; tok = strtok(NULL, " "), tok_num++) {
-		if (tok_num == 1) {
-			strncpy(dst, tok, len);
-			dst[len-1] = '\0';
-		}
+		if (tok_num == 1)
+			strlcpy(dst, tok, len);
 	}
 
 	if (tok_num != 5)
