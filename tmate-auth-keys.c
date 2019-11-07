@@ -80,7 +80,7 @@ static void tmate_set(char *key, char *value)
 		append_authorized_key(value);
 }
 
-void tmate_hook_set_option(const char *name, const char *val)
+void tmate_hook_set_option_auth(const char *name, const char *val)
 {
 	if (!strcmp(name, "tmate-authorized-keys")) {
 		reset_and_enable_authorized_keys();

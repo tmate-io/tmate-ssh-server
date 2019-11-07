@@ -34,7 +34,7 @@ extern void printflike(2, 3) tmate_log(int level, const char *msg, ...);
 })
 
 /* tmate-auth-keys.c */
-extern void tmate_hook_set_option(const char *name, const char *val);
+extern void tmate_hook_set_option_auth(const char *name, const char *val);
 extern bool tmate_allow_auth(const char *pubkey);
 extern bool would_tmate_session_allow_auth(const char *token, const char *pubkey);
 extern int get_num_authorized_keys(ssh_key *keys);
@@ -134,6 +134,7 @@ extern void tmate_dispatch_daemon_message(struct tmate_session *session,
 #define TMATE_KEYFRAME_MAX_SIZE 1024*1024
 
 extern void tmate_spawn_daemon(struct tmate_session *session);
+extern void tmate_hook_set_option(const char *name, const char *val);
 
 /* tmate-ssh-exec.c */
 extern void tmate_spawn_exec(struct tmate_session *session);

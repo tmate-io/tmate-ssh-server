@@ -185,3 +185,27 @@ void tmate_spawn_daemon(struct tmate_session *session)
 	server_start(session->ev_base, -1, NULL);
 	/* never reached */
 }
+
+static void handle_session_name_options(const char *name, __unused const char *val)
+{
+	if (tmate_has_websocket())
+		return;
+
+	if (!strcmp(name, "tmate-account-key") ||
+	    !strcmp(name, "tmate-session-name") ||
+	    !strcmp(name, "tmate-session-name-ro")) {
+		static bool warned;
+		if (!warned) {
+			tmate_warn("/!\\ Named sessions are not supported without the websocket server");
+			tmate_notify("/!\\ Named sessions are not supported without the websocket server");
+		}
+		warned = true;
+	}
+}
+
+void tmate_hook_set_option(const char *name, const char *val)
+{
+	tmate_hook_set_option_auth(name, val);
+	handle_session_name_options(name, val);
+
+}
