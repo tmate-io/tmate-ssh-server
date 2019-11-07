@@ -21,22 +21,12 @@
 #include <signal.h>
 #include "tmate.h"
 
-struct tmate_session _tmate_session, *tmate_session = &_tmate_session;
-
-extern FILE *log_file;
-
 static char *cmdline;
 static char *cmdline_end;
-static int dev_urandom_fd;
-
-extern int server_create_socket(void);
-extern int client_connect(struct event_base *base, const char *path, int start_server);
-
-static void tmate_spawn_exec(struct tmate_session *session);
 
 struct tmate_settings _tmate_settings = {
 	.keys_dir        	= TMATE_SSH_DEFAULT_KEYS_DIR,
-	.authorized_keys_path 	= NULL,
+	.authorized_keys_path	= NULL,
 	.ssh_port        	= TMATE_SSH_DEFAULT_PORT,
 	.ssh_port_advertized    = -1,
 	.websocket_hostname  	= NULL,
@@ -49,51 +39,6 @@ struct tmate_settings _tmate_settings = {
 };
 
 struct tmate_settings *tmate_settings = &_tmate_settings;
-
-void tmate_get_random_bytes(void *buffer, ssize_t len)
-{
-	if (read(dev_urandom_fd, buffer, len) != len)
-		tmate_fatal("Cannot read from /dev/urandom");
-}
-
-long tmate_get_random_long(void)
-{
-	long val;
-	tmate_get_random_bytes(&val, sizeof(val));
-	return val;
-}
-
-#define RS_BUF_SIZE 256
-
-struct random_stream {
-	char bytes[RS_BUF_SIZE];
-	off_t pos;
-};
-
-static void random_stream_init(struct random_stream *rs)
-{
-	rs->pos = RS_BUF_SIZE;
-}
-
-static char *random_stream_get(struct random_stream *rs, size_t count)
-{
-	char *ret;
-
-	if (count > RS_BUF_SIZE) {
-		tmate_fatal("buffer too small");
-	}
-
-	if (rs->pos + count > RS_BUF_SIZE) {
-		tmate_get_random_bytes(rs->bytes, RS_BUF_SIZE);
-		rs->pos = 0;
-	}
-
-
-	ret = &rs->bytes[rs->pos];
-	rs->pos += count;
-	return ret;
-}
-
 
 extern int server_fd;
 extern void server_send_exit(void);
@@ -214,9 +159,7 @@ int main(int argc, char **argv, char **envp)
 
 	tmate_preload_trace_lib();
 	tmate_catch_sigsegv();
-
-	if ((dev_urandom_fd = open("/dev/urandom", O_RDONLY)) < 0)
-		tmate_fatal("Cannot open /dev/urandom");
+	tmate_init_rand();
 
 	if ((mkdir(TMATE_WORKDIR, 0701)             < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/sessions", 0703) < 0 && errno != EEXIST) ||
@@ -234,41 +177,17 @@ int main(int argc, char **argv, char **envp)
 	return 0;
 }
 
-static char tmate_token_digits[] = "abcdefghjkmnpqrstuvwxyz"
-				   "ABCDEFGHJKLMNPQRSTUVWXYZ"
-				   "23456789";
-
-#define NUM_DIGITS (sizeof(tmate_token_digits) - 1)
-
-static char *get_random_token(void)
-{
-	struct random_stream rs;
-	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
-	int i;
-	unsigned char c;
-
-	random_stream_init(&rs);
-
-	for (i = 0; i < TMATE_TOKEN_LEN; i++) {
-		do {
-			c = *random_stream_get(&rs, 1);
-		} while (c >= NUM_DIGITS);
-
-		token[i] = tmate_token_digits[c];
-	}
-
-	token[i] = 0;
-
-	return token;
-}
-
-void set_session_token(struct tmate_session *session,
-		       const char *token)
+char *get_socket_path(const char *token)
 {
 	char *path;
-	session->session_token = xstrdup(token);
 	xasprintf(&path, TMATE_WORKDIR "/sessions/%s", token);
-	socket_path = path;
+	return path;
+}
+
+void set_session_token(struct tmate_session *session, const char *token)
+{
+	session->session_token = xstrdup(token);
+	socket_path = get_socket_path(token);
 
 	xasprintf((char **)&session->obfuscated_session_token, "%.4s...",
 		  session->session_token);
@@ -280,71 +199,7 @@ void set_session_token(struct tmate_session *session,
 		session->ssh_client.ip_address);
 }
 
-static void create_session_ro_symlink(struct tmate_session *session)
-{
-	char *tmp, *token, *session_ro_path;
-
-#ifdef DEVENV
-	tmp = xstrdup("READONLYTOKENFORDEVENV000");
-#else
-	tmp = get_random_token();
-#endif
-	xasprintf(&token, "ro-%s", tmp);
-	free(tmp);
-
-	session->session_token_ro = token;
-
-	xasprintf(&session_ro_path, TMATE_WORKDIR "/sessions/%s",
-		  session->session_token_ro);
-
-	unlink(session_ro_path);
-	if (symlink(session->session_token, session_ro_path) < 0)
-		tmate_fatal("Cannot create read-only symlink");
-	free(session_ro_path);
-}
-
-static int validate_token(const char *token)
-{
-	int len;
-	int i;
-
-	if (!memcmp("ro-", token, 3))
-		token += 3;
-
-	len = strlen(token);
-
-	if (len != TMATE_TOKEN_LEN)
-		return -1;
-
-	for (i = 0; i < len; i++) {
-		if (!strchr(tmate_token_digits, token[i]))
-			return -1;
-	}
-
-	return 0;
-}
-
-static void random_sleep(void)
-{
-	struct timespec ts;
-	ts.tv_sec = 0;
-	ts.tv_nsec = 50000000 + (tmate_get_random_long() % 150000000);
-	nanosleep(&ts, NULL);
-}
-
-static void ssh_echo(struct tmate_ssh_client *ssh_client,
-		     const char *str)
-{
-	ssh_channel_write(ssh_client->channel, str, strlen(str));
-}
-
-#define BAD_TOKEN_ERROR_STR						\
-"Invalid session token"						 "\r\n"
-
-#define EXPIRED_TOKEN_ERROR_STR						\
-"Invalid or expired session token"				 "\r\n"
-
-static void close_fds_except(int *fd_to_preserve, int num_fds)
+void close_fds_except(int *fd_to_preserve, int num_fds)
 {
 	int fd, i, preserve;
 
@@ -359,7 +214,7 @@ static void close_fds_except(int *fd_to_preserve, int num_fds)
 	}
 }
 
-static void jail(void)
+void get_in_jail(void)
 {
 	struct passwd *pw;
 	uid_t uid;
@@ -418,161 +273,10 @@ static void jail(void)
 		   TMATE_JAIL_USER, uid, gid, TMATE_WORKDIR "/jail");
 }
 
-static void setup_ncurse(int fd, const char *name)
+void setup_ncurse(int fd, const char *name)
 {
 	int error;
 	if (setupterm((char *)name, fd, &error) != OK)
 		tmate_fatal("Cannot setup terminal");
 }
 
-static void handle_sigterm(__unused int sig)
-{
-	request_server_termination();
-}
-
-static void tmate_spawn_daemon(struct tmate_session *session)
-{
-	struct tmate_ssh_client *client = &session->ssh_client;
-	char *token;
-
-#ifdef DEVENV
-	token = xstrdup("SUPERSECURETOKENFORDEVENV");
-#else
-	token = get_random_token();
-#endif
-
-	set_session_token(session, token);
-	free(token);
-
-	tmate_info("Spawning daemon for %s at %s (%s)",
-		   client->username, client->ip_address, client->pubkey);
-
-	session->tmux_socket_fd = server_create_socket();
-	if (session->tmux_socket_fd < 0)
-		tmate_fatal("Cannot create to the tmux socket");
-
-	create_session_ro_symlink(session);
-
-	/*
-	 * Needed to initialize the database used in tty-term.c.
-	 * We won't have access to it once in the jail.
-	 */
-	setup_ncurse(STDOUT_FILENO, "screen-256color");
-
-	tmate_daemon_init(session);
-
-	close_fds_except((int[]){session->tmux_socket_fd,
-				 ssh_get_fd(session->ssh_client.session),
-				 log_file ? fileno(log_file) : -1,
-				 session->websocket_fd}, 4);
-
-	jail();
-	event_reinit(session->ev_base);
-
-	tmux_server_init();
-	signal(SIGTERM, handle_sigterm);
-	server_start(session->ev_base, -1, NULL);
-	/* never reached */
-}
-
-static void tmate_spawn_pty_client(struct tmate_session *session)
-{
-	struct tmate_ssh_client *client = &session->ssh_client;
-	char *argv_rw[] = {(char *)"attach", NULL};
-	char *argv_ro[] = {(char *)"attach", (char *)"-r", NULL};
-	char **argv = argv_rw;
-	int argc = 1;
-	char *token = client->username;
-	struct stat fstat;
-	int slave_pty;
-	int ret;
-
-	if (validate_token(token) < 0) {
-		ssh_echo(client, BAD_TOKEN_ERROR_STR);
-		tmate_fatal("Invalid token");
-	}
-
-	set_session_token(session, token);
-
-	tmate_info("Spawning pty client for %s (%s)",
-		   client->ip_address, client->pubkey);
-
-	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
-	if (session->tmux_socket_fd < 0) {
-		if (tmate_has_websocket()) {
-			/* Turn the response into an exec to show a better error */
-			client->exec_command = xstrdup("explain-session-not-found");
-			tmate_spawn_exec(session);
-			/* No return */
-		}
-
-		random_sleep(); /* for making timing attacks harder */
-		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
-		tmate_fatal("Expired token");
-	}
-
-	/*
-	 * If we are connecting through a symlink, it means that we are a
-	 * readonly client.
-	 * 1) We mark the client as CLIENT_READONLY on the server
-	 * 2) We prevent any input (aside from the window size) to go through
-	 *    to the server.
-	 */
-	session->readonly = false;
-	if (lstat(socket_path, &fstat) < 0)
-		tmate_fatal("Cannot fstat()");
-	if (S_ISLNK(fstat.st_mode)) {
-		session->readonly = true;
-		argv = argv_ro;
-		argc = 2;
-	}
-
-	if (openpty(&session->pty, &slave_pty, NULL, NULL, NULL) < 0)
-		tmate_fatal("Cannot allocate pty");
-
-	dup2(slave_pty, STDIN_FILENO);
-	dup2(slave_pty, STDOUT_FILENO);
-	dup2(slave_pty, STDERR_FILENO);
-
-	setup_ncurse(slave_pty, "screen-256color");
-
-	tmate_client_pty_init(session);
-
-	/* the unused session->websocket_fd will get closed automatically */
-
-	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
-				 session->tmux_socket_fd,
-				 ssh_get_fd(session->ssh_client.session),
-				 session->pty, log_file ? fileno(log_file) : -1}, 7);
-	jail();
-	event_reinit(session->ev_base);
-
-	ret = client_main(session->ev_base, argc, argv,
-			  CLIENT_UTF8 | CLIENT_256COLOURS, NULL);
-	tmate_flush_pty(session);
-	exit(ret);
-}
-
-static void tmate_spawn_exec(struct tmate_session *session)
-{
-	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
-				 log_file ? fileno(log_file) : -1,
-				 session->websocket_fd}, 3);
-	jail();
-	event_reinit(session->ev_base);
-
-	tmate_client_exec_init(session);
-
-	if (event_base_dispatch(session->ev_base) < 0)
-		tmate_fatal("Cannot run event loop");
-	exit(0);
-}
-
-void tmate_spawn(struct tmate_session *session)
-{
-	switch (session->ssh_client.role) {
-	case TMATE_ROLE_DAEMON:		tmate_spawn_daemon(session);		break;
-	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_pty_client(session);	break;
-	case TMATE_ROLE_EXEC:		tmate_spawn_exec(session);		break;
-	}
-}

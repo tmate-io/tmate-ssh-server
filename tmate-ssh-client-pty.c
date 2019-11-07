@@ -1,10 +1,9 @@
 #include <libssh/server.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include "tmate.h"
-
-extern void client_signal(int sig);
 
 static int on_ssh_channel_read(__unused ssh_session _session,
 			       __unused ssh_channel channel,
@@ -85,13 +84,13 @@ static void __on_pty_event(__unused evutil_socket_t fd, __unused short what, voi
 	on_pty_event(arg);
 }
 
-void tmate_flush_pty(struct tmate_session *session)
+static void tmate_flush_pty(struct tmate_session *session)
 {
 	on_pty_event(session);
 	close(session->pty);
 }
 
-void tmate_client_pty_init(struct tmate_session *session)
+static void tmate_client_pty_init(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
@@ -110,4 +109,131 @@ void tmate_client_pty_init(struct tmate_session *session)
 	event_set(&session->ev_pty, session->pty,
 		  EV_READ | EV_PERSIST, __on_pty_event, session);
 	event_add(&session->ev_pty, NULL);
+}
+
+static void random_sleep(void)
+{
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 50000000 + (tmate_get_random_long() % 150000000);
+	nanosleep(&ts, NULL);
+}
+
+#define BAD_TOKEN_ERROR_STR						\
+"Invalid session token"						 "\r\n"
+
+#define EXPIRED_TOKEN_ERROR_STR						\
+"Invalid or expired session token"				 "\r\n"
+
+static void ssh_echo(struct tmate_ssh_client *ssh_client,
+		     const char *str)
+{
+	ssh_channel_write(ssh_client->channel, str, strlen(str));
+}
+
+
+/*
+ * Session tokens are filesystem sensitive,
+ * so we must be very careful with / and .
+ */
+static char valid_digits[] = "abcdefghjklmnopqrstuvwxyz"
+                             "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+			     "0123456789-_";
+
+int tmate_validated_session_token(const char *token)
+{
+	int len;
+	int i;
+
+	if (!memcmp("ro-", token, 3))
+		token += 3;
+
+	len = strlen(token);
+
+	if (len != TMATE_TOKEN_LEN)
+		return -1;
+
+	for (i = 0; i < len; i++) {
+		if (!strchr(valid_digits, token[i]))
+			return -1;
+	}
+
+	return 0;
+}
+
+void tmate_spawn_pty_client(struct tmate_session *session)
+{
+	struct tmate_ssh_client *client = &session->ssh_client;
+	char *argv_rw[] = {(char *)"attach", NULL};
+	char *argv_ro[] = {(char *)"attach", (char *)"-r", NULL};
+	char **argv = argv_rw;
+	int argc = 1;
+	char *token = client->username;
+	struct stat fstat;
+	int slave_pty;
+	int ret;
+
+	if (tmate_validated_session_token(token) < 0) {
+		ssh_echo(client, BAD_TOKEN_ERROR_STR);
+		tmate_fatal("Invalid token");
+	}
+
+	set_session_token(session, token);
+
+	tmate_info("Spawning pty client for %s (%s)",
+		   client->ip_address, client->pubkey);
+
+	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
+	if (session->tmux_socket_fd < 0) {
+		if (tmate_has_websocket()) {
+			/* Turn the response into an exec to show a better error */
+			client->exec_command = xstrdup("explain-session-not-found");
+			tmate_spawn_exec(session);
+			/* No return */
+		}
+
+		random_sleep(); /* for making timing attacks harder */
+		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
+		tmate_fatal("Expired token");
+	}
+
+	/*
+	 * If we are connecting through a symlink, it means that we are a
+	 * readonly client.
+	 * 1) We mark the client as CLIENT_READONLY on the server
+	 * 2) We prevent any input (aside from the window size) to go through
+	 *    to the server.
+	 */
+	session->readonly = false;
+	if (lstat(socket_path, &fstat) < 0)
+		tmate_fatal("Cannot fstat()");
+	if (S_ISLNK(fstat.st_mode)) {
+		session->readonly = true;
+		argv = argv_ro;
+		argc = 2;
+	}
+
+	if (openpty(&session->pty, &slave_pty, NULL, NULL, NULL) < 0)
+		tmate_fatal("Cannot allocate pty");
+
+	dup2(slave_pty, STDIN_FILENO);
+	dup2(slave_pty, STDOUT_FILENO);
+	dup2(slave_pty, STDERR_FILENO);
+
+	setup_ncurse(slave_pty, "screen-256color");
+
+	tmate_client_pty_init(session);
+
+	/* the unused session->websocket_fd will get closed automatically */
+	close_fds_except((int[]){STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+				 session->tmux_socket_fd,
+				 ssh_get_fd(session->ssh_client.session),
+				 session->pty, log_file ? fileno(log_file) : -1}, 7);
+	get_in_jail();
+	event_reinit(session->ev_base);
+
+	ret = client_main(session->ev_base, argc, argv,
+			  CLIENT_UTF8 | CLIENT_256COLOURS, NULL);
+	tmate_flush_pty(session);
+	exit(ret);
 }

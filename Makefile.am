@@ -175,18 +175,19 @@ dist_tmate_ssh_server_SOURCES = \
 	signal.c \
 	status.c \
 	style.c \
-	tmate-debug.c \
 	tmate-daemon-decoder.c \
 	tmate-daemon-encoder.c \
 	tmate-daemon-legacy.c \
-	tmate-msgpack.c \
-	tmate-websocket.c \
+	tmate-debug.c \
 	tmate-main.c \
+	tmate-msgpack.c \
+	tmate-rand.c \
 	tmate-ssh-client-pty.c \
 	tmate-ssh-daemon.c \
 	tmate-ssh-exec.c \
 	tmate-ssh-latency.c \
 	tmate-ssh-server.c \
+	tmate-websocket.c \
 	tmux.c \
 	tty-acs.c \
 	tty-keys.c \

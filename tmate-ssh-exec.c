@@ -23,7 +23,7 @@ static void on_websocket_error(struct tmate_session *session, __unused short eve
 	tmate_dump_exec_response(session, 1, "Internal Error\r\n");
 }
 
-void tmate_client_exec_init(struct tmate_session *session)
+static void tmate_client_exec_init(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
@@ -34,4 +34,19 @@ void tmate_client_exec_init(struct tmate_session *session)
 	tmate_init_websocket(session, on_websocket_error);
 
 	tmate_websocket_exec(session, client->exec_command);
+}
+
+void tmate_spawn_exec(struct tmate_session *session)
+{
+	close_fds_except((int[]){ssh_get_fd(session->ssh_client.session),
+				 log_file ? fileno(log_file) : -1,
+				 session->websocket_fd}, 3);
+	get_in_jail();
+	event_reinit(session->ev_base);
+
+	tmate_client_exec_init(session);
+
+	if (event_base_dispatch(session->ev_base) < 0)
+		tmate_fatal("Cannot run event loop");
+	exit(0);
 }

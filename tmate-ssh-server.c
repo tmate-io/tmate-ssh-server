@@ -304,7 +304,11 @@ static void client_bootstrap(struct tmate_session *_session)
 	start_keepalive_timer(client, TMATE_SSH_KEEPALIVE_SEC * 1000);
 	register_on_ssh_read(client);
 
-	tmate_spawn(_session);
+	switch (client->role) {
+	case TMATE_ROLE_DAEMON:		tmate_spawn_daemon(_session);		break;
+	case TMATE_ROLE_PTY_CLIENT:	tmate_spawn_pty_client(_session);	break;
+	case TMATE_ROLE_EXEC:		tmate_spawn_exec(_session);		break;
+	}
 	/* never reached */
 }
 

@@ -1,6 +1,8 @@
 #include "tmate.h"
 #include <errno.h>
 
+struct tmate_session _tmate_session, *tmate_session = &_tmate_session;
+
 static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
@@ -66,7 +68,7 @@ static void on_daemon_encoder_write(void *userdata, struct evbuffer *buffer)
 	}
 }
 
-void tmate_daemon_init(struct tmate_session *session)
+static void tmate_daemon_init(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
 
@@ -80,4 +82,106 @@ void tmate_daemon_init(struct tmate_session *session)
 	tmate_decoder_init(&session->daemon_decoder, on_daemon_decoder_read, session);
 
 	tmate_init_websocket(session, NULL);
+}
+
+static void handle_sigterm(__unused int sig)
+{
+	request_server_termination();
+}
+
+/* We skip letters that are hard to distinguish when reading */
+static char rand_tmate_token_digits[] = "abcdefghjkmnpqrstuvwxyz"
+				        "ABCDEFGHJKLMNPQRSTUVWXYZ"
+				        "23456789";
+
+#define NUM_DIGITS (sizeof(rand_tmate_token_digits) - 1)
+
+static char *get_random_token(void)
+{
+	struct random_stream rs;
+	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
+	int i;
+	unsigned char c;
+
+	random_stream_init(&rs);
+
+	for (i = 0; i < TMATE_TOKEN_LEN; i++) {
+		do {
+			c = *random_stream_get(&rs, 1);
+		} while (c >= NUM_DIGITS);
+
+		token[i] = rand_tmate_token_digits[c];
+	}
+
+	token[i] = 0;
+
+	return token;
+}
+
+static void create_session_ro_symlink(struct tmate_session *session)
+{
+	char *tmp, *token, *session_ro_path;
+
+#ifdef DEVENV
+	tmp = xstrdup("READONLYTOKENFORDEVENV000");
+#else
+	tmp = get_random_token();
+#endif
+	xasprintf(&token, "ro-%s", tmp);
+	free(tmp);
+
+	session->session_token_ro = token;
+
+	xasprintf(&session_ro_path, TMATE_WORKDIR "/sessions/%s",
+		  session->session_token_ro);
+
+	unlink(session_ro_path);
+	if (symlink(session->session_token, session_ro_path) < 0)
+		tmate_fatal("Cannot create read-only symlink");
+	free(session_ro_path);
+}
+
+void tmate_spawn_daemon(struct tmate_session *session)
+{
+	struct tmate_ssh_client *client = &session->ssh_client;
+	char *token;
+
+#ifdef DEVENV
+	token = xstrdup("SUPERSECURETOKENFORDEVENV");
+#else
+	token = get_random_token();
+#endif
+
+	set_session_token(session, token);
+	free(token);
+
+	tmate_info("Spawning daemon for %s at %s (%s)",
+		   client->username, client->ip_address, client->pubkey);
+
+	session->tmux_socket_fd = server_create_socket();
+	if (session->tmux_socket_fd < 0)
+		tmate_fatal("Cannot create to the tmux socket");
+
+	create_session_ro_symlink(session);
+
+	/*
+	 * Needed to initialize the database used in tty-term.c.
+	 * We won't have access to it once in the jail.
+	 */
+	setup_ncurse(STDOUT_FILENO, "screen-256color");
+
+	tmate_daemon_init(session);
+
+	close_fds_except((int[]){session->tmux_socket_fd,
+				 ssh_get_fd(session->ssh_client.session),
+				 log_file ? fileno(log_file) : -1,
+				 session->websocket_fd}, 4);
+
+	get_in_jail();
+	event_reinit(session->ev_base);
+
+	tmux_server_init();
+	signal(SIGTERM, handle_sigterm);
+	server_start(session->ev_base, -1, NULL);
+	/* never reached */
 }

@@ -127,18 +127,16 @@ extern void tmate_dispatch_daemon_message(struct tmate_session *session,
 #define TMATE_KEYFRAME_INTERVAL_SEC 10
 #define TMATE_KEYFRAME_MAX_SIZE 1024*1024
 
-extern void tmate_daemon_init(struct tmate_session *session);
+extern void tmate_spawn_daemon(struct tmate_session *session);
 
 /* tmate-ssh-exec.c */
-
+extern void tmate_spawn_exec(struct tmate_session *session);
 extern void tmate_dump_exec_response(struct tmate_session *session,
 				     int exit_code, const char *message);
-extern void tmate_client_exec_init(struct tmate_session *session);
 
 /* tmate-ssh-client-pty.c */
-
-extern void tmate_client_pty_init(struct tmate_session *session);
-extern void tmate_flush_pty(struct tmate_session *session);
+extern void tmate_spawn_pty_client(struct tmate_session *session);
+extern int tmate_validated_session_token(const char *token);
 
 /* tmate-ssh-server.c */
 
@@ -257,8 +255,26 @@ extern struct tmate_session *tmate_session;
 extern void tmate_get_random_bytes(void *buffer, ssize_t len);
 extern long tmate_get_random_long(void);
 extern void request_server_termination(void);
-extern void tmate_spawn(struct tmate_session *session);
+extern char *get_socket_path(const char *_token);
 extern void set_session_token(struct tmate_session *session, const char *token);
+
+extern void close_fds_except(int *fd_to_preserve, int num_fds);
+extern void get_in_jail(void);
+
+/* tmate-rand.c */
+#define RS_BUF_SIZE 256
+
+struct random_stream {
+	char bytes[RS_BUF_SIZE];
+	off_t pos;
+};
+
+extern void tmate_init_rand(void);
+extern void tmate_get_random_bytes(void *buffer, ssize_t len);
+extern long tmate_get_random_long(void);
+extern void random_stream_init(struct random_stream *rs);
+extern char *random_stream_get(struct random_stream *rs, size_t count);
+extern void setup_ncurse(int fd, const char *name);
 
 /* tmate-websocket.c */
 
@@ -287,5 +303,15 @@ extern void tmate_catch_sigsegv(void);
 /* tmux.c */
 
 extern void tmux_server_init(void);
+
+/* server.c */
+extern int server_create_socket(void);
+
+/* log.c */
+extern FILE *log_file;
+
+/* client.c */
+extern void client_signal(int sig);
+extern int client_connect(struct event_base *base, const char *path, int start_server);
 
 #endif
