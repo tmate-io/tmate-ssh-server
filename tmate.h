@@ -195,7 +195,7 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 #define TMATE_SSH_DEFAULT_PORT 22
 #endif
 
-#define TMATE_SSH_GRACE_PERIOD 60
+#define TMATE_SSH_GRACE_PERIOD 20
 
 #define TMATE_SSH_DEFAULT_KEYS_DIR "keys"
 
