@@ -133,24 +133,20 @@ static void ssh_echo(struct tmate_ssh_client *ssh_client,
 
 
 /*
- * Session tokens are filesystem sensitive,
- * so we must be very careful with / and .
+ * Note: get_socket_path() replaces '/' and '.' by '_' to
+ * avoid wondering around the file system.
  */
 static char valid_digits[] = "abcdefghjklmnopqrstuvwxyz"
                              "ABCDEFGHJKLMNOPQRSTUVWXYZ"
-			     "0123456789-_";
+			     "0123456789-_/";
 
-int tmate_validated_session_token(const char *token)
+int tmate_validate_session_token(const char *token)
 {
 	int len;
 	int i;
 
-	if (!memcmp("ro-", token, 3))
-		token += 3;
-
 	len = strlen(token);
-
-	if (len != TMATE_TOKEN_LEN)
+	if (len <= 2)
 		return -1;
 
 	for (i = 0; i < len; i++) {
@@ -173,7 +169,7 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 	int slave_pty;
 	int ret;
 
-	if (tmate_validated_session_token(token) < 0) {
+	if (tmate_validate_session_token(token) < 0) {
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
 		tmate_fatal("Invalid token");
 	}

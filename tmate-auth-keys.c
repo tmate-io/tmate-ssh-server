@@ -167,7 +167,7 @@ bool would_tmate_session_allow_auth(const char *token, const char *pubkey)
 	int sock_fd = -1;
 	int ret = true;
 
-	if (tmate_validated_session_token(token) < 0)
+	if (tmate_validate_session_token(token) < 0)
 		goto out;
 
 	char *sock_path = get_socket_path(token);

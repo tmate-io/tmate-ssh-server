@@ -142,7 +142,7 @@ extern void tmate_dump_exec_response(struct tmate_session *session,
 
 /* tmate-ssh-client-pty.c */
 extern void tmate_spawn_pty_client(struct tmate_session *session);
-extern int tmate_validated_session_token(const char *token);
+extern int tmate_validate_session_token(const char *token);
 
 /* tmate-ssh-server.c */
 
