@@ -517,6 +517,10 @@ static void tmate_snapshot(__unused struct tmate_session *session,
 void tmate_dispatch_daemon_message(struct tmate_session *session,
 				   struct tmate_unpacker *uk)
 {
+	/* We make a copy because we are mutating it */
+	struct tmate_unpacker uk_copy = *uk;
+	uk = &uk_copy;
+
 	int cmd = unpack_int(uk);
 	switch (cmd) {
 #define dispatch(c, f) case c: f(session, uk); break

@@ -8,8 +8,8 @@ static void on_daemon_decoder_read(void *userdata, struct tmate_unpacker *uk)
 {
 	struct tmate_session *session = userdata;
 
-	tmate_send_websocket_daemon_msg(session, uk);
 	tmate_dispatch_daemon_message(session, uk);
+	tmate_send_websocket_daemon_msg(session, uk);
 }
 
 static int on_ssh_channel_read(__unused ssh_session _session,
