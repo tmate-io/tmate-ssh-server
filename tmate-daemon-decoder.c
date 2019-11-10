@@ -68,6 +68,18 @@ static void tmate_header(struct tmate_session *session,
 	tmate_send_client_ready();
 }
 
+static void tmate_uname(struct tmate_session *session,
+			struct tmate_unpacker *uk)
+{
+	char *sysname = unpack_string(uk);
+	char *nodename = unpack_string(uk);
+	char *release = unpack_string(uk);
+	char *version = unpack_string(uk);
+	char *machine = unpack_string(uk);
+	tmate_info("sysname=%s machine=%s release=%s version=%s nodename=%s",
+		   sysname, machine, release, version, nodename);
+}
+
 extern u_int next_window_pane_id;
 
 static void tmate_sync_window_panes(struct window *w,
@@ -537,6 +549,7 @@ void tmate_dispatch_daemon_message(struct tmate_session *session,
 	dispatch(TMATE_OUT_RECONNECT,		tmate_reconnect);
 	dispatch(TMATE_OUT_SNAPSHOT,		tmate_snapshot);
 	dispatch(TMATE_OUT_EXEC_CMD,		tmate_exec_cmd);
+	dispatch(TMATE_OUT_UNAME,		tmate_uname);
 	default: tmate_fatal("Bad message type: %d", cmd);
 	}
 }
