@@ -28,7 +28,7 @@ RUN set -ex; \
 ### Minimal run-time image
 FROM alpine:3.9
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
+RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib gdb bash
 
 COPY --from=build /usr/lib/libssh.so.* /usr/lib/
 COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/

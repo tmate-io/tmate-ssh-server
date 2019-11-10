@@ -45,7 +45,7 @@ static void tmate_header(struct tmate_session *session,
 		session->daemon_encoder.mpac_version = 4;
 	}
 
-	tmate_info("Daemon header: version=%s, protocol=%d",
+	tmate_info("tmate version=%s, protocol=%d",
 		   session->client_version, session->client_protocol_version);
 
 	if (tmate_has_websocket()) {

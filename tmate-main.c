@@ -174,7 +174,7 @@ char *get_socket_path(const char *_token)
 
 	for (char *c = token; *c; c++) {
 		if (*c == '/' || *c == '.')
-			*c = '_';
+			*c = '=';
 	}
 
 	xasprintf(&path, TMATE_WORKDIR "/sessions/%s", token);

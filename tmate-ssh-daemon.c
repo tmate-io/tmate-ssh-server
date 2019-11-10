@@ -156,8 +156,7 @@ void tmate_spawn_daemon(struct tmate_session *session)
 	set_session_token(session, token);
 	free(token);
 
-	tmate_info("Spawning daemon username=%s ip=%s",
-		    client->username, client->ip_address);
+	tmate_info("Spawning daemon ip=%s", client->ip_address);
 
 	session->tmux_socket_fd = server_create_socket();
 	if (session->tmux_socket_fd < 0)

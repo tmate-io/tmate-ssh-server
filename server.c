@@ -222,7 +222,8 @@ server_loop(void)
 		 * This causes an infinite loop.
 		 * The following check is a workaround to avoid the infinite loop.
 		 */
-		tmate_fatal("SSH socket not connected, but socket close wasn't detected");
+		tmate_info("SSH socket not connected, but socket close wasn't detected");
+		request_server_termination();
 	}
 
 	if (!tmate_server_request_exit)
