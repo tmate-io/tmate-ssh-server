@@ -442,13 +442,6 @@ static void handle_sigchld(__unused int sig)
 	}
 }
 
-static void handle_sigsegv(__unused int sig)
-{
-	tmate_info("CRASH, printing stack trace");
-	tmate_print_stack_trace();
-	tmate_fatal("CRASHED");
-}
-
 void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 			   const char *bind_addr, int port)
 {
@@ -457,7 +450,7 @@ void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 	pid_t pid;
 	int fd;
 
-	signal(SIGSEGV, handle_sigsegv);
+	tmate_catch_sigsegv();
 	signal(SIGCHLD, handle_sigchld);
 
 	bind = prepare_ssh(keys_dir, bind_addr, port);

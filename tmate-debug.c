@@ -85,15 +85,16 @@ void tmate_print_stack_trace(void)
 	free (strings);
 }
 
-static void handle_crash(__unused int sig)
+static void handle_crash(int sig)
 {
-	/*
-	 * XXX we are in a signal handler, we are not allowed to use malloc
-	 * and friends, which is what we do
-	 */
-	tmate_info("CRASH, printing stack trace");
+	/* TODO send stack trace to server */
+	const char *what = sig == SIGSEGV ? "SIGSEGV" : "SIGABRT";
+	tmate_info("%s printing stack trace", what);
 	tmate_print_stack_trace();
-	tmate_fatal("CRASHED");
+
+	/* Reraise */
+	signal(sig, NULL);
+	kill(getpid(), sig);
 }
 
 void tmate_catch_sigsegv(void)
