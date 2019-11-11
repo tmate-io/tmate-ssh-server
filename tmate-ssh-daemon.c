@@ -191,7 +191,7 @@ static void handle_session_name_options(const char *name, __unused const char *v
 	if (tmate_has_websocket())
 		return;
 
-	if (!strcmp(name, "tmate-account-key") ||
+	if (!strcmp(name, "tmate-api-key") ||
 	    !strcmp(name, "tmate-session-name") ||
 	    !strcmp(name, "tmate-session-name-ro")) {
 		static bool warned;
