@@ -136,8 +136,8 @@ static void ssh_echo(struct tmate_ssh_client *ssh_client,
  * Note: get_socket_path() replaces '/' and '.' by '_' to
  * avoid wondering around the file system.
  */
-static char valid_digits[] = "abcdefghjklmnopqrstuvwxyz"
-                             "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+static char valid_digits[] = "abcdefghijklmnopqrstuvwxyz"
+                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 			     "0123456789-_/";
 
 int tmate_validate_session_token(const char *token)
