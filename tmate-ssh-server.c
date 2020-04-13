@@ -210,7 +210,7 @@ static void handle_sigalrm(__unused int sig)
 static void client_bootstrap(struct tmate_session *_session)
 {
 	struct tmate_ssh_client *client = &_session->ssh_client;
-	int grace_period = TMATE_SSH_GRACE_PERIOD;
+	long grace_period = TMATE_SSH_GRACE_PERIOD;
 	ssh_event mainloop;
 	ssh_session session = client->session;
 
