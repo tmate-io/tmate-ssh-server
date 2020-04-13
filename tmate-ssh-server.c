@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <signal.h>
 #include <event.h>
 #include <arpa/inet.h>
 #ifndef IPPROTO_TCP
