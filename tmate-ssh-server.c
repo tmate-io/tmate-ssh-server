@@ -405,6 +405,12 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	if (!bind)
 		tmate_fatal("Cannot initialize ssh");
 
+#if LIBSSH_VERSION_INT >= SSH_VERSION_INT(0,9,0)
+	/* Explicitly parse configuration to avoid automatic configuration file
+	 * loading which could override options */
+	ssh_bind_options_parse_config(bind, NULL);
+#endif
+
 	if (bind_addr)
 		ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDADDR, bind_addr);
 	ssh_bind_options_set(bind, SSH_BIND_OPTIONS_BINDPORT, &port);
