@@ -1,6 +1,11 @@
 #!/bin/bash
 set -eu
 
+SSH_PORT_LISTEN="${SSH_PORT_LISTEN:-2200}"
+
+command -v ssh-keygen || apk add openssh-keygen
+
+
 gen_key() {
   keytype=$1
   ks="${keytype}_"
@@ -13,15 +18,20 @@ gen_key() {
 }
 
 mkdir -p keys
+
 gen_key rsa
 RSA_SIG=$SIG
+
+gen_key ecdsa
+ECDSA_SIG=$SIG
+
 gen_key ed25519
 ED25519_SIG=$SIG
 
-
 echo "You may use the following settings this in your .tmate.conf:"
 echo ""
-echo "set -g tmate-server-host localhost"
-echo "set -g tmate-server-port 22"
+echo "set -g tmate-server-host 127.0.0.1"
+echo "set -g tmate-server-port ${SSH_PORT_LISTEN}"
 echo "set -g tmate-server-rsa-fingerprint $RSA_SIG"
+echo "set -g tmate-server-ecdsa-fingerprint $ECDSA_SIG"
 echo "set -g tmate-server-ed25519-fingerprint $ED25519_SIG"
