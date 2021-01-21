@@ -2,18 +2,23 @@ FROM alpine:3.13 AS build
 
 RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
 
-RUN apk add --no-cache git wget cmake make gcc g++ linux-headers zlib-dev openssl-dev \
-		automake autoconf libevent-dev ncurses-dev msgpack-c-dev libexecinfo-dev
+RUN apk add --no-cache \
+	autoconf \
+	automake \
+	cmake \
+	g++ \
+	gcc \
+	git \
+	libevent-dev \
+	libexecinfo-dev \
+	linux-headers \
+	make \
+	msgpack-c-dev \
+	ncurses-dev \
+	openssl-dev \
+	zlib-dev
 
-RUN set -ex; \
-	mkdir -p /src/libssh/build; \
-	cd /src; \
-	wget -O libssh.tar.xz https://www.libssh.org/files/0.9/libssh-0.9.5.tar.xz; \
-	tar -xf libssh.tar.xz -C /src/libssh --strip-components=1; \
-	cd /src/libssh/build; \
-	cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DWITH_SFTP=OFF ..; \
-	make -j "$(nproc)"; \
-	make install
+RUN apk add --no-cache libssh-dev
 
 RUN mkdir -p /src/tmate-ssh-server
 COPY . /src/tmate-ssh-server
@@ -28,7 +33,16 @@ RUN set -ex; \
 ### Minimal run-time image
 FROM alpine:3.13
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib gdb bash
+RUN apk add --no-cache \
+	bash \
+	gdb \
+	libevent \
+	libexecinfo \
+	libssh \
+	msgpack-c \
+	ncurses-libs \
+	openssl \
+	zlib
 
 COPY --from=build /usr/lib/libssh.so.* /usr/lib/
 COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
