@@ -6,10 +6,10 @@ gen_key() {
   ks="${keytype}_"
   key="keys/ssh_host_${ks}key"
   if [ ! -e "${key}" ] ; then
-    ssh-keygen -t ${keytype} -f "${key}" -N ''
+    ssh-keygen -t "${keytype}" -f "${key}" -N ''
     echo ""
   fi
-  SIG=$(ssh-keygen -l -E SHA256 -f $key.pub | cut -d ' ' -f 2)
+  SIG=$(ssh-keygen -l -E SHA256 -f "$key.pub" | cut -d ' ' -f 2)
 }
 
 mkdir -p keys
