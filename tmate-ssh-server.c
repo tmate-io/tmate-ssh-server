@@ -224,8 +224,10 @@ static void client_bootstrap(struct tmate_session *_session)
 
 	{
 	int flag = 1;
-	setsockopt(ssh_get_fd(session), IPPROTO_TCP, TCP_NODELAY,
-		   &flag, sizeof(flag));
+	int fd = ssh_get_fd(session);
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	flag = 0x10;  /* IPTOS_LOWDELAY */
+	setsockopt(fd, IPPROTO_IP, IP_TOS, &flag, sizeof(flag));
 	}
 
 	/*
