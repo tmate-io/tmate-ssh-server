@@ -193,6 +193,7 @@ extern void tmate_ssh_server_main(struct tmate_session *session,
 
 struct tmate_settings {
 	const char *keys_dir;
+	const char *disclaimer;
 	const char *authorized_keys_path;
 	int ssh_port;
 	int ssh_port_advertized;
