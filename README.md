@@ -30,6 +30,22 @@ The following environment variables are used to configure the server:
 Note that you need to add the *SYS_ADMIN* capability to the container.
 This is needed to create nested containers (namespaces) to secure sessions.
 
+CLI arguments
+-------------
+
+* `-b`: address to bind
+* `-d`: disclaimer to display to client
+* `-h`: tmate hostname
+* `-k`: ssh keys path
+* `-p`: port to bind
+* `-q`: port advertized
+* `-w`: websocket hostname
+* `-z`: websocket port
+* `-x`: use proxy protocol
+* `-v`: log level
+
+For more low-level information please see [tmate-main.c](./tmate-main.c).
+
 License
 --------
 
