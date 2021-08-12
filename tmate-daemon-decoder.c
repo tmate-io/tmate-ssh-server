@@ -6,6 +6,10 @@
 
 char *tmate_left_status, *tmate_right_status;
 
+#define AUTHORIZED_KEYS_ONLY_ERROR_MSG_1 "Server requires authorized_keys but none are given."
+#define AUTHORIZED_KEYS_ONLY_ERROR_MSG_2 "Use '-a FILENAME' to specify an authorized_keys file."
+#define AUTHORIZED_KEYS_ONLY_ERROR_MSG_3 "Press <Ctrl-c><Ctrl-d> to exit."
+
 static void tmate_ready(struct tmate_session *session,
 			__unused struct tmate_unpacker *uk)
 {
@@ -19,6 +23,16 @@ static void tmate_ready(struct tmate_session *session,
 	if (session->authorized_keys) {
 		int count = get_num_authorized_keys(session->authorized_keys);
 		tmate_info("Restricting ssh access, num_keys=%d", count);
+	} else if (tmate_settings->authorized_keys_only) {
+		/* Inform the user that this connexion isn't happening,
+		 * and what to do about it.
+		 */
+
+		tmate_notify(AUTHORIZED_KEYS_ONLY_ERROR_MSG_1);
+		tmate_notify(AUTHORIZED_KEYS_ONLY_ERROR_MSG_2);
+		tmate_notify(AUTHORIZED_KEYS_ONLY_ERROR_MSG_3);
+		tmate_notify("");
+		server_send_exit();
 	}
 	server_add_accept(0);
 }

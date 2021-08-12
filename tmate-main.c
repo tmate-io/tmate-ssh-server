@@ -33,6 +33,7 @@ struct tmate_settings _tmate_settings = {
 	.tmate_host      	= NULL,
 	.log_level      	= LOG_INFO,
 	.use_proxy_protocol	= false,
+	.authorized_keys_only	= false,
 };
 
 struct tmate_settings *tmate_settings = &_tmate_settings;
@@ -49,7 +50,7 @@ void request_server_termination(void)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: tmate-ssh-server [-b ip] [-h hostname] [-k keys_dir] [-p listen_port] [-q ssh_port_advertized] [-w websocket_hostname] [-z websocket_port] [-x] [-v]\n");
+	fprintf(stderr, "usage: tmate-ssh-server [-A] [-b ip] [-h hostname] [-k keys_dir] [-p listen_port] [-q ssh_port_advertized] [-w websocket_hostname] [-z websocket_port] [-x] [-v]\n");
 }
 
 static char* get_full_hostname(void)
@@ -102,8 +103,11 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:h:k:p:q:w:z:xv")) != -1) {
+	while ((opt = getopt(argc, argv, "Ab:h:k:p:q:w:z:xv")) != -1) {
 		switch (opt) {
+		case 'A':
+			tmate_settings->authorized_keys_only = true;
+			break;
 		case 'b':
 			tmate_settings->bind_addr = xstrdup(optarg);
 			break;
