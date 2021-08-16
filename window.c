@@ -685,7 +685,7 @@ window_destroy_panes(struct window *w)
 	}
 }
 
-/* Retuns the printable flags on a window, empty string if no flags set. */
+/* Returns the printable flags on a window, empty string if no flags set. */
 char *
 window_printable_flags(struct session *s, struct winlink *wl)
 {
