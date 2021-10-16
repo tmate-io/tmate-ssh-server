@@ -98,6 +98,24 @@ static void setup_locale(void)
 	tzset();
 }
 
+static int check_owned_directory_mode(const char *path, mode_t expected_mode)
+{
+	struct stat stat;
+	if (lstat(path, &stat))
+		return -1;
+
+	if (!S_ISDIR(stat.st_mode))
+		return -1;
+
+	if (stat.st_uid != getuid())
+		return -1;
+
+	if ((stat.st_mode & 07777) != expected_mode)
+		return -1;
+
+	return 0;
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int opt;
@@ -151,16 +169,21 @@ int main(int argc, char **argv, char **envp)
 	tmate_catch_sigsegv();
 	tmate_init_rand();
 
-	if ((mkdir(TMATE_WORKDIR, 0701)             < 0 && errno != EEXIST) ||
-	    (mkdir(TMATE_WORKDIR "/sessions", 0703) < 0 && errno != EEXIST) ||
+	if ((mkdir(TMATE_WORKDIR, 0700)             < 0 && errno != EEXIST) ||
+	    (mkdir(TMATE_WORKDIR "/sessions", 0700) < 0 && errno != EEXIST) ||
 	    (mkdir(TMATE_WORKDIR "/jail", 0700)     < 0 && errno != EEXIST))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
 
-	/* The websocket server needs to access the /session dir to rename sockets */
-	if ((chmod(TMATE_WORKDIR, 0701)             < 0) ||
-	    (chmod(TMATE_WORKDIR "/sessions", 0703) < 0) ||
+	if ((chmod(TMATE_WORKDIR, 0700)             < 0) ||
+	    (chmod(TMATE_WORKDIR "/sessions", 0700) < 0) ||
 	    (chmod(TMATE_WORKDIR "/jail", 0700)     < 0))
 		tmate_fatal("Cannot prepare session in " TMATE_WORKDIR);
+
+	if (check_owned_directory_mode(TMATE_WORKDIR, 0700) ||
+	    check_owned_directory_mode(TMATE_WORKDIR "/sessions", 0700) ||
+	    check_owned_directory_mode(TMATE_WORKDIR "/jail", 0700))
+		tmate_fatal(TMATE_WORKDIR " and subdirectories has incorrect ownership/mode. "
+			    "Try deleting " TMATE_WORKDIR " and try again");
 
 	tmate_ssh_server_main(tmate_session,
 			      tmate_settings->keys_dir, tmate_settings->bind_addr, tmate_settings->ssh_port);
