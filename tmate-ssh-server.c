@@ -423,7 +423,7 @@ static ssh_bind prepare_ssh(const char *keys_dir, const char *bind_addr, int por
 	ssh_import_key(bind, keys_dir, "ssh_host_ed25519_key");
 
 	if (ssh_bind_listen(bind) < 0)
-		tmate_fatal("Error listening to socket: %s\n", ssh_get_error(bind));
+		tmate_fatal("Error listening to socket: %s", ssh_get_error(bind));
 
 	tmate_info("Accepting connections on %s:%d", bind_addr ?: "", port);
 
