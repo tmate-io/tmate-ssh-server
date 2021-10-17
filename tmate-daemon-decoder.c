@@ -133,6 +133,8 @@ static void tmate_sync_window_panes(struct window *w,
 
 	active_pane_id = unpack_int(w_uk);
 	wp = window_pane_find_by_id(active_pane_id);
+	if (!wp || wp->window != w)
+		tmate_fatal("Invalid active_pane_id recevied");
 	window_set_active_pane(w, wp);
 }
 
