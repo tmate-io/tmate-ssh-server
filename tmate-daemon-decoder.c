@@ -83,7 +83,8 @@ static void tmate_uname(struct tmate_session *session,
 extern u_int next_window_pane_id;
 
 static void tmate_sync_window_panes(struct window *w,
-				    struct tmate_unpacker *w_uk)
+				    struct tmate_unpacker *w_uk,
+				    int *num_panes)
 {
 	struct tmate_unpacker uk, tmp_uk;
 	struct window_pane *wp, *wp_tmp;
@@ -93,6 +94,9 @@ static void tmate_sync_window_panes(struct window *w,
 		wp->flags |= PANE_KILL;
 
 	unpack_each(&uk, &tmp_uk, w_uk) {
+		if (++(*num_panes) > TMATE_MAX_PANES)
+			tmate_fatal("Too many opened panes (max=%d)", TMATE_MAX_PANES);
+
 		int id = unpack_int(&uk);
 		u_int sx = unpack_int(&uk);
 		u_int sy = unpack_int(&uk);
@@ -139,6 +143,7 @@ static void tmate_sync_windows(struct session *s,
 	struct winlink *wl, *wl_tmp;
 	struct window *w;
 	int active_window_idx;
+	int num_panes = 0;
 	char *cause;
 
 	RB_FOREACH(wl, winlinks, &s->windows)
@@ -163,7 +168,7 @@ static void tmate_sync_windows(struct session *s,
 		w->sx = s->sx;
 		w->sy = s->sy;
 
-		tmate_sync_window_panes(w, &uk);
+		tmate_sync_window_panes(w, &uk, &num_panes);
 	}
 
 	RB_FOREACH_SAFE(wl, winlinks, &s->windows, wl_tmp) {
