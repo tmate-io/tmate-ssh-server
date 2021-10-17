@@ -108,6 +108,7 @@ extern void tmate_translate_legacy_key(int pane_id, key_code key);
 
 #define TMATE_HLIMIT 2000
 #define TMATE_PANE_ACTIVE 1
+#define TMATE_MAX_MESSAGE_SIZE (17*1024)
 
 extern char *tmate_left_status, *tmate_right_status;
 extern void tmate_dispatch_daemon_message(struct tmate_session *session,
