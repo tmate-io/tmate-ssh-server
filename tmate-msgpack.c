@@ -285,6 +285,11 @@ void tmate_decoder_init(struct tmate_decoder *decoder, tmate_decoder_reader *rea
 void tmate_decoder_get_buffer(struct tmate_decoder *decoder,
 			      char **buf, size_t *len)
 {
+	if (msgpack_unpacker_message_size(&decoder->unpacker) > TMATE_MAX_MESSAGE_SIZE) {
+		tmate_fatal("Incoming message is too large");
+		return;
+	}
+
 	if (!msgpack_unpacker_reserve_buffer(&decoder->unpacker, UNPACKER_RESERVE_SIZE))
 		tmate_fatal("cannot expand decoder buffer");
 
