@@ -1,11 +1,11 @@
 #!/bin/sh
 set -e
 
-if [ "${USE_PROXY_PROTOCOL}" -eq "1" ]; then
+if [ "${USE_PROXY_PROTOCOL:-0}" -eq "1" ]; then
   set -- -x "$@"
 fi
 
-if [ "${HAS_WEBSOCKET}" -eq "1" ]; then
+if [ "${HAS_WEBSOCKET:-0}" -eq "1" ]; then
   set -- -w localhost "$@"
 fi
 
