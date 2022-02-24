@@ -13,7 +13,7 @@ if [ -n "${WEBSOCKET_HOSTNAME}" ]; then
   set -- -w "${WEBSOCKET_HOSTNAME}" "$@"
 fi
 
-if [ ! -z "${SSH_HOSTNAME}" ]; then
+if [ -n "${SSH_HOSTNAME}" ]; then
   set -- -h "${SSH_HOSTNAME}" "$@"
 fi
 
@@ -21,4 +21,4 @@ SSH_PORT_LISTEN=${SSH_PORT_LISTEN:-2200}
 SSH_PORT_ADVERTIZE=${SSH_PORT_ADVERTIZE:-${SSH_PORT_LISTEN}}
 SSH_PORT_ADVERTISE=${SSH_PORT_ADVERTISE:-${SSH_PORT_ADVERTIZE}}
 
-exec tmate-ssh-server -p ${SSH_PORT_LISTEN} -q ${SSH_PORT_ADVERTISE} -k ${SSH_KEYS_PATH} "$@"
+exec tmate-ssh-server -p "${SSH_PORT_LISTEN}" -q "${SSH_PORT_ADVERTISE}" -k "${SSH_KEYS_PATH}" "$@"
