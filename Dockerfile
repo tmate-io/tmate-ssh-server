@@ -44,7 +44,6 @@ RUN apk add --no-cache \
 	openssl \
 	zlib
 
-COPY --from=build /usr/lib/libssh.so.* /usr/lib/
 COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
 
 # TODO not run as root. Instead, use capabilities.
