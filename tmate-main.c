@@ -120,10 +120,13 @@ int main(int argc, char **argv, char **envp)
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:h:k:p:q:w:z:xv")) != -1) {
+	while ((opt = getopt(argc, argv, "b:d:h:k:p:q:w:z:xv")) != -1) {
 		switch (opt) {
 		case 'b':
 			tmate_settings->bind_addr = xstrdup(optarg);
+			break;
+		case 'd':
+			tmate_settings->disclaimer = xstrdup(optarg);
 			break;
 		case 'h':
 			tmate_settings->tmate_host = xstrdup(optarg);

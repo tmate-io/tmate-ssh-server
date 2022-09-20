@@ -27,6 +27,7 @@ static void tmate_header(struct tmate_session *session,
 			 struct tmate_unpacker *uk)
 {
 	char *ssh_conn_str;
+	char *disclaimer;
 
 	session->client_protocol_version = unpack_int(uk);
 
@@ -56,6 +57,10 @@ static void tmate_header(struct tmate_session *session,
 
 	ssh_conn_str = get_ssh_conn_string(session->session_token_ro);
 	tmate_notify("Note: clear your terminal before sharing readonly access");
+	disclaimer = tmate_settings->disclaimer;
+	if (disclaimer != NULL) {
+		tmate_notify("%s", disclaimer);
+	}
 	tmate_notify("ssh session read only: %s", ssh_conn_str);
 	tmate_set_env("tmate_ssh_ro", ssh_conn_str);
 	free(ssh_conn_str);
