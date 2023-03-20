@@ -160,8 +160,8 @@ int tmate_validate_session_token(const char *token)
 
 struct string 
 {
-  char *ptr;
-  size_t len;
+	char *ptr;
+	size_t len;
 };
 
 void init_string(struct string *s)
@@ -186,54 +186,54 @@ static const int MAC_PAT_SIZE = 100;
 
 char* extract_pat(const char *token)
 {
-  char* pat_end = strchr(token, ':');
-  
-  if (pat_end == NULL)
-  {
+	char* pat_end = strchr(token, ':');
+
+	if (pat_end == NULL)
+	{
 	tmate_debug("Invalid token format %s", token);
 	return NULL;
-  }
+	}
 
-  int pat_size = pat_end - token;
+	int pat_size = pat_end - token;
 
-  if (pat_size > MAC_PAT_SIZE)
-  {
+	if (pat_size > MAC_PAT_SIZE)
+	{
 	tmate_debug("Invalid pat size %d", pat_size);
 	return NULL;
-  }
+	}
 
-  char* pat = xmalloc(pat_size + 1);
-  pat = memcpy(pat, token, pat_size);
-  *(pat + pat_size) = '\0';
+	char* pat = xmalloc(pat_size + 1);
+	pat = memcpy(pat, token, pat_size);
+	*(pat + pat_size) = '\0';
 
-  return pat;
+	return pat;
 }
 
 char* extract_account(const char* token)
 {
-  char* pat_end = strchr(token, ':');
+	char* pat_end = strchr(token, ':');
 
-  if (pat_end == NULL)
-  {
+	if (pat_end == NULL)
+	{
 	tmate_info("EErrro", pat_end);
-  }
+	}
 
-  char* account_start = pat_end + sizeof(char);
+	char* account_start = pat_end + sizeof(char);
 
-  char* accout_end = strchr(account_start, ':');
+	char* accout_end = strchr(account_start, ':');
 
-  if (accout_end == NULL)
-  {
+	if (accout_end == NULL)
+	{
 	tmate_fatal("Faild to extract account from token");
-  }
+	}
 
-  int account_size = accout_end - account_start;
-  char* account = xmalloc(account_size + 1);
-  account = memcpy(account, pat_end + 1, account_size);
-  *(account + account_size) = '\0';
+	int account_size = accout_end - account_start;
+	char* account = xmalloc(account_size + 1);
+	account = memcpy(account, pat_end + 1, account_size);
+	*(account + account_size) = '\0';
 
-  tmate_info("in account %s", account);
-  return account;
+	tmate_info("in account %s", account);
+	return account;
 }
 
 int validate_access_token(const char *token)
