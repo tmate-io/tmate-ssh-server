@@ -3,6 +3,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <curl/curl.h>
 #include "tmate.h"
 
 static int on_ssh_channel_read(__unused ssh_session _session,
@@ -157,6 +158,159 @@ int tmate_validate_session_token(const char *token)
 	return 0;
 }
 
+
+struct string 
+{
+  char *ptr;
+  size_t len;
+};
+
+void init_string(struct string *s)
+{
+  s->len = 0;
+  s->ptr = xmalloc(s->len+1);
+  s->ptr[0] = '\0';
+}
+
+size_t write_func(void *ptr, size_t size, size_t nmemb, struct string *s)
+{
+  size_t new_len = s->len + size*nmemb;
+  s->ptr = xrealloc(s->ptr, new_len+1);
+  memcpy(s->ptr+s->len, ptr, size*nmemb);
+  s->ptr[new_len] = '\0';
+  s->len = new_len;
+
+  return size*nmemb;
+}
+
+static const int MAC_PAT_SIZE = 100;
+
+char* extract_pat(const char *token)
+{
+  char* pat_end = strchr(token, ':');
+  
+  if (pat_end == NULL)
+  {
+	tmate_debug("Invalid token format %s", token);
+	return NULL;
+  }
+
+  int pat_size = pat_end - token;
+
+  if (pat_size > MAC_PAT_SIZE)
+  {
+	tmate_debug("Invalid pat size %d", pat_size);
+	return NULL;
+  }
+
+  char* pat = xmalloc(pat_size + 1);
+  pat = memcpy(pat, token, pat_size);
+  *(pat + pat_size) = '\0';
+
+  return pat;
+}
+
+char* extract_account(const char* token)
+{
+  char* pat_end = strchr(token, ':');
+  
+  if (pat_end == NULL)
+  {
+	tmate_info("EErrro", pat_end);
+  }
+
+  char* account_start = pat_end + sizeof(char);
+
+  char* accout_end = strchr(account_start, ':');
+
+  if (accout_end == NULL)
+  {
+	tmate_fatal("Faild to extract account from token");
+  }
+
+  int account_size = accout_end - account_start;
+  char* account = xmalloc(account_size + 1);
+  account = memcpy(account, pat_end + 1, account_size);
+  *(account + account_size) = '\0';
+
+  tmate_info("in account %s", account);
+  return account;
+}
+
+int validate_access_token(const char *token)
+{
+
+  char* pat = extract_pat(token);
+  if (pat == NULL) return -1; 
+  
+  char* account = extract_account(token);
+  if (account == NULL) return -1;
+
+  CURL *curl;
+  CURLcode res;
+  struct curl_slist *list = NULL;
+
+  curl = curl_easy_init();
+  struct string s;
+  init_string(&s);
+
+  const char* api_header = "x-api-key: ";
+  char* pat_header_with_pat;
+  xasprintf(&pat_header_with_pat, "x-api-key: %s", pat);
+  
+  const char* const_json_format = "{\"permissions\":[{\"resourceScope\":{\"accountIdentifier\":\"%s\",\"orgIdentifier\":\"\",\"projectIdentifier\":\"\"},\"resourceType\": \"PIPLINE\",\"permission\":\"core_pipeline_execute\"}]}";
+  char* joson_body_with_account;
+  xasprintf(&joson_body_with_account, const_json_format,account);
+  
+  tmate_debug("Json body %s", joson_body_with_account);
+
+  if(curl) 
+  {
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+   	curl_easy_setopt(curl, CURLOPT_URL, "https://app.harness.io/gateway/authz/api/acl");
+    
+  	list = curl_slist_append(list, "Content-Type: application/json");
+  	list = curl_slist_append(list, pat_header_with_pat);
+	
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list); 
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, joson_body_with_account);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_func);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, false);
+    
+	 
+    res = curl_easy_perform(curl);
+    
+    if(res != CURLE_OK)
+	{
+		tmate_info("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		return -1;
+	}
+    
+	tmate_debug("Token validation response: %s", s.ptr);
+    
+	if (strstr(s.ptr, "permitted\":true") == NULL)
+	{
+		tmate_info("Error response from token validation %s", s.ptr);
+		return -1;
+	}
+	
+
+	free(s.ptr);
+	free(account);
+	free(pat);
+	free(joson_body_with_account);
+	free(pat_header_with_pat);   
+
+    curl_easy_cleanup(curl);
+	return 1;
+  }
+
+  return -1;
+
+}
+
 void tmate_spawn_pty_client(struct tmate_session *session)
 {
 	struct tmate_ssh_client *client = &session->ssh_client;
@@ -169,12 +323,17 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 	int slave_pty;
 	int ret;
 
-	if (tmate_validate_session_token(token) < 0) {
+	tmate_info("Validating access token %s", token);
+	
+	if (validate_access_token(token) < 0)
+	{
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
 		tmate_fatal("Invalid token");
 	}
 
-	set_session_token(session, token);
+	tmate_info("This is the link token without pat %s", strchr(token, ':') + sizeof(char));
+
+	set_session_token(session,  strchr(token, ':') + sizeof(char));
 
 	tmate_info("Spawning pty client ip=%s", client->ip_address);
 
@@ -184,6 +343,7 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 			/* Turn the response into an exec to show a better error */
 			client->exec_command = xstrdup("explain-session-not-found");
 			tmate_spawn_exec(session);
+			tmate_info("Connection ended web socet");
 			/* No return */
 		}
 
@@ -191,7 +351,7 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 		ssh_echo(client, EXPIRED_TOKEN_ERROR_STR);
 		tmate_fatal("Expired token");
 	}
-
+    
 	/*
 	 * If we are connecting through a symlink, it means that we are a
 	 * readonly client.

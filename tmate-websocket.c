@@ -219,7 +219,7 @@ void tmate_websocket_exec(struct tmate_session *session, const char *command)
 void tmate_notify_client_join(__unused struct tmate_session *session,
 			      struct client *c)
 {
-	tmate_info("Client joined (cid=%d)", c->id);
+	tmate_info("Client joined (cid=%d) ip: %s", c->id, c->ip_address);
 
 	if (!tmate_has_websocket())
 		return;
@@ -240,7 +240,7 @@ void tmate_notify_client_left(__unused struct tmate_session *session,
 	if (!(c->flags & CLIENT_IDENTIFIED))
 		return;
 
-	tmate_info("Client left (cid=%d)", c->id);
+	tmate_info("Client left (cid=%d) ip: %s", c->id, c->ip_address);
 
 	if (!tmate_has_websocket())
 		return;
