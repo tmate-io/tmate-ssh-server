@@ -28,7 +28,6 @@ char *get_ssh_conn_string(const char *session_token)
 		sprintf(port_arg, " -p%d", ssh_port_advertized);
 	xasprintf(&ret, "ssh {harness pat}:%s%s@%s ", port_arg, session_token, tmate_settings->tmate_host);
 
-	tmate_info("This is %s", ret);
 	return ret;
 }
 
