@@ -106,7 +106,7 @@ void tmate_catch_sigsegv(void)
 void tmate_preload_trace_lib(void)
 {
        void *array[1];
-       backtrace(array, 1);
+       //backtrace(array, 1);
 }
 
 #endif
