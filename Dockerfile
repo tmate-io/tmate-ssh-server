@@ -43,7 +43,8 @@ RUN apk add --no-cache \
 	msgpack-c \
 	ncurses-libs \
 	openssl \
-	zlib
+	zlib \
+	curl
 
 COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
 
@@ -52,4 +53,3 @@ COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
 COPY docker-entrypoint.sh /usr/local/bin
 
 EXPOSE 2200
-ENTRYPOINT ["docker-entrypoint.sh"]
