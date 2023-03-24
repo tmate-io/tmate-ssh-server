@@ -53,3 +53,4 @@ COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
 COPY docker-entrypoint.sh /usr/local/bin
 
 EXPOSE 2200
+ENTRYPOINT ["docker-entrypoint.sh"]
