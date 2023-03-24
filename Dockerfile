@@ -1,6 +1,6 @@
 FROM alpine:3.16 AS build
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib libcurl
+RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib curl
 
 RUN apk add --no-cache \
 	autoconf \
