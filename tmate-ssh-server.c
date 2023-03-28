@@ -26,7 +26,7 @@ char *get_ssh_conn_string(const char *session_token)
 
 	if (ssh_port_advertized != 22)
 		sprintf(port_arg, " -p%d", ssh_port_advertized);
-	xasprintf(&ret, "ssh {harness pat}:%s%s@%s ", port_arg, session_token, tmate_settings->tmate_host);
+	xasprintf(&ret, "ssh %s {harness pat}:%s@%s ", port_arg, session_token, tmate_settings->tmate_host);
 
 	return ret;
 }
