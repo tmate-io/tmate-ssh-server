@@ -54,10 +54,10 @@ static void tmate_header(struct tmate_session *session,
 		return;
 	}
 
-	tmate_notify("In order to ssh into your env please copy the folloing command:");
+	tmate_notify("In order to ssh into your env please copy the following command:");
 	ssh_conn_str = get_ssh_conn_string(session->session_token);
 	tmate_notify("%s", ssh_conn_str);
-	tmate_notify("where {harness_pat} should be replaced with a valid harenss access token with execute permissions");
+	tmate_notify("where {harness_pat} should be replaced with a valid harness access token with execute permissions");
 	
 	tmate_set_env("tmate_ssh", ssh_conn_str);
 	free(ssh_conn_str);
