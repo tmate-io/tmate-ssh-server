@@ -97,16 +97,34 @@ static char rand_tmate_token_digits[] = "abcdefghjkmnpqrstuvwxyz"
 
 #define NUM_DIGITS (sizeof(rand_tmate_token_digits) - 1)
 
-static char *get_random_token(void)
+static size_t MAX_ACCOUNT_SIZE = 30;
+
+static char *get_random_token(struct tmate_session *session)
 {
+	size_t user_name_len = strlen(session->ssh_client.username);
+	
+	if (user_name_len > MAX_ACCOUNT_SIZE)
+	{
+		tmate_fatal("Invalid account format");
+	}
+
 	struct random_stream rs;
-	char *token = xmalloc(TMATE_TOKEN_LEN + 1);
-	int i;
+	char *token = xmalloc(TMATE_TOKEN_LEN + user_name_len + 1);
+	size_t i;
 	unsigned char c;
 
 	random_stream_init(&rs);
 
-	for (i = 0; i < TMATE_TOKEN_LEN; i++) {
+	char **acccount;
+
+	for (i = 0; i < strlen(session->ssh_client.username); i++) {
+		
+		token[i] = session->ssh_client.username[i];
+	}
+
+	token[i++] = ':';
+
+	for (;i < TMATE_TOKEN_LEN + user_name_len; i++) {
 		do {
 			c = *random_stream_get(&rs, 1);
 		} while (c >= NUM_DIGITS);
@@ -126,7 +144,7 @@ static void create_session_ro_symlink(struct tmate_session *session)
 #ifdef DEVENV
 	tmp = xstrdup("READONLYTOKENFORDEVENV000");
 #else
-	tmp = get_random_token();
+	tmp = get_random_token(session);
 #endif
 	xasprintf(&token, "ro-%s", tmp);
 	free(tmp);
@@ -150,13 +168,17 @@ void tmate_spawn_daemon(struct tmate_session *session)
 #ifdef DEVENV
 	token = xstrdup("SUPERSECURETOKENFORDEVENV");
 #else
-	token = get_random_token();
+	token = get_random_token(session);
 #endif
 
 	set_session_token(session, token);
-	free(token);
 
-	tmate_info("Spawning daemon ip=%s", client->ip_address);
+    if (token != NULL)
+	{
+		tmate_info("Spawning daemon for new client. Client ip=%s client token first char :%c", client->ip_address, token[0]);
+	}
+	
+	free(token);
 
 	session->tmux_socket_fd = server_create_socket();
 	if (session->tmux_socket_fd < 0)

@@ -220,6 +220,20 @@ if test "x$found_libssh" = xno; then
   AC_MSG_ERROR("libssh >= 0.7.0 not found")
 fi
 
+PKG_CHECK_MODULES(
+  LIBCURL,
+  libcurl >= 4.7,
+  [
+    CPPFLAGS="$LIBCURL_CFLAGS $CPPFLAGS"
+    LIBS="$LIBCURL_LIBS $LIBS"
+    found_curl=yes
+  ],
+  found_curl=no
+)
+if test "x$found_curl" = xno; then
+  AC_MSG_ERROR("libcurl >= 4.7 not found")
+fi
+
 AC_CHECK_FUNCS([setresuid setresgid setreuid setregid])
 
 # Check for b64_ntop.

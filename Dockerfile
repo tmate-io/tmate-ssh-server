@@ -1,6 +1,6 @@
 FROM alpine:3.16 AS build
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
+RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib curl
 
 RUN apk add --no-cache \
 	autoconf \
@@ -16,7 +16,8 @@ RUN apk add --no-cache \
 	msgpack-c-dev \
 	ncurses-dev \
 	openssl-dev \
-	zlib-dev
+	zlib-dev \
+	curl-dev 
 
 RUN apk add --no-cache libssh-dev
 
@@ -42,7 +43,8 @@ RUN apk add --no-cache \
 	msgpack-c \
 	ncurses-libs \
 	openssl \
-	zlib
+	zlib \
+	curl
 
 COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
 

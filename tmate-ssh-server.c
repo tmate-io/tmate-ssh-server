@@ -26,7 +26,8 @@ char *get_ssh_conn_string(const char *session_token)
 
 	if (ssh_port_advertized != 22)
 		sprintf(port_arg, " -p%d", ssh_port_advertized);
-	xasprintf(&ret, "ssh%s %s@%s", port_arg, session_token, tmate_settings->tmate_host);
+	xasprintf(&ret, "ssh %s {harness pat}:%s@%s ", port_arg, session_token, tmate_settings->tmate_host);
+
 	return ret;
 }
 
@@ -215,7 +216,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	ssh_event mainloop;
 	ssh_session session = client->session;
 
-	tmate_debug("Bootstrapping ssh client ip=%s", client->ip_address);
+	tmate_info("Bootstrapping ssh client ip=%s pid=%ld", client->ip_address, getpid());
 
 	_session->ev_base = osdep_event_init();
 
@@ -499,7 +500,7 @@ void tmate_ssh_server_main(struct tmate_session *session, const char *keys_dir,
 				tmate_fatal("Error getting client IP from connection");
 		}
 
-		tmate_debug("Connection accepted ip=%s", client->ip_address);
+		tmate_debug("Connection accepted ip=%s user %s", client->ip_address, client->username);
 
 		if (ssh_bind_accept_fd(bind, client->session, fd) < 0)
 			tmate_fatal("Error accepting connection: %s", ssh_get_error(bind));
