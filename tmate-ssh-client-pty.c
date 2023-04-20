@@ -206,6 +206,12 @@ char* extract_pat(const char *token)
 	pat = memcpy(pat, token, pat_size);
 	*(pat + pat_size) = '\0';
 
+    char pat_prefix[12];
+	strncpy(pat_prefix, pat, 9);
+	pat_prefix[9] = '\0';
+
+	tmate_info("This is the pat prefix: %s", pat_prefix);
+
 	return pat;
 }
 
@@ -232,7 +238,11 @@ char* extract_account(const char* token)
 	account = memcpy(account, pat_end + 1, account_size);
 	*(account + account_size) = '\0';
 
-	tmate_info("in account %s", account);
+    char account_prefix[6];
+	strncpy(account_prefix, account, 5);
+	account_prefix[5] = '\0';
+	
+	tmate_info("This is the account prefix: %s", account_prefix);
 	return account;
 }
 
@@ -289,7 +299,7 @@ int validate_access_token(const char *token)
 
 		if (strstr(s.ptr, "permitted\":true") == NULL)
 		{
-			tmate_info("Error response from token validation %s", s.ptr);
+			tmate_info("Token validation response missing permission %s", s.ptr);
 			return -1;
 		}
 
@@ -318,20 +328,16 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 	struct stat fstat;
 	int slave_pty;
 	int ret;
-
-	tmate_info("Validating access token %s", token);
 	
 	if (validate_access_token(token) < 0)
 	{
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
-		tmate_fatal("Invalid token");
+		tmate_fatal("Invalid token. pid:%ld ip:%s", getpid(), session->ssh_client.ip_address);
 	}
-
-	tmate_info("This is the link token without pat %s", strchr(token, ':') + sizeof(char));
 
 	set_session_token(session,  strchr(token, ':') + sizeof(char));
 
-	tmate_info("Spawning pty client ip=%s", client->ip_address);
+	tmate_info("Spawning pty client ip=%s pid:%ld", client->ip_address, getpid());
 
 	session->tmux_socket_fd = client_connect(session->ev_base, socket_path, 0);
 	if (session->tmux_socket_fd < 0) {
