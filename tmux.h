@@ -1941,6 +1941,10 @@ int	 server_start(struct event_base *, int, char *);
 void	 server_update_socket(void);
 void	 server_add_accept(int);
 
+#ifdef TMATE
+void    server_send_exit(void);
+#endif
+
 /* server-client.c */
 void	 server_client_set_key_table(struct client *, const char *);
 const char *server_client_get_key_table(struct client *);
