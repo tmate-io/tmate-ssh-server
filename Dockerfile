@@ -1,4 +1,4 @@
-FROM alpine:3.16 AS build
+FROM alpine:3.17.4 AS build
 
 RUN apk add --no-cache msgpack-c ncurses-libs libevent openssl zlib
 
