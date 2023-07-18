@@ -1,7 +1,5 @@
 FROM alpine:3.17.4 AS build
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent openssl zlib
-
 RUN apk add --no-cache \
 	autoconf \
 	automake \
@@ -9,21 +7,25 @@ RUN apk add --no-cache \
 	g++ \
 	gcc \
 	git \
+	libevent \
 	libevent-dev \
+	libssh-dev \
 	linux-headers \
 	make \
+	msgpack-c \
 	msgpack-c-dev \
 	ncurses-dev \
+	ncurses-libs \
+	openssl \
 	openssl-dev \
+	zlib \
 	zlib-dev
 
-RUN apk add --no-cache libssh-dev
 
-RUN mkdir -p /src/tmate-ssh-server
+WORKDIR /src/tmate-ssh-server
 COPY . /src/tmate-ssh-server
 
 RUN set -ex; \
-	cd /src/tmate-ssh-server; \
 	./autogen.sh; \
 	./configure --prefix=/usr CFLAGS="-D_GNU_SOURCE"; \
 	make -j "$(nproc)"; \
