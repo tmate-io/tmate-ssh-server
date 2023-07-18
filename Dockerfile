@@ -1,6 +1,6 @@
 FROM alpine:3.16 AS build
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
+RUN apk add --no-cache msgpack-c ncurses-libs libevent openssl zlib
 
 RUN apk add --no-cache \
 	autoconf \
@@ -10,7 +10,6 @@ RUN apk add --no-cache \
 	gcc \
 	git \
 	libevent-dev \
-	libexecinfo-dev \
 	linux-headers \
 	make \
 	msgpack-c-dev \
@@ -37,7 +36,6 @@ RUN apk add --no-cache \
 	bash \
 	gdb \
 	libevent \
-	libexecinfo \
 	libssh \
 	msgpack-c \
 	ncurses-libs \
