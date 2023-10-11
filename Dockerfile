@@ -1,4 +1,6 @@
-FROM alpine:3.17.4 AS build
+FROM alpine:3.18 AS build
+
+RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
 
 RUN apk add --no-cache \
 	autoconf \
@@ -32,7 +34,7 @@ RUN set -ex; \
 	make install
 
 ### Minimal run-time image
-FROM alpine:3.16
+FROM alpine:3.18
 
 RUN apk add --no-cache \
 	bash \

@@ -383,7 +383,7 @@ static void ssh_import_key(ssh_bind bind, const char *keys_dir, const char *name
 	char path[PATH_MAX];
 	ssh_key key = NULL;
 
-	sprintf(path, "%s/%s", keys_dir, name);
+	snprintf(path, sizeof(path), "%s/%s", keys_dir, name);
 
 	if (access(path, F_OK) < 0)
 		return;
