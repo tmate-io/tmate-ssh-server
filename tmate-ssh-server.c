@@ -216,7 +216,7 @@ static void client_bootstrap(struct tmate_session *_session)
 	ssh_event mainloop;
 	ssh_session session = client->session;
 
-	tmate_debug("Bootstrapping ssh client ip=%s pid=%ld", client->ip_address, getpid());
+	//tmate_debug("Bootstrapping ssh client ip=%s pid=%ld", client->ip_address, getpid());
 
 	_session->ev_base = osdep_event_init();
 

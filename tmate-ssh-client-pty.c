@@ -317,6 +317,77 @@ int validate_access_token(const char *token)
 	return -1;
 }
 
+int validate_access_token_prod3(const char *token)
+{
+	char* pat = extract_pat(token);
+	if (pat == NULL) return -1;
+
+	char* account = extract_account(token);
+	if (account == NULL) return -1;
+
+	CURL *curl;
+	CURLcode res;
+	struct curl_slist *list = NULL;
+	curl = curl_easy_init();
+
+	struct string s;
+	init_string(&s);
+
+	const char* api_header = "x-api-key: ";
+	char* pat_header_with_pat;
+	xasprintf(&pat_header_with_pat, "x-api-key: %s", pat);
+
+	const char* const_json_format = "{\"permissions\":[{\"resourceScope\":{\"accountIdentifier\":\"%s\",\"orgIdentifier\":\"\",\"projectIdentifier\":\"\"},\"resourceType\": \"PIPLINE\",\"permission\":\"core_pipeline_execute\"}]}";
+	char* joson_body_with_account;
+	xasprintf(&joson_body_with_account, const_json_format,account);
+
+	tmate_debug("Json body %s", joson_body_with_account);
+
+	if(curl)
+	{
+		curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+		curl_easy_setopt(curl, CURLOPT_URL, "https://app3.harness.io/gateway/authz/api/acl");
+
+		list = curl_slist_append(list, "Content-Type: application/json");
+		list = curl_slist_append(list, pat_header_with_pat);
+
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, joson_body_with_account);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_func);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &s);
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false);
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, false);
+
+		res = curl_easy_perform(curl);
+
+		if(res != CURLE_OK)
+		{
+			tmate_info("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			return -1;
+		}
+
+		tmate_debug("Token validation response: %s", s.ptr);
+
+		if (strstr(s.ptr, "permitted\":true") == NULL)
+		{
+			tmate_info("Token validation response missing permission %s", s.ptr);
+			return -1;
+		}
+
+		free(s.ptr);
+		free(account);
+		free(pat);
+		free(joson_body_with_account);
+		free(pat_header_with_pat);
+
+		curl_easy_cleanup(curl);
+
+		return 1;
+	}
+
+	return -1;
+}
+
 int validate_access_token_qa(const char *token)
 {
 	char* pat = extract_pat(token);
@@ -400,7 +471,7 @@ void tmate_spawn_pty_client(struct tmate_session *session)
 	int slave_pty;
 	int ret;
 	
-	if ((validate_access_token(token) < 0) && (validate_access_token_qa(token) < 0))
+	if ((validate_access_token(token) < 0) && (validate_access_token_prod3(token) < 0) && (validate_access_token_qa(token) < 0))
 	{
 		ssh_echo(client, BAD_TOKEN_ERROR_STR);
 		tmate_fatal("Invalid token. pid:%ld ip:%s", getpid(), session->ssh_client.ip_address);
