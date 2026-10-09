@@ -11,6 +11,7 @@ tmate 2.4.0 clients (protocol 6). Viewers keep joining with plain `ssh`.
 | M1 single-pane viewing | **Done**: live viewers, typing, read-only, size rule, join/leave notices, `-a` keys, session end. 9 live tests, parity with the old server on handshake, viewing and rendering. |
 | M2 viewer experience | **Done**: connection parity (PROXY v1, grace period, exec reply, old CLI flags); layout with borders and several panes/windows, tmux 2.2 key tables and prefix bindings, command prompt and confirm-before, status messages, copy mode mirroring, snapshot restore and host reconnect. Parity suite: 8/8 scenarios match the old server screen for screen. |
 | M3 sandboxing/ops | Dockerfile (non-root) and Fly template done. Per-session sandbox **done** on Linux: one worker process per session (`src/worker.rs`, `src/sandbox.rs`, `src/wire.rs`, `src/link.rs`), user+mount+pid+net+ipc+uts namespaces, pivot_root into an empty tmpfs, Landlock, no_new_privs, caps dropped, rlimits, seccomp allowlist; gateway keeps SSH and keys. Limits: sessions per IP / total, host byte rate, viewer output queue. `scripts/docker-smoke.sh` checks it in Docker. Metrics not started. |
+| M4 websocket backend | **Done** (2026-10-09): `-w`/`-z` connect each session to tmate-websocket over TCP with the control protocol v2 (`src/backend.rs`; the gateway owns the socket, the driver speaks the protocol in-process or in the worker via `wire.rs`). Header, verbatim forwarding, join/left, snapshots from the pane grids, FWD_MSG, PANE_KEYS, RESIZE in the size rule, EXEC and `explain-session-not-found`, RENAME_SESSION (named sessions, reconnection), placeholder session files for the backend's renames. 9 fake-backend tests in `tests/websocket.rs`; checked against the real backend built from its Dockerfile (notices, `tmate_web`, web client snapshot/resize/keys, exec, reconnection). |
 
 Run: `cargo run -- --listen 0.0.0.0:2200 --host <public name>`. The server
 prints its host-key fingerprint; clients need it in `tmate.conf`:
@@ -94,7 +95,8 @@ and notices (`tmate show-messages`):
 9. malformed input: oversized/garbage msgpack from a fake host must only end that session
 
 Known intended differences: new host key (fingerprint changes); reconnection
-(`RECONNECT`) may lag; no web terminal or named sessions until a later milestone.
+(`RECONNECT`) may lag; web terminal and named sessions only with the
+websocket backend (`-w`), as before.
 
 ## Security requirements carried over from the old-server review
 
@@ -189,9 +191,8 @@ viewer of the old server got; the parity tests in `tests/parity.rs` compare it.
   the parity test treats as equivalent.
 - Server flags to mirror: `-A/--authorized-keys-only`, `-b/--listen`, `-h/--host`,
   `-k/--keys-dir`, `-p` (listen port), `-q/--advertised-port`, `-x/--proxy-protocol`,
-  `-v` (log level via `RUST_LOG`). `-w/-z` (websocket backend) are not ported:
-  the Elixir backend is out of scope; named sessions and the web client need
-  a new backend design.
+  `-v` (log level via `RUST_LOG`). `-w/-z` (websocket backend): ported in M4,
+  see README.md "Websocket backend".
 
 ## M3: sandboxing and operations
 - Linux: after accept, each session's parser/renderer should run in a child

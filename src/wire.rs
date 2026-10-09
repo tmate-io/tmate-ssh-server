@@ -8,6 +8,11 @@
 //! `[tag, fields…]`, encoded and decoded with the same codec the tmate
 //! protocol uses. The worker side is untrusted once it has processed host
 //! bytes, so the gateway decodes its frames with the same care as a host's.
+//!
+//! With a backend (`-w`), the session's TCP connection to it stays in the
+//! gateway (workers have no network): what the backend sends is forwarded
+//! as `BackendData`, and what the worker wants sent to it comes back as
+//! `ToBackend`.
 
 use std::fmt;
 
@@ -29,18 +34,23 @@ pub enum ToWorker {
     /// First message: who the host is and what to tell it.
     Hello {
         peer_ip: String,
+        /// The host's key, OpenSSH one-line form, if it used one.
+        host_pubkey: Option<String>,
         advertised_host: String,
         advertised_port: u16,
         keys_required: bool,
         tokens: Tokens,
         /// Signed by the gateway for `tokens` (`tmate_reconnection_data`).
         reconnection_data: String,
+        /// The gateway holds a backend connection for this session.
+        backend: bool,
     },
     HostData(Vec<u8>),
     HostGone,
     ViewerAttach {
         id: ViewerId,
         ip: String,
+        pubkey: Option<String>,
         access: Access,
         size: Size,
     },
@@ -67,6 +77,10 @@ pub enum ToWorker {
         peer_ip: String,
         client_version: String,
     },
+    /// Bytes from the backend connection.
+    BackendData(Vec<u8>),
+    /// The backend connection closed or failed.
+    BackendGone,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +114,10 @@ pub enum ToGateway {
         rest: Vec<u8>,
         client_version: String,
     },
+    /// Bytes for the backend connection.
+    ToBackend(Vec<u8>),
+    /// The session is done with its backend connection.
+    CloseBackend,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -232,10 +250,18 @@ fn tokens(rw: Option<&Value>, ro: Option<&Value>) -> Result<Tokens, Error> {
         rw: string(rw)?,
         ro: string(ro)?,
     };
-    if !crate::session::is_valid_token(&t.rw) || !crate::session::is_valid_token(&t.ro) {
+    // A backend may rename a session to a named token.
+    if !crate::session::is_acceptable_token(&t.rw) || !crate::session::is_acceptable_token(&t.ro) {
         return Err(Error::Malformed("invalid token"));
     }
     Ok(t)
+}
+
+fn opt_string(v: Option<&Value>) -> Result<Option<String>, Error> {
+    match v {
+        Some(Value::Nil) => Ok(None),
+        other => string(other).map(Some),
+    }
 }
 
 fn string_list(v: Option<&Value>) -> Result<Vec<String>, Error> {
@@ -255,6 +281,8 @@ const VIEWER_RESIZE: i64 = 6;
 const VIEWER_DETACH: i64 = 7;
 const RECONNECT_RESULT: i64 = 8;
 const HOST_ADOPTED: i64 = 9;
+const BACKEND_DATA: i64 = 10;
+const BACKEND_GONE: i64 = 11;
 
 const READY: i64 = 101;
 const TO_HOST: i64 = 102;
@@ -265,6 +293,8 @@ const REGISTER: i64 = 106;
 const UNREGISTER: i64 = 107;
 const AUTHORIZED_KEYS: i64 = 108;
 const RECONNECT: i64 = 109;
+const TO_BACKEND: i64 = 110;
+const CLOSE_BACKEND: i64 = 111;
 
 impl ToWorker {
     pub fn encode(&self) -> Vec<u8> {
@@ -272,21 +302,26 @@ impl ToWorker {
         match self {
             ToWorker::Hello {
                 peer_ip,
+                host_pubkey,
                 advertised_host,
                 advertised_port,
                 keys_required,
                 tokens,
                 reconnection_data,
+                backend,
             } => {
-                enc.array(8)
-                    .int(HELLO)
-                    .str(peer_ip)
-                    .str(advertised_host)
+                enc.array(10).int(HELLO).str(peer_ip);
+                match host_pubkey {
+                    Some(k) => enc.str(k),
+                    None => enc.nil(),
+                };
+                enc.str(advertised_host)
                     .uint(u64::from(*advertised_port))
                     .bool(*keys_required)
                     .str(&tokens.rw)
                     .str(&tokens.ro)
-                    .str(reconnection_data);
+                    .str(reconnection_data)
+                    .bool(*backend);
             }
             ToWorker::HostData(data) => {
                 enc.array(2).int(HOST_DATA).bin(data);
@@ -297,19 +332,21 @@ impl ToWorker {
             ToWorker::ViewerAttach {
                 id,
                 ip,
+                pubkey,
                 access,
                 size,
             } => {
-                enc.array(6)
-                    .int(VIEWER_ATTACH)
-                    .uint(id.raw())
-                    .str(ip)
-                    .int(match access {
-                        Access::ReadWrite => 0,
-                        Access::ReadOnly => 1,
-                    })
-                    .uint(u64::from(size.cols))
-                    .uint(u64::from(size.rows));
+                enc.array(7).int(VIEWER_ATTACH).uint(id.raw()).str(ip);
+                match pubkey {
+                    Some(k) => enc.str(k),
+                    None => enc.nil(),
+                };
+                enc.int(match access {
+                    Access::ReadWrite => 0,
+                    Access::ReadOnly => 1,
+                })
+                .uint(u64::from(size.cols))
+                .uint(u64::from(size.rows));
             }
             ToWorker::ViewerInput { id, data } => {
                 enc.array(3).int(VIEWER_INPUT).uint(id.raw()).bin(data);
@@ -350,6 +387,12 @@ impl ToWorker {
                     .str(peer_ip)
                     .str(client_version);
             }
+            ToWorker::BackendData(data) => {
+                enc.array(2).int(BACKEND_DATA).bin(data);
+            }
+            ToWorker::BackendGone => {
+                enc.array(1).int(BACKEND_GONE);
+            }
         }
         frame(enc)
     }
@@ -361,23 +404,26 @@ impl ToWorker {
         Ok(match tag {
             HELLO => ToWorker::Hello {
                 peer_ip: string(f(1))?,
-                advertised_host: string(f(2))?,
-                advertised_port: u16_of(f(3))?,
-                keys_required: boolean(f(4))?,
-                tokens: tokens(f(5), f(6))?,
-                reconnection_data: string(f(7))?,
+                host_pubkey: opt_string(f(2))?,
+                advertised_host: string(f(3))?,
+                advertised_port: u16_of(f(4))?,
+                keys_required: boolean(f(5))?,
+                tokens: tokens(f(6), f(7))?,
+                reconnection_data: string(f(8))?,
+                backend: boolean(f(9))?,
             },
             HOST_DATA => ToWorker::HostData(bytes(f(1))?),
             HOST_GONE => ToWorker::HostGone,
             VIEWER_ATTACH => ToWorker::ViewerAttach {
                 id: viewer(f(1))?,
                 ip: string(f(2))?,
-                access: match int(f(3))? {
+                pubkey: opt_string(f(3))?,
+                access: match int(f(4))? {
                     0 => Access::ReadWrite,
                     1 => Access::ReadOnly,
                     _ => return Err(Error::Malformed("bad access")),
                 },
-                size: size(f(4), f(5))?,
+                size: size(f(5), f(6))?,
             },
             VIEWER_INPUT => ToWorker::ViewerInput {
                 id: viewer(f(1))?,
@@ -406,6 +452,8 @@ impl ToWorker {
                 peer_ip: string(f(2))?,
                 client_version: string(f(3))?,
             },
+            BACKEND_DATA => ToWorker::BackendData(bytes(f(1))?),
+            BACKEND_GONE => ToWorker::BackendGone,
             other => return Err(Error::UnknownTag(other)),
         })
     }
@@ -456,6 +504,12 @@ impl ToGateway {
                     .bin(rest)
                     .str(client_version);
             }
+            ToGateway::ToBackend(data) => {
+                enc.array(2).int(TO_BACKEND).bin(data);
+            }
+            ToGateway::CloseBackend => {
+                enc.array(1).int(CLOSE_BACKEND);
+            }
         }
         frame(enc)
     }
@@ -490,6 +544,8 @@ impl ToGateway {
                 rest: bytes(f(2))?,
                 client_version: string(f(3))?,
             },
+            TO_BACKEND => ToGateway::ToBackend(bytes(f(1))?),
+            CLOSE_BACKEND => ToGateway::CloseBackend,
             other => return Err(Error::UnknownTag(other)),
         })
     }
@@ -527,11 +583,26 @@ mod tests {
         for msg in [
             ToWorker::Hello {
                 peer_ip: "203.0.113.9".into(),
+                host_pubkey: None,
                 advertised_host: "tmate.example".into(),
                 advertised_port: 22,
                 keys_required: true,
                 tokens: tokens.clone(),
                 reconnection_data: "payload|sig".into(),
+                backend: false,
+            },
+            ToWorker::Hello {
+                peer_ip: "203.0.113.9".into(),
+                host_pubkey: Some("ssh-ed25519 AAAA".into()),
+                advertised_host: "tmate.example".into(),
+                advertised_port: 22,
+                keys_required: false,
+                tokens: Tokens {
+                    rw: "acme/demo".into(),
+                    ro: "ro-acme/demo".into(),
+                },
+                reconnection_data: String::new(),
+                backend: true,
             },
             ToWorker::HostData(vec![0x93, 1, 2, 3]),
             ToWorker::HostData(vec![0xff; 70_000]),
@@ -539,9 +610,19 @@ mod tests {
             ToWorker::ViewerAttach {
                 id,
                 ip: "10.0.0.1".into(),
+                pubkey: None,
                 access: Access::ReadOnly,
                 size,
             },
+            ToWorker::ViewerAttach {
+                id,
+                ip: "10.0.0.1".into(),
+                pubkey: Some("ssh-rsa BBBB".into()),
+                access: Access::ReadWrite,
+                size,
+            },
+            ToWorker::BackendData(vec![0x92, 0, 0x91, 5]),
+            ToWorker::BackendGone,
             ToWorker::ViewerInput {
                 id,
                 data: b"\x1b[A".to_vec(),
@@ -590,6 +671,8 @@ mod tests {
                 rest: vec![0x91, 0x0c],
                 client_version: "2.4.0".into(),
             },
+            ToGateway::ToBackend(vec![0x92, 1, 0x91, 9]),
+            ToGateway::CloseBackend,
         ] {
             roundtrip_gateway(msg);
         }

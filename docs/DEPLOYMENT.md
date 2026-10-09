@@ -24,7 +24,9 @@ Environment variables (same names as the old `tmate-ssh-server` image):
 | `SSH_HOST_ED25519_KEY` | – | key material; written to `SSH_KEYS_PATH/ssh_host_ed25519_key` (mode 600) at start |
 | `SSH_HOST_RSA_KEY` | – | same for `ssh_host_rsa_key` |
 | `USE_PROXY_PROTOCOL` | `0` | `1`: expect a PROXY protocol v1 line from the load balancer before SSH (`--proxy-protocol`); its source IP is the viewer IP in join notices. Connections without a valid header are closed. |
-| `WEBSOCKET_HOSTNAME`, `HAS_WEBSOCKET` | – | ignored with a warning (no websocket backend) |
+| `WEBSOCKET_HOSTNAME`, `HAS_WEBSOCKET` | – | `--websocket-host` (`HAS_WEBSOCKET=1` means `localhost`): connect every session to a tmate-websocket backend |
+| `WEBSOCKET_PORT` | `4002` | `--websocket-port`, the backend's daemon listener |
+| `TMATE_SESSIONS_DIR` | `/tmp/tmate/sessions` | `--sessions-dir`, a directory shared with the backend (its `tmux_socket_path`) |
 
 Arguments after the image name are appended to the server command line and
 take precedence over the variables (`tmate-server-rs --help` lists them).

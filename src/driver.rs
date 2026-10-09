@@ -4,13 +4,26 @@
 //! so it is written to run either in the gateway process (in-process mode)
 //! or inside a sandboxed worker, with the few things that need the gateway
 //! (the token registry, viewer authentication, reconnection data signed by
-//! the gateway) behind the `Control` trait.
+//! the gateway, the TCP connection to the backend) behind the `Control`
+//! trait.
+//!
+//! With a backend (`-w`), the driver also speaks the control protocol
+//! (`backend.rs`) on the session's behalf, as `tmate-websocket.c` did:
+//! `CTL_HEADER` at the host's HEADER, every host message forwarded as
+//! `CTL_DEAMON_OUT_MSG`, viewers announced with `CTL_CLIENT_JOIN`/`LEFT`,
+//! and the backend's messages applied: forwarded messages go to the host
+//! (the notices, `SET_ENV` and READY the driver would otherwise produce
+//! itself), keys to the host's panes, the web clients' size into the size
+//! rule, snapshots answered from the hub, and renamed sessions
+//! re-registered.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use russh::keys::PublicKey;
 use tracing::{debug, info, warn};
 
+use crate::backend::{self, CtlIn};
 use crate::hub::{self, Hub, Peer, ViewerId};
 use crate::msgpack::{Decoder, Encoder};
 use crate::proto::{self, HostMsg, PROTOCOL_VERSION};
@@ -49,15 +62,35 @@ pub trait Control: Send {
     /// connection to the live session (`Driver::adopt_host` there); `rest`
     /// is what followed the RECONNECT, undecoded.
     fn reconnect(&self, data: String, rest: Vec<u8>, client_version: String);
+    /// Bytes for the session's backend connection (backend mode only).
+    fn backend_send(&self, data: Vec<u8>);
+    /// The session is done with its backend connection.
+    fn backend_close(&self);
+}
+
+/// What a driver is started with.
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub tokens: Tokens,
+    pub keys_required: bool,
+    pub peer_ip: String,
+    /// The key the host authenticated with, in OpenSSH one-line form.
+    pub host_pubkey: Option<String>,
+    pub advertised: Arc<Advertised>,
+    /// A backend connection exists for this session.
+    pub backend: bool,
 }
 
 pub struct Driver {
     hub: Arc<Hub>,
+    tokens: Tokens,
     decoder: Decoder,
     peer_ip: String,
+    host_pubkey: Option<String>,
     advertised: Arc<Advertised>,
     keys_required: bool,
     client_version: Option<String>,
+    client_protocol: i64,
     registered: bool,
     /// Waiting for the gateway's verdict on RECONNECT; bytes queue up.
     awaiting_reconnect: bool,
@@ -65,31 +98,34 @@ pub struct Driver {
     /// decoded. Adoption by a reconnecting host reopens it.
     closed: bool,
     keys_sent: u64,
+    backend: bool,
+    backend_decoder: Decoder,
+    /// Viewers the backend was told about, so it is told when they leave.
+    announced: BTreeSet<ViewerId>,
     control: Box<dyn Control>,
 }
 
 impl Driver {
-    pub fn new(
-        tokens: Tokens,
-        keys_required: bool,
-        peer_ip: String,
-        advertised: Arc<Advertised>,
-        host: Peer,
-        control: Box<dyn Control>,
-    ) -> Driver {
-        let hub = Hub::new(tokens, keys_required);
+    pub fn new(config: Config, host: Peer, control: Box<dyn Control>) -> Driver {
+        let hub = Hub::new(config.keys_required, config.backend);
         hub.set_host(host);
         Driver {
             hub,
+            tokens: config.tokens,
             decoder: Decoder::new(),
-            peer_ip,
-            advertised,
-            keys_required,
+            peer_ip: config.peer_ip,
+            host_pubkey: config.host_pubkey,
+            advertised: config.advertised,
+            keys_required: config.keys_required,
             client_version: None,
+            client_protocol: 0,
             registered: false,
             awaiting_reconnect: false,
             closed: false,
             keys_sent: 0,
+            backend: config.backend,
+            backend_decoder: Decoder::new(),
+            announced: BTreeSet::new(),
             control,
         }
     }
@@ -99,7 +135,7 @@ impl Driver {
     }
 
     pub fn tokens(&self) -> &Tokens {
-        &self.hub.tokens
+        &self.tokens
     }
 
     #[cfg(test)]
@@ -117,10 +153,13 @@ impl Driver {
     }
 
     /// Decodes and handles messages until the input runs dry, the
-    /// connection closes, or a RECONNECT needs the gateway.
+    /// connection closes, or a RECONNECT needs the gateway. With a backend
+    /// every message is also forwarded to it verbatim
+    /// (`on_daemon_decoder_read`), after it was handled here; FIN goes
+    /// first, since handling it closes the backend connection.
     fn pump(&mut self) {
         while !self.closed && !self.awaiting_reconnect {
-            let value = match self.decoder.next_value() {
+            let (value, raw) = match self.decoder.next_value_raw() {
                 Ok(Some(v)) => v,
                 Ok(None) => break,
                 Err(e) => return self.fail(&format!("bad msgpack from host: {e}")),
@@ -129,9 +168,30 @@ impl Driver {
                 Ok(m) => m,
                 Err(e) => return self.fail(&format!("bad message from host: {e}")),
             };
+            let fin = matches!(msg, HostMsg::Fin);
+            if fin {
+                self.forward_to_backend(&raw);
+            }
             self.on_host_msg(msg);
+            if !fin && !self.closed {
+                self.forward_to_backend(&raw);
+            }
             self.sync_keys();
         }
+    }
+
+    /// `CTL_DEAMON_OUT_MSG` with the host's bytes as they came.
+    fn forward_to_backend(&mut self, raw: &[u8]) {
+        if !self.backend {
+            return;
+        }
+        let mut enc = Encoder::new();
+        backend::encode_daemon_out_msg(&mut enc, raw);
+        self.control.backend_send(enc.take());
+    }
+
+    fn ssh_cmd_fmt(&self) -> String {
+        self.advertised.ssh_command("%s")
     }
 
     /// Tells the gateway about a changed key list.
@@ -162,11 +222,14 @@ impl Driver {
 
     fn leave(&mut self) {
         if self.registered {
-            self.control.unregister(&self.hub.tokens);
+            self.control.unregister(&self.tokens);
             self.registered = false;
             info!(peer = %self.peer_ip, "host session closed");
         }
         self.hub.end();
+        if self.backend {
+            self.control.backend_close();
+        }
     }
 
     fn on_host_msg(&mut self, msg: HostMsg) {
@@ -185,6 +248,23 @@ impl Driver {
                 }
                 info!(peer = %self.peer_ip, client = %version, "host connected");
                 self.client_version = Some(version);
+                self.client_protocol = protocol;
+                if self.backend {
+                    // `tmate_header`: the backend takes over the
+                    // notifications from here.
+                    backend::encode_header(
+                        &mut enc,
+                        &backend::Header {
+                            ip: &self.peer_ip,
+                            pubkey: self.host_pubkey.as_deref(),
+                            tokens: &self.tokens,
+                            ssh_cmd_fmt: &self.ssh_cmd_fmt(),
+                            client_version: self.client_version.as_deref().unwrap_or(""),
+                            client_protocol: self.client_protocol,
+                        },
+                    );
+                    self.control.backend_send(enc.take());
+                }
             }
             HostMsg::Uname(fields) => debug!(peer = %self.peer_ip, ?fields, "host uname"),
             HostMsg::Ready => {
@@ -204,45 +284,18 @@ impl Driver {
                 if self.hub.keys_enabled() {
                     info!(peer = %self.peer_ip, num_keys = self.hub.authorized_key_count(), "restricting ssh access");
                 }
-                let rw = self.advertised.ssh_command(&self.hub.tokens.rw);
-                let ro = self.advertised.ssh_command(&self.hub.tokens.ro);
-                // A reconnected host already has its links; it is told so
-                // instead, as the Elixir backend did.
                 let reconnected = self.hub.take_reconnected();
-                if reconnected {
-                    proto::encode_notify(&mut enc, hub::RECONNECTED_MSG);
-                } else {
-                    proto::encode_notify(
-                        &mut enc,
-                        "Note: clear your terminal before sharing readonly access",
-                    );
-                    proto::encode_notify(&mut enc, &format!("ssh session read only: {ro}"));
+                if !self.backend {
+                    self.send_links(reconnected);
                 }
-                proto::encode_set_env(&mut enc, "tmate_ssh_ro", &ro);
-                if !reconnected {
-                    proto::encode_notify(&mut enc, &format!("ssh session: {rw}"));
-                }
-                proto::encode_set_env(&mut enc, "tmate_ssh", &rw);
-                proto::encode_set_env(
-                    &mut enc,
-                    "tmate_num_clients",
-                    &self.hub.num_clients().to_string(),
-                );
-                proto::encode_set_env(
-                    &mut enc,
-                    "tmate_reconnection_data",
-                    &self.control.reconnection_data(&self.hub.tokens),
-                );
-                proto::encode_ready(&mut enc);
-                self.hub.send_host(enc.take().into());
                 if !self.registered {
                     // The key list must be known before anyone can join.
                     self.sync_keys();
-                    self.control.register(&self.hub.tokens);
+                    self.control.register(&self.tokens);
                     self.registered = true;
                 }
                 self.hub.host_ready();
-                info!(peer = %self.peer_ip, token = %&self.hub.tokens.rw[..4], reconnected, "session ready");
+                info!(peer = %self.peer_ip, token = %self.short_token(), reconnected, "session ready");
             }
             HostMsg::ExecCmd(args) => {
                 debug!(peer = %self.peer_ip, ?args, "replicated command");
@@ -259,6 +312,12 @@ impl Driver {
             HostMsg::Reconnect(data) => {
                 if self.registered {
                     return self.fail("RECONNECT after READY");
+                }
+                if self.backend {
+                    // The backend issued the data and verifies it; it
+                    // answers with a RENAME_SESSION to the old tokens and
+                    // ends whatever session still holds them.
+                    return;
                 }
                 // Only data the gateway signed is honoured; it decides.
                 self.awaiting_reconnect = true;
@@ -278,6 +337,120 @@ impl Driver {
         }
     }
 
+    /// The notices, links and READY a host gets without a backend
+    /// (`tmate_header` and `tmate_ready` in the old server, the backend's
+    /// `finalize_session_init` for the wording).
+    fn send_links(&mut self, reconnected: bool) {
+        let mut enc = Encoder::new();
+        let rw = self.advertised.ssh_command(&self.tokens.rw);
+        let ro = self.advertised.ssh_command(&self.tokens.ro);
+        // A reconnected host already has its links; it is told so
+        // instead, as the Elixir backend did.
+        if reconnected {
+            proto::encode_notify(&mut enc, hub::RECONNECTED_MSG);
+        } else {
+            proto::encode_notify(
+                &mut enc,
+                "Note: clear your terminal before sharing readonly access",
+            );
+            proto::encode_notify(&mut enc, &format!("ssh session read only: {ro}"));
+        }
+        proto::encode_set_env(&mut enc, "tmate_ssh_ro", &ro);
+        if !reconnected {
+            proto::encode_notify(&mut enc, &format!("ssh session: {rw}"));
+        }
+        proto::encode_set_env(&mut enc, "tmate_ssh", &rw);
+        proto::encode_set_env(
+            &mut enc,
+            "tmate_num_clients",
+            &self.hub.num_clients().to_string(),
+        );
+        proto::encode_set_env(
+            &mut enc,
+            "tmate_reconnection_data",
+            &self.control.reconnection_data(&self.tokens),
+        );
+        proto::encode_ready(&mut enc);
+        self.hub.send_host(enc.take().into());
+    }
+
+    /// The token as the log shows it.
+    fn short_token(&self) -> String {
+        self.tokens.rw.chars().take(4).collect()
+    }
+
+    /// Bytes from the backend connection.
+    pub fn backend_data(&mut self, data: &[u8]) {
+        if self.closed || !self.backend {
+            return;
+        }
+        self.backend_decoder.feed(data);
+        while !self.closed {
+            let value = match self.backend_decoder.next_value() {
+                Ok(Some(v)) => v,
+                Ok(None) => break,
+                Err(e) => return self.fail(&format!("bad msgpack from the backend: {e}")),
+            };
+            match CtlIn::parse(&value) {
+                Ok(msg) => self.on_backend_msg(msg),
+                // `tmate_dispatch_websocket_message`: logged, not fatal.
+                Err(e) => warn!(peer = %self.peer_ip, "ignoring backend message: {e}"),
+            }
+        }
+    }
+
+    fn on_backend_msg(&mut self, msg: CtlIn) {
+        let mut enc = Encoder::new();
+        match msg {
+            CtlIn::FwdMsg(value) => {
+                enc.value(&value);
+                self.hub.send_host(enc.take().into());
+            }
+            CtlIn::RequestSnapshot { max_history_lines } => {
+                let limit = usize::try_from(max_history_lines)
+                    .unwrap_or(0)
+                    .min(hub::SCROLLBACK);
+                let panes = self.hub.snapshot(limit);
+                backend::encode_snapshot(&mut enc, &panes);
+                self.control.backend_send(enc.take());
+            }
+            CtlIn::PaneKeys { pane, keys } => {
+                // `ctl_pane_keys`: one key per byte, straight to the pane.
+                for key in keys {
+                    proto::encode_pane_key(&mut enc, pane, u64::from(key));
+                }
+                self.hub.send_host(enc.take().into());
+            }
+            CtlIn::Resize { sx, sy } => self.hub.backend_resize(sx, sy),
+            CtlIn::ExecResponse { .. } => {
+                debug!(peer = %self.peer_ip, "ignoring an exec response on a session connection");
+            }
+            CtlIn::RenameSession(tokens) => {
+                if tokens == self.tokens {
+                    return;
+                }
+                info!(peer = %self.peer_ip, from = %self.short_token(), to = %tokens.rw.chars().take(4).collect::<String>(), "session renamed by the backend");
+                if self.registered {
+                    self.control.unregister(&self.tokens);
+                    self.control.register(&tokens);
+                }
+                self.tokens = tokens;
+            }
+        }
+    }
+
+    /// The backend connection closed or failed. Without it the session
+    /// cannot go on (`on_websocket_event_default`), unless the host
+    /// already said FIN.
+    pub fn backend_gone(&mut self) {
+        if self.closed || !self.backend {
+            return;
+        }
+        warn!(peer = %self.peer_ip, "backend connection lost; ending the session");
+        self.hub.close_host();
+        self.host_gone();
+    }
+
     /// The gateway could not verify the reconnection data: the session
     /// goes on as a new one, as the old server did for unknown data.
     pub fn reconnect_rejected(&mut self, rest: Vec<u8>) {
@@ -290,7 +463,8 @@ impl Driver {
     pub fn reconnect_fresh(&mut self, tokens: Tokens, rest: Vec<u8>) {
         info!(peer = %self.peer_ip, token = %&tokens.rw[..4], "host reconnected to an ended session; tokens reused");
         let host = self.hub.host_peer();
-        self.hub = Hub::new_reconnected(tokens, self.keys_required);
+        self.hub = Hub::new_reconnected(self.keys_required, self.backend);
+        self.tokens = tokens;
         if let Some(host) = host {
             self.hub.set_host(host);
         }
@@ -318,7 +492,7 @@ impl Driver {
         client_version: String,
         rest: Vec<u8>,
     ) {
-        info!(peer = %peer_ip, token = %&self.hub.tokens.rw[..4], "host reconnected to a live session");
+        info!(peer = %peer_ip, token = %self.short_token(), "host reconnected to a live session");
         self.hub.host_adopted(host);
         self.peer_ip = peer_ip;
         self.client_version = Some(client_version);
@@ -332,12 +506,40 @@ impl Driver {
         &self.peer_ip
     }
 
-    pub fn attach_viewer(&self, id: ViewerId, peer: Peer, access: Access, ip: &str, size: Size) {
+    /// A viewer joined. With a backend it is announced there
+    /// (`tmate_notify_client_join`), which is what produces the host's
+    /// notice and client count.
+    pub fn attach_viewer(
+        &mut self,
+        id: ViewerId,
+        peer: Peer,
+        access: Access,
+        ip: &str,
+        pubkey: Option<&str>,
+        size: Size,
+    ) {
         self.hub.attach_viewer(id, peer, access, ip, size);
+        if self.backend && !self.closed && !self.hub.is_ended() {
+            let mut enc = Encoder::new();
+            backend::encode_client_join(
+                &mut enc,
+                id.raw() as i64,
+                ip,
+                pubkey,
+                access == Access::ReadOnly,
+            );
+            self.control.backend_send(enc.take());
+            self.announced.insert(id);
+        }
     }
 
-    pub fn detach_viewer(&self, id: ViewerId) {
+    pub fn detach_viewer(&mut self, id: ViewerId) {
         self.hub.detach_viewer(id);
+        if self.announced.remove(&id) && !self.closed {
+            let mut enc = Encoder::new();
+            backend::encode_client_left(&mut enc, id.raw() as i64);
+            self.control.backend_send(enc.take());
+        }
     }
 
     pub fn resize_viewer(&self, id: ViewerId, size: Size) {
@@ -364,6 +566,7 @@ mod tests {
     #[derive(Default)]
     struct Recorder {
         events: Mutex<Vec<String>>,
+        backend: Mutex<Vec<u8>>,
     }
 
     impl Control for Arc<Recorder> {
@@ -394,6 +597,29 @@ mod tests {
                 rest.len()
             ));
         }
+        fn backend_send(&self, data: Vec<u8>) {
+            self.backend.lock().unwrap().extend_from_slice(&data);
+        }
+        fn backend_close(&self) {
+            self.events.lock().unwrap().push("backend_close".into());
+        }
+    }
+
+    impl Recorder {
+        /// Everything sent to the backend so far, decoded.
+        fn backend_msgs(&self) -> Vec<Value> {
+            let mut dec = Decoder::new();
+            dec.feed(&std::mem::take(&mut *self.backend.lock().unwrap()));
+            let mut out = Vec::new();
+            while let Some(v) = dec.next_value().unwrap() {
+                out.push(v);
+            }
+            out
+        }
+    }
+
+    fn s(text: &str) -> Value {
+        Value::Bytes(text.as_bytes().to_vec())
     }
 
     fn header() -> Vec<u8> {
@@ -409,6 +635,10 @@ mod tests {
     }
 
     fn driver(ctl: Arc<Recorder>) -> (Driver, hub::PeerRx) {
+        driver_with(ctl, false)
+    }
+
+    fn driver_with(ctl: Arc<Recorder>, backend: bool) -> (Driver, hub::PeerRx) {
         let (host, rx) = Peer::new();
         let adv = Arc::new(Advertised {
             host: "h".into(),
@@ -416,10 +646,14 @@ mod tests {
         });
         (
             Driver::new(
-                Tokens::generate(),
-                false,
-                "1.2.3.4".into(),
-                adv,
+                Config {
+                    tokens: Tokens::generate(),
+                    keys_required: false,
+                    peer_ip: "1.2.3.4".into(),
+                    host_pubkey: None,
+                    advertised: adv,
+                    backend,
+                },
                 host,
                 Box::new(ctl),
             ),
@@ -556,5 +790,272 @@ mod tests {
         let events = ctl.events.lock().unwrap().clone();
         assert_eq!(events[0], "keys true 0");
         assert!(events[1].starts_with("register"));
+    }
+
+    fn ctl_msg(items: Vec<Value>) -> Vec<u8> {
+        let mut enc = Encoder::new();
+        enc.value(&Value::Array(items));
+        enc.take()
+    }
+
+    #[test]
+    fn with_a_backend_the_header_goes_there_and_nothing_is_said_locally() {
+        let ctl = Arc::new(Recorder::default());
+        let (mut d, mut rx) = driver_with(ctl.clone(), true);
+        d.host_data(&header());
+        let tokens = d.tokens().clone();
+        let msgs = ctl.backend_msgs();
+        assert_eq!(
+            msgs[0],
+            Value::Array(vec![
+                Value::Int(0),
+                Value::Int(2),
+                s("1.2.3.4"),
+                Value::Nil,
+                s(&tokens.rw),
+                s(&tokens.ro),
+                s("ssh -p2200 %s@h"),
+                s("2.4.0"),
+                Value::Int(6),
+            ]),
+            "CTL_HEADER first"
+        );
+        let mut dec = Decoder::new();
+        dec.feed(&header());
+        let host_header = dec.next_value().unwrap().unwrap();
+        assert_eq!(
+            msgs[1],
+            Value::Array(vec![Value::Int(1), host_header]),
+            "then the host's HEADER forwarded verbatim"
+        );
+        assert_eq!(msgs.len(), 2);
+
+        d.host_data(&ready());
+        let (to_host, closed) = drain(&mut rx);
+        assert!(!closed);
+        assert!(
+            to_host.is_empty(),
+            "notices, SET_ENV and READY come from the backend: {to_host:?}"
+        );
+        let msgs = ctl.backend_msgs();
+        assert_eq!(
+            msgs,
+            vec![Value::Array(vec![
+                Value::Int(1),
+                Value::Array(vec![Value::Int(9)])
+            ])]
+        );
+        assert_eq!(
+            ctl.events.lock().unwrap().as_slice(),
+            [format!("register {}", &tokens.rw[..4])]
+        );
+
+        // What the backend forwards reaches the host as is.
+        let notice = Value::Array(vec![Value::Int(0), s("web session: http://x/t/abc")]);
+        let set_env = Value::Array(vec![Value::Int(4), s("tmate_web"), s("http://x/t/abc")]);
+        let mut bytes = ctl_msg(vec![Value::Int(0), notice.clone()]);
+        bytes.extend(ctl_msg(vec![Value::Int(0), set_env.clone()]));
+        bytes.extend(ctl_msg(vec![
+            Value::Int(0),
+            Value::Array(vec![Value::Int(5)]),
+        ]));
+        // Split anywhere: the backend stream is decoded incrementally.
+        d.backend_data(&bytes[..5]);
+        d.backend_data(&bytes[5..]);
+        let (to_host, _) = drain(&mut rx);
+        assert_eq!(
+            to_host,
+            vec![notice, set_env, Value::Array(vec![Value::Int(5)])]
+        );
+    }
+
+    #[test]
+    fn backend_keys_resize_snapshot_and_rename() {
+        let ctl = Arc::new(Recorder::default());
+        let (mut d, mut rx) = driver_with(ctl.clone(), true);
+        d.host_data(&header());
+        d.host_data(&ready());
+        let old = d.tokens().clone();
+        ctl.backend_msgs();
+        ctl.events.lock().unwrap().clear();
+
+        // A layout and some output, so there is something to snapshot.
+        let mut enc = Encoder::new();
+        enc.array(5).int(1).int(80).int(23);
+        enc.array(1)
+            .array(4)
+            .int(0)
+            .str("bash")
+            .array(1)
+            .array(5)
+            .int(0)
+            .int(80)
+            .int(23)
+            .int(0)
+            .int(0);
+        enc.int(0);
+        enc.int(0);
+        enc.array(3).int(2).int(0).bin(b"hello");
+        d.host_data(&enc.take());
+        let forwarded = ctl.backend_msgs();
+        assert_eq!(
+            forwarded.len(),
+            2,
+            "layout and pty data forwarded: {forwarded:?}"
+        );
+        assert_eq!(
+            forwarded[1].as_array().unwrap()[1].as_array().unwrap()[2],
+            s("hello")
+        );
+        drain(&mut rx);
+
+        d.backend_data(&ctl_msg(vec![Value::Int(2), Value::Int(-1), s("ab")]));
+        let (to_host, _) = drain(&mut rx);
+        assert_eq!(
+            to_host,
+            vec![
+                Value::Array(vec![Value::Int(6), Value::Int(-1), Value::Int(97)]),
+                Value::Array(vec![Value::Int(6), Value::Int(-1), Value::Int(98)]),
+            ],
+            "PANE_KEYS: one PANE_KEY per byte"
+        );
+
+        d.backend_data(&ctl_msg(vec![
+            Value::Int(3),
+            Value::Int(60),
+            Value::Int(20),
+        ]));
+        let (to_host, _) = drain(&mut rx);
+        assert_eq!(
+            to_host,
+            vec![Value::Array(vec![
+                Value::Int(2),
+                Value::Int(60),
+                Value::Int(20)
+            ])],
+            "RESIZE reaches the host through the size rule"
+        );
+
+        d.backend_data(&ctl_msg(vec![Value::Int(1), Value::Int(300)]));
+        let snap = ctl.backend_msgs();
+        assert_eq!(snap.len(), 1);
+        let snap = snap[0].as_array().unwrap();
+        assert_eq!(snap[0], Value::Int(2));
+        let pane = snap[1].as_array().unwrap()[0].as_array().unwrap();
+        assert_eq!(pane[0], Value::Int(0));
+        assert_eq!(pane[1], Value::Array(vec![Value::Int(5), Value::Int(0)]));
+        let first_line = pane[3].as_array().unwrap()[0].as_array().unwrap();
+        assert_eq!(first_line[0], s("hello"));
+        assert_eq!(first_line[1].as_array().unwrap().len(), 5);
+
+        let renamed = Tokens {
+            rw: "acme/demo".into(),
+            ro: "ro-acme/demo".into(),
+        };
+        d.backend_data(&ctl_msg(vec![
+            Value::Int(5),
+            s(&renamed.rw),
+            s(&renamed.ro),
+        ]));
+        assert_eq!(d.tokens(), &renamed);
+        assert_eq!(
+            ctl.events.lock().unwrap().as_slice(),
+            [
+                format!("unregister {}", &old.rw[..4]),
+                "register acme".to_string()
+            ]
+        );
+        // Garbage from the backend is ignored; a broken stream ends the session.
+        d.backend_data(&ctl_msg(vec![Value::Int(42)]));
+        assert!(!d.is_closed());
+        d.backend_data(&[0x80]);
+        assert!(d.is_closed());
+        assert!(drain(&mut rx).1, "the host was closed");
+        assert!(
+            ctl.events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e == "backend_close")
+        );
+    }
+
+    #[test]
+    fn viewers_are_announced_to_the_backend_and_fin_is_forwarded_before_closing() {
+        let ctl = Arc::new(Recorder::default());
+        let (mut d, _rx) = driver_with(ctl.clone(), true);
+        d.host_data(&header());
+        d.host_data(&ready());
+        ctl.backend_msgs();
+        let (peer, _vrx) = Peer::new();
+        let id = ViewerId::from_raw(3);
+        d.attach_viewer(
+            id,
+            peer,
+            Access::ReadOnly,
+            "10.0.0.9",
+            Some("ssh-ed25519 AAAA"),
+            Size { cols: 80, rows: 24 },
+        );
+        assert_eq!(
+            ctl.backend_msgs(),
+            vec![Value::Array(vec![
+                Value::Int(3),
+                Value::Int(3),
+                s("10.0.0.9"),
+                s("ssh-ed25519 AAAA"),
+                Value::Bool(true)
+            ])]
+        );
+        d.detach_viewer(id);
+        d.detach_viewer(ViewerId::from_raw(99));
+        assert_eq!(
+            ctl.backend_msgs(),
+            vec![Value::Array(vec![Value::Int(4), Value::Int(3)])],
+            "only announced viewers are reported gone"
+        );
+        d.host_data(&[0x91, 0x08]); // FIN
+        assert_eq!(
+            ctl.backend_msgs(),
+            vec![Value::Array(vec![
+                Value::Int(1),
+                Value::Array(vec![Value::Int(8)])
+            ])]
+        );
+        let events = ctl.events.lock().unwrap().clone();
+        assert_eq!(events.last().map(String::as_str), Some("backend_close"));
+        assert!(events.iter().any(|e| e.starts_with("unregister")));
+    }
+
+    #[test]
+    fn losing_the_backend_ends_the_session() {
+        let ctl = Arc::new(Recorder::default());
+        let (mut d, mut rx) = driver_with(ctl.clone(), true);
+        d.host_data(&header());
+        d.host_data(&ready());
+        d.backend_gone();
+        assert!(d.is_closed());
+        assert!(drain(&mut rx).1);
+        // With a backend, RECONNECT is its business: no pause, no gateway.
+        let (mut d, _rx) = driver_with(ctl.clone(), true);
+        let mut enc = Encoder::new();
+        enc.array(2).int(10).str("backend-signed");
+        let mut bytes = header();
+        bytes.extend(enc.take());
+        bytes.extend(ready());
+        d.host_data(&bytes);
+        assert!(
+            !ctl.events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e.starts_with("reconnect"))
+        );
+        let msgs = ctl.backend_msgs();
+        assert!(msgs.iter().any(|m| {
+            m.as_array()
+                .map(|a| a[1] == Value::Array(vec![Value::Int(10), s("backend-signed")]))
+                == Some(true)
+        }));
     }
 }

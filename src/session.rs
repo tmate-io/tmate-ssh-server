@@ -24,6 +24,21 @@ pub fn is_valid_token(s: &str) -> bool {
     body.len() == TOKEN_LEN && body.bytes().all(|b| TOKEN_ALPHABET.contains(&b))
 }
 
+/// Longest token accepted from a backend or a viewer in backend mode.
+pub const MAX_NAMED_TOKEN_LEN: usize = 128;
+
+/// The old server's `tmate_validate_session_token`: what a username may
+/// look like when a backend names sessions (`prefix/name`, hyphens):
+/// more than two characters from `[A-Za-z0-9-_/]`. Random tokens pass
+/// too. Used wherever a backend is involved; without one, only
+/// `is_valid_token` names a session.
+pub fn is_acceptable_token(s: &str) -> bool {
+    s.len() > 2
+        && s.len() <= MAX_NAMED_TOKEN_LEN
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'/')
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tokens {
     pub rw: String,
@@ -62,10 +77,21 @@ impl Registry {
         self.by_token.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub fn insert(&self, tokens: &Tokens, session: Arc<SessionHandle>) {
+    /// Lists `tokens` for `session`. Returns false, changing nothing, when
+    /// either token is already held by a different live session: a worker
+    /// (or a backend rename) must not be able to take over someone else's
+    /// link by naming their token.
+    pub fn insert(&self, tokens: &Tokens, session: Arc<SessionHandle>) -> bool {
         let mut map = self.map();
+        let taken = [&tokens.rw, &tokens.ro]
+            .into_iter()
+            .any(|t| map.get(t).is_some_and(|(s, _)| !Arc::ptr_eq(s, &session)));
+        if taken {
+            return false;
+        }
         map.insert(tokens.rw.clone(), (session.clone(), Access::ReadWrite));
         map.insert(tokens.ro.clone(), (session, Access::ReadOnly));
+        true
     }
 
     /// Removes `tokens` only while they still point at `session`, so a
@@ -103,6 +129,13 @@ mod tests {
         assert!(!is_valid_token("tmate"));
         assert!(!is_valid_token("../etc/passwd"));
         assert!(!is_valid_token(&"a".repeat(TOKEN_LEN - 1)));
+        assert!(is_acceptable_token(&t.rw) && is_acceptable_token(&t.ro));
+        assert!(is_acceptable_token("acme/my-session"));
+        assert!(is_acceptable_token("ro-acme/my-session_2"));
+        assert!(!is_acceptable_token("ab"));
+        assert!(!is_acceptable_token("../etc/passwd"));
+        assert!(!is_acceptable_token("has space"));
+        assert!(!is_acceptable_token(&"a".repeat(MAX_NAMED_TOKEN_LEN + 1)));
     }
 
     #[tokio::test]
@@ -117,6 +150,8 @@ mod tests {
             }),
             keys_required: false,
             mode: crate::link::Mode::InProcess,
+            backend: None,
+            sessions_dir: None,
         };
         let counter = SessionCounter::new(SessionLimits {
             per_ip: 10,
@@ -126,14 +161,24 @@ mod tests {
             SessionHandle::start(
                 &env,
                 "1.1.1.1".into(),
+                None,
                 crate::hub::Peer::new().0,
                 counter.acquire(None).unwrap(),
+                None,
             )
         };
         let a = make();
         let b = make();
         let tokens = Tokens::generate();
-        r.insert(&tokens, a.clone());
+        assert!(r.insert(&tokens, a.clone()));
+        assert!(
+            !r.insert(&tokens, b.clone()),
+            "another session cannot take over a listed token"
+        );
+        assert!(
+            r.insert(&tokens, a.clone()),
+            "the owner may re-list its tokens"
+        );
         assert_eq!(r.lookup(&tokens.rw).unwrap().1, Access::ReadWrite);
         assert_eq!(r.lookup(&tokens.ro).unwrap().1, Access::ReadOnly);
         assert_eq!(r.len(), 1);

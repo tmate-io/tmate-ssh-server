@@ -90,6 +90,12 @@ impl Decoder {
 
     /// Returns the next complete value, `Ok(None)` if more bytes are needed.
     pub fn next_value(&mut self) -> Result<Option<Value>, Error> {
+        Ok(self.next_value_raw()?.map(|(v, _)| v))
+    }
+
+    /// Like `next_value`, also returning the bytes the value was decoded
+    /// from, for forwarding a message verbatim.
+    pub fn next_value_raw(&mut self) -> Result<Option<(Value, Vec<u8>)>, Error> {
         let len = match scan(&self.buf, 0, 0)? {
             Some(end) => end,
             None => {
@@ -104,8 +110,8 @@ impl Decoder {
         }
         let (value, used) = decode_at(&self.buf[..len], 0, 0)?;
         debug_assert_eq!(used, len);
-        self.buf.drain(..len);
-        Ok(Some(value))
+        let raw = self.buf.drain(..len).collect();
+        Ok(Some((value, raw)))
     }
 }
 
@@ -319,24 +325,7 @@ impl Encoder {
     }
 
     pub fn str(&mut self, s: &str) -> &mut Self {
-        let len = s.len();
-        match len {
-            0..=31 => self.buf.push(0xa0 | len as u8),
-            32..=0xff => {
-                self.buf.push(0xd9);
-                self.buf.push(len as u8);
-            }
-            0x100..=0xffff => {
-                self.buf.push(0xda);
-                self.buf.extend_from_slice(&(len as u16).to_be_bytes());
-            }
-            _ => {
-                self.buf.push(0xdb);
-                self.buf.extend_from_slice(&(len as u32).to_be_bytes());
-            }
-        }
-        self.buf.extend_from_slice(s.as_bytes());
-        self
+        self.raw_str(s.as_bytes())
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -367,9 +356,55 @@ impl Encoder {
         self
     }
 
-    #[cfg_attr(not(test), allow(dead_code))]
     pub fn bool(&mut self, v: bool) -> &mut Self {
         self.buf.push(if v { 0xc3 } else { 0xc2 });
+        self
+    }
+
+    pub fn float(&mut self, v: f64) -> &mut Self {
+        self.buf.push(0xcb);
+        self.buf.extend_from_slice(&v.to_be_bytes());
+        self
+    }
+
+    /// Re-encodes a decoded value. Bytes become `str`, which is what the
+    /// peers that send us values to forward (the backend) use for them.
+    pub fn value(&mut self, v: &Value) -> &mut Self {
+        match v {
+            Value::Nil => self.nil(),
+            Value::Bool(b) => self.bool(*b),
+            Value::Int(i) => self.int(*i),
+            Value::Float(f) => self.float(*f),
+            Value::Bytes(b) => self.raw_str(b),
+            Value::Array(items) => {
+                self.array(items.len());
+                for item in items {
+                    self.value(item);
+                }
+                self
+            }
+        }
+    }
+
+    /// A `str` whose bytes need not be UTF-8.
+    fn raw_str(&mut self, s: &[u8]) -> &mut Self {
+        let len = s.len();
+        match len {
+            0..=31 => self.buf.push(0xa0 | len as u8),
+            32..=0xff => {
+                self.buf.push(0xd9);
+                self.buf.push(len as u8);
+            }
+            0x100..=0xffff => {
+                self.buf.push(0xda);
+                self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            }
+            _ => {
+                self.buf.push(0xdb);
+                self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            }
+        }
+        self.buf.extend_from_slice(s);
         self
     }
 }
@@ -456,6 +491,41 @@ mod tests {
             decode_all(&[0xd4, 0, 0]),
             Err(Error::Unsupported(0xd4))
         ));
+    }
+
+    #[test]
+    fn raw_bytes_and_value_reencoding() {
+        let mut e = Encoder::new();
+        e.array(3).int(2).int(0).bin(b"\x1b[Hhi");
+        e.array(2).int(0).str("x");
+        let first_len = e.buf.len() - 4;
+        let mut d = Decoder::new();
+        d.feed(&e.buf);
+        let (v, raw) = d.next_value_raw().unwrap().unwrap();
+        assert_eq!(raw, e.buf[..first_len]);
+        assert_eq!(
+            v,
+            Value::Array(vec![
+                Value::Int(2),
+                Value::Int(0),
+                Value::Bytes(b"\x1b[Hhi".to_vec())
+            ])
+        );
+        // Re-encoding a value decodes to the same value (bin becomes str).
+        let mut e2 = Encoder::new();
+        e2.value(&v);
+        assert_eq!(decode_all(&e2.buf).unwrap(), vec![v]);
+        let nested = Value::Array(vec![
+            Value::Nil,
+            Value::Bool(false),
+            Value::Int(-70000),
+            Value::Float(1.5),
+            Value::Bytes(vec![0xff; 300]),
+            Value::Array(vec![]),
+        ]);
+        let mut e3 = Encoder::new();
+        e3.value(&nested);
+        assert_eq!(decode_all(&e3.buf).unwrap(), vec![nested]);
     }
 
     #[test]

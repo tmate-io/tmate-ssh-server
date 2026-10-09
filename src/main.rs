@@ -1,4 +1,5 @@
 mod accept;
+mod backend;
 mod bindings;
 mod cmdline;
 mod commands;
@@ -45,7 +46,14 @@ Flags of the old tmate-ssh-server and their equivalents here:
   -q <port>       -q, --advertised-port <PORT>
   -x              -x, --proxy-protocol
   -v              -v (repeat for more; or set RUST_LOG)
-  -w, -z          not supported: the websocket backend is not ported
+  -w <hostname>   -w, --websocket-host <HOSTNAME>
+  -z <port>       -z, --websocket-port <PORT>  (default 4002)
+                  --sessions-dir <DIR>         (default /tmp/tmate/sessions)
+
+With -w, every session is connected to a tmate-websocket backend over TCP
+and speaks its control protocol: the backend produces the host's notices
+and links (including web links), names sessions, serves exec requests and
+web clients. Without it, sessions have random tokens and ssh viewers only.
 
 Host keys are read from <DIR>/ssh_host_{ed25519,rsa,ecdsa}_key; an ed25519
 key is generated when none exists. The fingerprint is logged at startup.
@@ -90,6 +98,20 @@ struct Cli {
     /// Expect a PROXY protocol v1 header from a load balancer before SSH.
     #[arg(short = 'x', long)]
     proxy_protocol: bool,
+
+    /// tmate-websocket backend to connect every session to (the old -w).
+    #[arg(short = 'w', long, value_name = "HOSTNAME")]
+    websocket_host: Option<String>,
+
+    /// Port of the websocket backend's daemon listener (the old -z).
+    #[arg(short = 'z', long, default_value_t = backend::DEFAULT_PORT, value_name = "PORT")]
+    websocket_port: u16,
+
+    /// With -w: the backend's `tmux_socket_path`, shared with it, where
+    /// it expects a file per session (it renames them for named and
+    /// resumed sessions). The old server kept its sockets there.
+    #[arg(long, default_value = "/tmp/tmate/sessions", value_name = "DIR")]
+    sessions_dir: PathBuf,
 
     /// More logging: -v for debug, -vv for trace. RUST_LOG, if set, wins.
     #[arg(short = 'v', long, action = ArgAction::Count)]
@@ -263,12 +285,34 @@ async fn serve(cli: Cli) -> Result<()> {
         port: cli.advertised_port.unwrap_or(listen.port()),
     });
     let mode = choose_mode(cli.sandbox, cli.verbose).await?;
+    let backend = cli.websocket_host.map(|host| backend::Addr {
+        host,
+        port: cli.websocket_port,
+    });
+    let sessions_dir = match &backend {
+        Some(addr) => {
+            info!(backend = %addr, "sessions are connected to the websocket backend");
+            match std::fs::create_dir_all(&cli.sessions_dir) {
+                Ok(()) => Some(cli.sessions_dir),
+                Err(e) => {
+                    warn!(dir = %cli.sessions_dir.display(), error = %e, "cannot create the sessions directory the backend shares; it will not be able to name or resume sessions");
+                    None
+                }
+            }
+        }
+        None => {
+            info!("no websocket backend (-w): random tokens, ssh viewers only");
+            None
+        }
+    };
     let server = gateway::Gateway {
         env: Arc::new(link::Env {
             registry: session::Registry::new(),
             advertised,
             keys_required: cli.authorized_keys_only,
             mode,
+            backend,
+            sessions_dir,
         }),
         sessions: limits::SessionCounter::new(limits::SessionLimits {
             per_ip: cli.max_sessions_per_ip,
@@ -338,9 +382,15 @@ mod tests {
             "-q",
             "22",
             "-x",
+            "-w",
+            "ws.internal",
+            "-z",
+            "4010",
             "-vv",
         ]);
         assert!(cli.authorized_keys_only);
+        assert_eq!(cli.websocket_host.as_deref(), Some("ws.internal"));
+        assert_eq!(cli.websocket_port, 4010);
         assert_eq!(
             listen_addr(cli.listen, cli.bind, cli.port),
             "127.0.0.1:2222".parse().unwrap()
@@ -401,6 +451,9 @@ mod tests {
     #[test]
     fn sandbox_and_limit_flags_parse() {
         let cli = Cli::parse_from(["x"]);
+        assert_eq!(cli.websocket_host, None);
+        assert_eq!(cli.websocket_port, backend::DEFAULT_PORT);
+        assert_eq!(cli.sessions_dir, PathBuf::from("/tmp/tmate/sessions"));
         assert_eq!(cli.sandbox, SandboxMode::Auto);
         assert_eq!((cli.max_sessions_per_ip, cli.max_sessions), (10, 1000));
         assert_eq!(cli.host_rate_limit, 2 * 1024 * 1024);
@@ -426,7 +479,7 @@ mod tests {
     #[test]
     fn help_mentions_the_old_flags() {
         let help = Cli::command().render_long_help().to_string();
-        for flag in ["-A", "-b", "-p", "-H", "-k", "-q", "-x", "-v", "-w, -z"] {
+        for flag in ["-A", "-b", "-p", "-H", "-k", "-q", "-x", "-v", "-w", "-z"] {
             assert!(help.contains(flag), "help lacks {flag}:\n{help}");
         }
     }

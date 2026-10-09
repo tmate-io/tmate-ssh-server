@@ -30,8 +30,19 @@ if [ "${USE_PROXY_PROTOCOL:-0}" -eq "1" ]; then
   set -- --proxy-protocol "$@"
 fi
 
-if [ -n "${WEBSOCKET_HOSTNAME}" ] || [ "${HAS_WEBSOCKET:-0}" -eq "1" ]; then
-  echo "warning: the websocket backend (WEBSOCKET_HOSTNAME/HAS_WEBSOCKET) is not supported by this server; ignoring" >&2
+# The tmate-websocket backend, as the old image selected it: HAS_WEBSOCKET=1
+# means it runs alongside on localhost; WEBSOCKET_HOSTNAME names it.
+if [ "${HAS_WEBSOCKET:-0}" -eq "1" ]; then
+  set -- --websocket-host localhost "$@"
+fi
+if [ -n "${WEBSOCKET_HOSTNAME}" ]; then
+  set -- --websocket-host "${WEBSOCKET_HOSTNAME}" "$@"
+fi
+if [ -n "${WEBSOCKET_PORT}" ]; then
+  set -- --websocket-port "${WEBSOCKET_PORT}" "$@"
+fi
+if [ -n "${TMATE_SESSIONS_DIR}" ]; then
+  set -- --sessions-dir "${TMATE_SESSIONS_DIR}" "$@"
 fi
 
 exec tmate-server-rs "$@"

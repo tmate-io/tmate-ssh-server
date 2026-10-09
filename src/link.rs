@@ -7,9 +7,14 @@
 //! session still alive) does not get a session of its own: its handle
 //! starts forwarding to the live session's handle, whose driver adopts the
 //! new host connection. Viewers keep their handle and never notice.
+//!
+//! With a backend (`-w`), the handle also owns the session's TCP
+//! connection to it: a writer task fed by the driver (directly, or through
+//! `ToGateway::ToBackend` from a worker) and a reader task that hands the
+//! backend's bytes to the driver. The driver never sees a socket.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::Duration;
@@ -20,7 +25,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use crate::driver::{Advertised, Control, Driver};
+use crate::backend;
+use crate::driver::{Advertised, Config, Control, Driver};
 use crate::hub::{self, Payload, Peer, ViewerId};
 use crate::limits::SessionGuard;
 use crate::reconnect;
@@ -46,6 +52,87 @@ pub struct Env {
     pub advertised: Arc<Advertised>,
     pub keys_required: bool,
     pub mode: Mode,
+    /// The tmate-websocket backend every session connects to, if any.
+    pub backend: Option<backend::Addr>,
+    /// Where the backend expects a session's files (`SessionFiles`).
+    pub sessions_dir: Option<PathBuf>,
+}
+
+/// The files the backend looks for in its `tmux_socket_path`: the old
+/// server's tmux socket `<dir>/<token>` and the `<dir>/<ro-token>` symlink
+/// to it. When the backend names a session or a host reconnects, it
+/// renames them itself (`rename_tmux_sockets!`) before it sends
+/// `CTL_RENAME_SESSION`, and crashes the session when they are missing.
+/// This server has no sockets, so it leaves placeholders there and
+/// removes them, under whatever name they ended up with, when the
+/// session ends.
+pub struct SessionFiles {
+    dir: PathBuf,
+}
+
+impl SessionFiles {
+    /// `/` and `.` become `=`, as the backend spells file names.
+    fn path(dir: &Path, token: &str) -> PathBuf {
+        dir.join(token.replace(['/', '.'], "="))
+    }
+
+    pub fn create(dir: &Path, tokens: &Tokens) -> std::io::Result<SessionFiles> {
+        let rw = Self::path(dir, &tokens.rw);
+        let ro = Self::path(dir, &tokens.ro);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&rw)?;
+        let _ = std::fs::remove_file(&ro);
+        std::os::unix::fs::symlink(rw.file_name().unwrap_or_default(), &ro)?;
+        Ok(SessionFiles {
+            dir: dir.to_path_buf(),
+        })
+    }
+
+    pub fn remove(&self, tokens: &Tokens) {
+        for token in [&tokens.rw, &tokens.ro] {
+            if crate::session::is_acceptable_token(token) {
+                let _ = std::fs::remove_file(Self::path(&self.dir, token));
+            }
+        }
+    }
+}
+
+/// How long connecting to the backend may take before a session is
+/// refused.
+pub const BACKEND_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Opens the session's connection to the backend (`tmate_connect_to_websocket`).
+pub async fn connect_backend(addr: &backend::Addr) -> std::io::Result<tokio::net::TcpStream> {
+    let stream = tokio::time::timeout(
+        BACKEND_CONNECT_TIMEOUT,
+        tokio::net::TcpStream::connect((addr.host.as_str(), addr.port)),
+    )
+    .await
+    .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "connect timed out"))??;
+    stream.set_nodelay(true)?;
+    Ok(stream)
+}
+
+/// The gateway's end of a session's backend connection.
+struct BackendLink {
+    tx: mpsc::UnboundedSender<Vec<u8>>,
+    reader: tokio::task::JoinHandle<()>,
+}
+
+impl BackendLink {
+    fn send(&self, data: Vec<u8>) {
+        let _ = self.tx.send(data);
+    }
+}
+
+impl Drop for BackendLink {
+    fn drop(&mut self) {
+        // The writer ends once the queue drains; the reader is stopped so
+        // its EOF is not reported as a lost backend.
+        self.reader.abort();
+    }
 }
 
 /// A RECONNECT the in-process driver reported: data, what followed it,
@@ -60,6 +147,10 @@ pub struct SessionHandle {
     host_epoch: AtomicU64,
     registry: Arc<Registry>,
     guard: Mutex<Option<SessionGuard>>,
+    /// Separate from `inner`: the driver asks for backend writes while
+    /// `inner` is locked.
+    backend: Mutex<Option<BackendLink>>,
+    files: Mutex<Option<SessionFiles>>,
     me: Weak<SessionHandle>,
 }
 
@@ -107,8 +198,10 @@ struct LocalControl {
 
 impl Control for LocalControl {
     fn register(&self, tokens: &Tokens) {
-        if let Some(h) = self.handle.upgrade() {
-            self.registry.insert(tokens, h);
+        if let Some(h) = self.handle.upgrade()
+            && !self.registry.insert(tokens, h)
+        {
+            tracing::warn!(token = %&tokens.rw[..tokens.rw.len().min(4)], "token already belongs to another session; not registered");
         }
     }
 
@@ -129,6 +222,18 @@ impl Control for LocalControl {
             .pending_reconnect
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = Some((data, rest, client_version));
+    }
+
+    fn backend_send(&self, data: Vec<u8>) {
+        if let Some(h) = self.handle.upgrade() {
+            h.backend_send(data);
+        }
+    }
+
+    fn backend_close(&self) {
+        if let Some(h) = self.handle.upgrade() {
+            h.backend_close();
+        }
     }
 }
 
@@ -153,15 +258,31 @@ fn describe_exit(status: std::io::Result<std::process::ExitStatus>) -> String {
 }
 
 impl SessionHandle {
-    /// Starts a session for a host connecting from `peer_ip`.
+    /// Starts a session for a host connecting from `peer_ip`. `backend` is
+    /// the session's connection to the backend when the server has one.
     pub fn start(
         env: &Env,
         peer_ip: String,
+        host_pubkey: Option<String>,
         host: Peer,
         guard: SessionGuard,
+        backend: Option<tokio::net::TcpStream>,
     ) -> Arc<SessionHandle> {
         let tokens = Tokens::generate();
+        let has_backend = backend.is_some();
+        let files = env
+            .sessions_dir
+            .as_deref()
+            .filter(|_| has_backend)
+            .and_then(|dir| match SessionFiles::create(dir, &tokens) {
+                Ok(files) => Some(files),
+                Err(e) => {
+                    warn!(peer = %peer_ip, dir = %dir.display(), error = %e, "cannot create the session files the backend expects; it will not be able to name or resume this session");
+                    None
+                }
+            });
         Arc::new_cyclic(|me: &Weak<SessionHandle>| {
+            let backend = backend.map(|stream| start_backend(me.clone(), stream, peer_ip.clone()));
             let inner = match &env.mode {
                 Mode::InProcess => {
                     let pending = Arc::new(Mutex::new(None));
@@ -172,10 +293,14 @@ impl SessionHandle {
                     };
                     Inner::Local {
                         driver: Driver::new(
-                            tokens,
-                            env.keys_required,
-                            peer_ip,
-                            env.advertised.clone(),
+                            Config {
+                                tokens,
+                                keys_required: env.keys_required,
+                                peer_ip,
+                                host_pubkey,
+                                advertised: env.advertised.clone(),
+                                backend: has_backend,
+                            },
                             host,
                             Box::new(control),
                         ),
@@ -204,11 +329,13 @@ impl SessionHandle {
                         };
                         link.send(&ToWorker::Hello {
                             peer_ip,
+                            host_pubkey,
                             advertised_host: env.advertised.host.clone(),
                             advertised_port: env.advertised.port,
                             keys_required: env.keys_required,
                             reconnection_data: reconnect::data_for(&tokens),
                             tokens,
+                            backend: has_backend,
                         });
                         Inner::Remote(link)
                     }
@@ -225,9 +352,59 @@ impl SessionHandle {
                 host_epoch: AtomicU64::new(0),
                 registry: env.registry.clone(),
                 guard: Mutex::new(Some(guard)),
+                backend: Mutex::new(backend),
+                files: Mutex::new(files),
                 me: me.clone(),
             }
         })
+    }
+
+    /// Removes the session's files under their current names; once.
+    fn remove_files(&self, tokens: &Tokens) {
+        if let Some(files) = self
+            .files
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            files.remove(tokens);
+        }
+    }
+
+    fn backend_send(&self, data: Vec<u8>) {
+        if let Some(link) = &*self.backend.lock().unwrap_or_else(PoisonError::into_inner) {
+            link.send(data);
+        }
+    }
+
+    fn backend_close(&self) {
+        self.backend
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+    }
+
+    /// Bytes from the backend connection.
+    fn backend_data(&self, data: &[u8]) {
+        match &mut *self.lock() {
+            Inner::Local { driver, .. } => driver.backend_data(data),
+            Inner::Remote(l) => l.send(&ToWorker::BackendData(data.to_vec())),
+            Inner::Forward { .. } | Inner::Ended => {}
+        }
+    }
+
+    /// The backend connection ended on its side.
+    fn backend_gone(&self) {
+        match &mut *self.lock() {
+            Inner::Local { driver, .. } => {
+                driver.backend_gone();
+                self.remove_files(driver.tokens());
+                self.release_guard();
+            }
+            Inner::Remote(l) => l.send(&ToWorker::BackendGone),
+            Inner::Forward { .. } | Inner::Ended => {}
+        }
+        self.backend_close();
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -324,6 +501,7 @@ impl SessionHandle {
         match &mut *inner {
             Inner::Local { driver, .. } => {
                 driver.host_gone();
+                self.remove_files(driver.tokens());
                 self.release_guard();
             }
             Inner::Remote(l) => {
@@ -347,18 +525,28 @@ impl SessionHandle {
     }
 
     /// Attaches a viewer that completed its pty and shell requests.
-    pub fn attach_viewer(&self, peer: Peer, access: Access, ip: &str, size: Size) -> ViewerId {
+    pub fn attach_viewer(
+        &self,
+        peer: Peer,
+        access: Access,
+        ip: &str,
+        pubkey: Option<&str>,
+        size: Size,
+    ) -> ViewerId {
         if let Some((t, _)) = self.forward_target() {
-            return t.attach_viewer(peer, access, ip, size);
+            return t.attach_viewer(peer, access, ip, pubkey, size);
         }
         let id = ViewerId::from_raw(self.next_viewer.fetch_add(1, Ordering::SeqCst));
         match &mut *self.lock() {
-            Inner::Local { driver, .. } => driver.attach_viewer(id, peer, access, ip, size),
+            Inner::Local { driver, .. } => {
+                driver.attach_viewer(id, peer, access, ip, pubkey, size);
+            }
             Inner::Remote(l) => {
                 l.viewers.insert(id, peer);
                 l.send(&ToWorker::ViewerAttach {
                     id,
                     ip: ip.to_string(),
+                    pubkey: pubkey.map(str::to_string),
                     access,
                     size,
                 });
@@ -559,11 +747,14 @@ impl SessionHandle {
                 }
                 ToGateway::Register(tokens) => {
                     link.tokens = tokens.clone();
-                    self.registry.insert(&tokens, self.clone());
+                    if !self.registry.insert(&tokens, self.clone()) {
+                        tracing::warn!(token = %&tokens.rw[..tokens.rw.len().min(4)], "worker asked for a token held by another session; not registered");
+                    }
                     None
                 }
                 ToGateway::Unregister(tokens) => {
                     self.registry.remove_if(&tokens, self);
+                    self.remove_files(&tokens);
                     self.release_guard();
                     None
                 }
@@ -586,6 +777,14 @@ impl SessionHandle {
                     rest,
                     client_version,
                 } => Some((data, rest, client_version)),
+                ToGateway::ToBackend(data) => {
+                    self.backend_send(data);
+                    None
+                }
+                ToGateway::CloseBackend => {
+                    self.backend_close();
+                    None
+                }
             }
         };
         if let Some((data, rest, client_version)) = reconnect {
@@ -608,10 +807,67 @@ impl SessionHandle {
             if let Some(me) = self.me.upgrade() {
                 self.registry.remove_if(&link.tokens, &me);
             }
+            self.remove_files(&link.tokens);
             *inner = Inner::Ended;
         }
         drop(inner);
+        self.backend_close();
         self.release_guard();
+    }
+}
+
+/// Splits the backend connection into a writer fed by the session and a
+/// reader that hands the backend's bytes to it.
+fn start_backend(
+    handle: Weak<SessionHandle>,
+    stream: tokio::net::TcpStream,
+    peer_ip: String,
+) -> BackendLink {
+    let (rd, wr) = stream.into_split();
+    let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    tokio::spawn(write_backend(wr, rx));
+    let reader = tokio::spawn(read_backend(handle, rd, peer_ip));
+    BackendLink { tx, reader }
+}
+
+async fn write_backend(
+    mut wr: tokio::net::tcp::OwnedWriteHalf,
+    mut rx: mpsc::UnboundedReceiver<Vec<u8>>,
+) {
+    while let Some(data) = rx.recv().await {
+        if wr.write_all(&data).await.is_err() {
+            break;
+        }
+    }
+    let _ = wr.shutdown().await;
+}
+
+async fn read_backend(
+    handle: Weak<SessionHandle>,
+    mut rd: tokio::net::tcp::OwnedReadHalf,
+    peer_ip: String,
+) {
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        match rd.read(&mut buf).await {
+            Ok(0) => {
+                debug!(peer = %peer_ip, "backend closed the session connection");
+                break;
+            }
+            Ok(n) => {
+                let Some(h) = handle.upgrade() else {
+                    return;
+                };
+                h.backend_data(&buf[..n]);
+            }
+            Err(e) => {
+                warn!(peer = %peer_ip, error = %e, "backend connection failed");
+                break;
+            }
+        }
+    }
+    if let Some(h) = handle.upgrade() {
+        h.backend_gone();
     }
 }
 
@@ -757,4 +1013,45 @@ pub async fn probe_sandbox(
     drop(wr);
     let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_files_follow_the_backends_renames() {
+        let dir = tempfile::tempdir().unwrap();
+        let tokens = Tokens::generate();
+        let files = SessionFiles::create(dir.path(), &tokens).unwrap();
+        let rw = dir.path().join(&tokens.rw);
+        let ro = dir.path().join(&tokens.ro);
+        assert!(rw.is_file());
+        assert_eq!(
+            std::fs::read_link(&ro).unwrap(),
+            PathBuf::from(&tokens.rw),
+            "the read-only entry is a symlink to the socket, as the backend expects"
+        );
+        assert!(
+            SessionFiles::create(dir.path(), &tokens).is_err(),
+            "a token in use is never reused"
+        );
+        // What `rename_tmux_sockets!` does for a named session.
+        let named = Tokens {
+            rw: "acme/demo".into(),
+            ro: "ro-acme/demo-2".into(),
+        };
+        std::fs::rename(&rw, dir.path().join("acme=demo")).unwrap();
+        std::fs::remove_file(&ro).unwrap();
+        std::os::unix::fs::symlink("acme=demo", dir.path().join("ro-acme=demo-2")).unwrap();
+        files.remove(&named);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        // Names that are not tokens are never touched.
+        std::fs::write(dir.path().join("x"), b"").unwrap();
+        files.remove(&Tokens {
+            rw: "../x".into(),
+            ro: "x".into(),
+        });
+        assert!(dir.path().join("x").exists());
+    }
 }

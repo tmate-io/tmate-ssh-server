@@ -25,6 +25,7 @@ use russh::server::Handle;
 use tokio::sync::{Notify, mpsc};
 use tracing::debug;
 
+use crate::backend;
 use crate::bindings::{Action, KeyState, KeyTables, Options};
 use crate::cmdline::{self, Args};
 use crate::copymode::CopyState;
@@ -36,7 +37,7 @@ use crate::msgpack::Encoder;
 use crate::prompt::{Outcome, Prompt};
 use crate::proto::{self, HostMsg, Layout, MAX_PANES};
 use crate::render::{self, Canvas, Cell, Size, StatusLine, WindowEntry};
-use crate::session::{Access, Tokens};
+use crate::session::Access;
 use crate::snapshot;
 
 /// Largest pane kept per dimension. The host decides pane sizes, so a
@@ -66,6 +67,11 @@ pub const AUTHORIZED_KEYS_ONLY_ERROR_MSG: [&str; 3] = [
 
 /// Status message viewers get when their host reconnected.
 pub const RECONNECTED_MSG: &str = "Reconnected";
+
+/// `handle_session_name_options`: what a host asking for a named session
+/// is told when there is no backend to name it.
+pub const NAMED_SESSIONS_UNSUPPORTED_MSG: &str =
+    "Named sessions are not supported (no websocket server)";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Payload {
@@ -302,6 +308,14 @@ pub struct State<P> {
     /// Bumped whenever `authorized_keys` changes, so a gateway holding a
     /// copy of the list knows when to refresh it.
     keys_generation: u64,
+    /// A backend (`-w`) is attached: it produces the join/leave notices
+    /// and client counts, and names sessions.
+    backend: bool,
+    /// The smallest web client, as the backend's `CTL_RESIZE` reported it
+    /// (`websocket_sx/sy`); -1 or none means no constraint.
+    backend_size: Option<(i64, i64)>,
+    /// The named-session warning is given once per session.
+    named_session_warned: bool,
 }
 
 impl<P: Clone> State<P> {
@@ -326,7 +340,15 @@ impl<P: Clone> State<P> {
             timers: Vec::new(),
             reconnected: false,
             keys_generation: 0,
+            backend: false,
+            backend_size: None,
+            named_session_warned: false,
         }
+    }
+
+    /// Whether a backend handles presence notices and session names.
+    pub fn set_backend(&mut self, backend: bool) {
+        self.backend = backend;
     }
 
     pub fn host(&self) -> Option<&P> {
@@ -410,10 +432,7 @@ impl<P: Clone> State<P> {
                 self.status_right = right.clone();
                 self.render_all()
             }
-            HostMsg::ExecCmd(args) => {
-                self.replicated_command(args);
-                Vec::new()
-            }
+            HostMsg::ExecCmd(args) => self.replicated_command(args),
             HostMsg::FailedCmd { client_id, cause } => {
                 let Some(id) = self
                     .viewers
@@ -879,7 +898,12 @@ impl<P: Clone> State<P> {
     }
 
     /// Join/leave notice and client count, worded as the old backend did.
+    /// With a backend attached they are its job (it counts web clients
+    /// too), so nothing is sent here.
     fn presence(&self, ip: &str, verb: &str) -> Vec<Outgoing<P>> {
+        if self.backend {
+            return Vec::new();
+        }
         let n = self.viewers.len();
         let plural = if n > 1 { "s" } else { "" };
         let mut enc = Encoder::new();
@@ -892,26 +916,72 @@ impl<P: Clone> State<P> {
     }
 
     /// The host's pane size follows the smallest read-write viewer, minus
-    /// the status row (`resize.c`); read-only viewers never shrink it.
+    /// the status row (`resize.c`); read-only viewers never shrink it. The
+    /// backend's web clients take part through `backend_resize`, each
+    /// dimension on its own as `websocket_sx/sy` did.
     pub fn host_pane_size(&self) -> (i64, i64) {
-        let mut size: Option<(i64, i64)> = None;
+        let mut sx: Option<i64> = None;
+        let mut sy: Option<i64> = None;
+        let mut shrink = |x: i64, y: i64| {
+            if x >= 0 {
+                sx = Some(sx.map_or(x, |cur| cur.min(x)));
+            }
+            if y >= 0 {
+                sy = Some(sy.map_or(y, |cur| cur.min(y)));
+            }
+        };
         for v in self
             .viewers
             .values()
             .filter(|v| v.access == Access::ReadWrite)
         {
-            let sx = i64::from(v.size.cols);
-            let sy = if v.size.rows > 1 {
+            let rows = if v.size.rows > 1 {
                 i64::from(v.size.rows) - 1
             } else {
                 i64::from(v.size.rows)
             };
-            size = Some(match size {
-                Some((x, y)) => (x.min(sx), y.min(sy)),
-                None => (sx, sy),
-            });
+            shrink(i64::from(v.size.cols), rows);
         }
-        size.unwrap_or((-1, -1))
+        if let Some((x, y)) = self.backend_size {
+            shrink(x, y);
+        }
+        match (sx, sy) {
+            (Some(x), Some(y)) => (x, y),
+            _ => (-1, -1),
+        }
+    }
+
+    /// `CTL_RESIZE` from the backend: the smallest web client, or -1 -1
+    /// for none. The host hears about it through the usual size rule.
+    pub fn backend_resize(&mut self, sx: i64, sy: i64) -> Vec<Outgoing<P>> {
+        let clamp = |n: i64| {
+            if n < 0 {
+                -1
+            } else {
+                n.min(i64::from(MAX_PANE_DIM))
+            }
+        };
+        self.backend_size = Some((clamp(sx), clamp(sy)));
+        self.host_resize()
+    }
+
+    /// Every pane in window order for the backend's `CTL_REQUEST_SNAPSHOT`,
+    /// with at most `max_history_lines` lines of history each.
+    pub fn snapshot(&mut self, max_history_lines: usize) -> Vec<backend::PaneSnapshot> {
+        let Some(layout) = &self.layout else {
+            return Vec::new();
+        };
+        let ids: Vec<i64> = layout
+            .windows
+            .iter()
+            .flat_map(|w| w.panes.iter().map(|p| p.id))
+            .collect();
+        ids.into_iter()
+            .filter_map(|id| {
+                let pane = self.panes.get_mut(&id)?;
+                Some(snapshot::capture(&mut pane.parser, id, max_history_lines))
+            })
+            .collect()
     }
 
     fn host_resize(&mut self) -> Vec<Outgoing<P>> {
@@ -963,9 +1033,9 @@ impl<P: Clone> State<P> {
 
     /// A command replicated from the host (`EXEC_CMD`): key bindings and
     /// options are mirrored, anything else is the host's own business.
-    fn replicated_command(&mut self, args: &[String]) {
+    fn replicated_command(&mut self, args: &[String]) -> Vec<Outgoing<P>> {
         let Some(name) = args.first() else {
-            return;
+            return Vec::new();
         };
         match crate::commands::resolve(name) {
             Ok("bind-key") | Ok("unbind-key") => {
@@ -973,9 +1043,35 @@ impl<P: Clone> State<P> {
                     debug!(error = %e, ?args, "ignoring replicated key binding");
                 }
             }
-            Ok("set-option") | Ok("set-window-option") => self.set_option(args),
+            Ok("set-option") | Ok("set-window-option") => {
+                self.set_option(args);
+                return self.named_session_warning(args);
+            }
             _ => {}
         }
+        Vec::new()
+    }
+
+    /// `handle_session_name_options`: without a backend nobody can honour
+    /// `tmate-session-name`, `tmate-session-name-ro` or `tmate-api-key`,
+    /// so the host is told once.
+    fn named_session_warning(&mut self, args: &[String]) -> Vec<Outgoing<P>> {
+        let Some((name, _)) = set_option_args(args) else {
+            return Vec::new();
+        };
+        if self.backend
+            || self.named_session_warned
+            || !matches!(
+                name,
+                "tmate-session-name" | "tmate-session-name-ro" | "tmate-api-key"
+            )
+        {
+            return Vec::new();
+        }
+        self.named_session_warned = true;
+        let mut enc = Encoder::new();
+        proto::encode_notify(&mut enc, NAMED_SESSIONS_UNSUPPORTED_MSG);
+        self.to_host(enc)
     }
 
     /// `set-option`/`set-window-option`: the authorized-keys options the
@@ -1425,24 +1521,24 @@ async fn write_peer<S: ChannelSink>(mut rx: PeerRx, sink: S, cut: Cut) {
 /// The handle both connection types hold for one session: a `State` under
 /// a mutex, with output delivered after the lock is released.
 pub struct Hub {
-    pub tokens: Tokens,
     state: Mutex<State<Peer>>,
     me: Weak<Hub>,
 }
 
 impl Hub {
-    pub fn new(tokens: Tokens, keys_required: bool) -> Arc<Hub> {
+    pub fn new(keys_required: bool, backend: bool) -> Arc<Hub> {
+        let mut state = State::new(keys_required);
+        state.set_backend(backend);
         Arc::new_cyclic(|me| Hub {
-            tokens,
-            state: Mutex::new(State::new(keys_required)),
+            state: Mutex::new(state),
             me: me.clone(),
         })
     }
 
     /// A fresh session that a host resumed with valid reconnection data
     /// after its previous session was already gone: same tokens, new state.
-    pub fn new_reconnected(tokens: Tokens, keys_required: bool) -> Arc<Hub> {
-        let hub = Hub::new(tokens, keys_required);
+    pub fn new_reconnected(keys_required: bool, backend: bool) -> Arc<Hub> {
+        let hub = Hub::new(keys_required, backend);
         hub.run(|s| (s.mark_reconnected(), Vec::new()));
         hub
     }
@@ -1594,6 +1690,16 @@ impl Hub {
     /// The host is gone: viewers are told and dropped.
     pub fn end(&self) {
         self.run(|s| ((), s.end()));
+    }
+
+    /// The backend's web clients changed size (`CTL_RESIZE`).
+    pub fn backend_resize(&self, sx: i64, sy: i64) {
+        self.run(|s| ((), s.backend_resize(sx, sy)));
+    }
+
+    /// The panes for a `CTL_REQUEST_SNAPSHOT`.
+    pub fn snapshot(&self, max_history_lines: usize) -> Vec<backend::PaneSnapshot> {
+        self.run(|s| (s.snapshot(max_history_lines), Vec::new()))
     }
 }
 
@@ -2704,7 +2810,7 @@ mod tests {
 
     #[test]
     fn adopted_host_replaces_the_old_connection_on_the_same_hub() {
-        let hub = Hub::new(Tokens::generate(), false);
+        let hub = Hub::new(false, false);
         let (old_host, mut old_rx) = Peer::new();
         hub.set_host(old_host);
         let (new_host, _new_rx) = Peer::new();
@@ -2839,5 +2945,94 @@ mod tests {
         assert!(!cut.is_cut(), "the client gets a moment to close");
         tokio::time::sleep(CLOSE_GRACE + Duration::from_secs(1)).await;
         assert!(cut.is_cut());
+    }
+
+    fn pty(pane: i64, data: &[u8]) -> HostMsg {
+        HostMsg::PtyData {
+            pane,
+            data: data.to_vec(),
+        }
+    }
+
+    #[test]
+    fn with_a_backend_presence_is_its_business() {
+        let mut s = state();
+        s.set_backend(true);
+        let (a, out) = s.attach_viewer("a", Access::ReadWrite, "10.0.0.1", size(80, 24));
+        assert!(notices(&out).is_empty());
+        assert_eq!(set_env_of(&out, "tmate_num_clients"), None);
+        assert_eq!(resize_of(&out), Some((80, 23)), "the size rule still runs");
+        let out = s.detach_viewer(a.unwrap());
+        assert!(notices(&out).is_empty());
+        assert_eq!(resize_of(&out), Some((-1, -1)));
+    }
+
+    #[test]
+    fn backend_size_joins_the_size_rule() {
+        let mut s = state();
+        s.set_backend(true);
+        // A web client alone sizes the pane.
+        let out = s.backend_resize(100, 30);
+        assert_eq!(resize_of(&out), Some((100, 30)));
+        // Each dimension is the minimum over web and ssh clients.
+        let (a, out) = s.attach_viewer("a", Access::ReadWrite, "10.0.0.1", size(120, 20));
+        assert_eq!(resize_of(&out), Some((100, 19)));
+        let out = s.backend_resize(90, 50);
+        assert_eq!(resize_of(&out), Some((90, 19)));
+        // -1 from the backend means no web client; a huge size is clamped.
+        let out = s.backend_resize(-1, -1);
+        assert_eq!(resize_of(&out), Some((120, 19)));
+        let out = s.detach_viewer(a.unwrap());
+        assert_eq!(resize_of(&out), Some((-1, -1)));
+        let out = s.backend_resize(5000, 5000);
+        assert_eq!(resize_of(&out), Some((500, 500)));
+        assert!(
+            s.backend_resize(5000, 5000).is_empty(),
+            "unchanged sizes are not repeated"
+        );
+    }
+
+    #[test]
+    fn snapshot_lists_panes_in_window_order() {
+        let mut s = state();
+        s.host_msg(&layout(&[(7, 10, 2), (3, 10, 2)], 3));
+        s.host_msg(&pty(7, b"seven"));
+        s.host_msg(&pty(3, b"a\r\nb\r\nc"));
+        let snap = s.snapshot(300);
+        let ids: Vec<i64> = snap.iter().map(|p| p.id).collect();
+        assert_eq!(ids, [7, 3]);
+        assert_eq!(snap[0].lines[0].text, "seven");
+        assert_eq!((snap[0].cx, snap[0].cy), (5, 0));
+        let texts: Vec<&str> = snap[1].lines.iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(texts, ["a", "b", "c"], "history is included");
+        let snap = s.snapshot(0);
+        let texts: Vec<&str> = snap[1].lines.iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(texts, ["b", "c"], "history limited by the request");
+        let mut empty = state();
+        assert!(empty.snapshot(300).is_empty(), "no layout, no panes");
+    }
+
+    #[test]
+    fn named_session_options_warn_once_without_a_backend() {
+        let mut s = state();
+        let set = |name: &str| {
+            HostMsg::ExecCmd(
+                ["set-option", "-g", name, "demo"]
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect(),
+            )
+        };
+        let out = s.host_msg(&set("tmate-session-name"));
+        assert_eq!(notices(&out), vec![NAMED_SESSIONS_UNSUPPORTED_MSG]);
+        assert!(s.host_msg(&set("tmate-api-key")).is_empty(), "warned once");
+        assert!(s.host_msg(&set("status-left")).is_empty());
+
+        let mut s = state();
+        s.set_backend(true);
+        assert!(
+            s.host_msg(&set("tmate-session-name-ro")).is_empty(),
+            "the backend names sessions"
+        );
     }
 }

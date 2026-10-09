@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 
-use crate::driver::{Advertised, Control, Driver};
+use crate::driver::{Advertised, Config, Control, Driver};
 use crate::hub::{self, Payload, Peer, ViewerId};
 use crate::sandbox::{self, SandboxMode};
 use crate::session::Tokens;
@@ -159,6 +159,16 @@ impl Control for WorkerControl {
             .encode(),
         );
     }
+
+    fn backend_send(&self, data: Vec<u8>) {
+        for chunk in data.chunks(CHUNK) {
+            let _ = self.out.send(ToGateway::ToBackend(chunk.to_vec()).encode());
+        }
+    }
+
+    fn backend_close(&self) {
+        let _ = self.out.send(ToGateway::CloseBackend.encode());
+    }
 }
 
 struct Session {
@@ -261,11 +271,13 @@ fn handle(
         (
             ToWorker::Hello {
                 peer_ip,
+                host_pubkey,
                 advertised_host,
                 advertised_port,
                 keys_required,
                 tokens,
                 reconnection_data,
+                backend,
             },
             None,
         ) => {
@@ -278,17 +290,21 @@ fn handle(
             };
             let host = peer_for(out, Target::Host(0), tasks);
             let driver = Driver::new(
-                tokens,
-                keys_required,
-                peer_ip,
-                Arc::new(Advertised {
-                    host: advertised_host,
-                    port: advertised_port,
-                }),
+                Config {
+                    tokens,
+                    keys_required,
+                    peer_ip,
+                    host_pubkey,
+                    advertised: Arc::new(Advertised {
+                        host: advertised_host,
+                        port: advertised_port,
+                    }),
+                    backend,
+                },
                 host,
                 Box::new(control),
             );
-            info!("session worker started");
+            info!(backend, "session worker started");
             *session = Some(Session {
                 driver: Arc::new(Mutex::new(driver)),
                 pending_rest,
@@ -316,6 +332,7 @@ fn handle(
             ToWorker::ViewerAttach {
                 id,
                 ip,
+                pubkey,
                 access,
                 size,
             },
@@ -325,7 +342,7 @@ fn handle(
             s.driver
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .attach_viewer(id, peer, access, &ip, size);
+                .attach_viewer(id, peer, access, &ip, pubkey.as_deref(), size);
             true
         }
         (ToWorker::ViewerInput { id, data }, Some(s)) => {
@@ -400,6 +417,20 @@ fn handle(
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .adopt_host(host, peer_ip, client_version, Vec::new());
+            true
+        }
+        (ToWorker::BackendData(data), Some(s)) => {
+            s.driver
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .backend_data(&data);
+            true
+        }
+        (ToWorker::BackendGone, Some(s)) => {
+            s.driver
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .backend_gone();
             true
         }
     }

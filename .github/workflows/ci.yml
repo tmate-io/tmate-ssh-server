@@ -24,7 +24,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --bins
-      - run: cargo test --test connection --test live --test robustness --test keys_stress -- --test-threads=2
+      - run: cargo test --test connection --test live --test robustness --test keys_stress --test websocket -- --test-threads=2
 
   parity:
     name: parity with the old C server
