@@ -44,7 +44,9 @@ docker run -d --name "$NAME" --privileged -p "$PORT:2200" \
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "--- reference server log (last 60 lines) ---" >&2
+    echo "--- reference server: state, listeners, log (last 60 lines) ---" >&2
+    docker inspect -f 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' "$NAME" >&2 || true
+    docker exec "$NAME" sh -c 'netstat -tln 2>/dev/null; ps -o pid,user,args' >&2 2>&1 || true
     docker logs --tail 60 "$NAME" >&2 2>&1 || true
   fi
   docker rm -f "$NAME" >/dev/null 2>&1 || true
