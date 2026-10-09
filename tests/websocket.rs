@@ -487,7 +487,10 @@ async fn viewers_are_announced_to_the_backend_with_ip_key_and_access() {
     conn.notify("A mate has joined (127.0.0.1) -- 1 client currently connected")
         .await;
     assert!(wait_until(|| host.display("#{tmate_num_clients}") == "1").await);
-    assert!(host.messages().join("\n").contains("A mate has joined"));
+    assert!(
+        wait_until(|| host.messages().join("\n").contains("A mate has joined")).await,
+        "notice never reached the host"
+    );
 
     let key =
         russh::keys::PrivateKey::random(&mut rand::rng(), russh::keys::Algorithm::Ed25519).unwrap();
