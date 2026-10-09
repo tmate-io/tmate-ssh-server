@@ -359,14 +359,11 @@ impl SessionHandle {
         })
     }
 
-    /// Removes the session's files under their current names; once.
+    /// Removes the session's files under the given names. Idempotent: a
+    /// backend rename unregisters the old tokens first (their files are
+    /// already gone), and the session's end removes the current ones.
     fn remove_files(&self, tokens: &Tokens) {
-        if let Some(files) = self
-            .files
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take()
-        {
+        if let Some(files) = &*self.files.lock().unwrap_or_else(PoisonError::into_inner) {
             files.remove(tokens);
         }
     }
