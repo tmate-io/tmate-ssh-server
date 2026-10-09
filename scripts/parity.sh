@@ -24,12 +24,16 @@ else
 fi
 PORT=${TMATE_REF_PORT:-2201}
 KEYS=${TMPDIR:-/tmp}/tmate-parity-keys
-IMAGE=tmate-ssh-server-old
+IMAGE=tmate-ssh-server-old:reference
 NAME=tmate-parity-ref
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "building reference image from $OLD_SRC"
-  docker build -t "$IMAGE" "$OLD_SRC"
+  # The old server's startup walks its own stack (libexecinfo's backtrace),
+  # which segfaults on x86_64 when built without frame pointers; the flag
+  # changes nothing else about the reference.
+  sed 's/CFLAGS="-D_GNU_SOURCE"/CFLAGS="-D_GNU_SOURCE -fno-omit-frame-pointer"/' "$OLD_SRC/Dockerfile" \
+    | docker build -t "$IMAGE" -f - "$OLD_SRC"
 fi
 
 mkdir -p "$KEYS"
