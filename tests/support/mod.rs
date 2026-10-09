@@ -334,6 +334,18 @@ impl Host {
         }
         let _ = child.kill();
         let _ = child.wait();
+        // Show what the client saw, which names the connection error.
+        let messages = self.cmd().args(["show-messages"]).output();
+        if let Ok(out) = messages {
+            eprintln!(
+                "[host] wait tmate-ready timed out; messages:\n{}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+        let pane = self.cmd().args(["capture-pane", "-p"]).output();
+        if let Ok(out) = pane {
+            eprintln!("[host] pane:\n{}", String::from_utf8_lossy(&out.stdout));
+        }
         false
     }
 

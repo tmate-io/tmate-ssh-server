@@ -41,7 +41,16 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" --privileged -p "$PORT:2200" \
   -e SSH_KEYS_PATH=/keys -e SSH_HOSTNAME=127.0.0.1 -e "SSH_PORT_ADVERTISE=$PORT" \
   -v "$KEYS:/keys" "$IMAGE" >/dev/null
-trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT
+cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "--- reference server log (last 60 lines) ---" >&2
+    docker logs --tail 60 "$NAME" >&2 2>&1 || true
+  fi
+  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  exit "$status"
+}
+trap cleanup EXIT
 
 for _ in $(seq 1 50); do
   nc -z 127.0.0.1 "$PORT" 2>/dev/null && break

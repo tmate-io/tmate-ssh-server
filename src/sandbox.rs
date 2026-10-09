@@ -535,6 +535,10 @@ mod linux {
         ))
     }
 
+    // libc's syscall-number and ioctl types differ between glibc and musl
+    // (c_long/c_ulong vs c_int), so the conversions are needed on one and
+    // flagged as useless on the other.
+    #[allow(clippy::useless_conversion, clippy::unnecessary_cast)]
     fn seccomp() -> Result<String, String> {
         use seccompiler::{
             SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter,

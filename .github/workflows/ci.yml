@@ -51,6 +51,6 @@ jobs:
           keys=$(mktemp -d); chmod 777 "$keys"
           docker run -d --name srv -p 2200:2200 -v "$keys:/keys" tmate-server-rs
           for i in $(seq 1 50); do nc -z 127.0.0.1 2200 && break; sleep 0.2; done
-          docker logs srv | grep -q "SHA256:"
+          docker logs srv 2>&1 | grep -q "SHA256:"
           docker exec srv id -u | grep -qx 10001
           docker rm -f srv
