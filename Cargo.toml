@@ -1,0 +1,31 @@
+[package]
+name = "tmate-server-rs"
+version = "0.1.0"
+edition = "2024"
+description = "tmate server, compatible with tmate 2.4.0 clients"
+license = "ISC"
+repository = "https://github.com/tmate-io/tmate-ssh-server"
+
+[dependencies]
+anyhow = "1.0.104"
+base64 = "0.23.1"
+bytes = "1.12.1"
+clap = { version = "4.6.7", features = ["derive"] }
+hmac = "0.13.0"
+libc = "0.2.190"
+rand = "0.10.3"
+russh = "0.64.1"
+sha2 = "0.11.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+vt100 = "0.16.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4.7"
+seccompiler = "0.5.0"
+
+[dev-dependencies]
+rand = "0.10.3"
+tempfile = "3.27.0"
+tokio = { version = "1", features = ["full", "test-util"] }

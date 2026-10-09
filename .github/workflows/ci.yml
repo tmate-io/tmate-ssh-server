@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: unit, live and robustness tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      # The live suites drive a real tmate 2.4.0 client, the one users have.
+      - run: sudo apt-get update && sudo apt-get install -y tmate
+      - run: tmate -V
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --bins
+      - run: cargo test --test connection --test live --test robustness --test keys_stress --test websocket -- --test-threads=2
+
+  parity:
+    name: parity with the old C server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The last commit of the C server, used as the reference implementation.
+      - uses: actions/checkout@v4
+        with:
+          ref: d7334ee4c3c8036c27fb35c7a24df3a88a15676b
+          path: old-server
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y tmate
+      - run: scripts/parity.sh old-server
+
+  docker:
+    name: image builds and runs non-root
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t tmate-server-rs .
+      - run: |
+          keys=$(mktemp -d); chmod 777 "$keys"
+          docker run -d --name srv -p 2200:2200 -v "$keys:/keys" tmate-server-rs
+          for i in $(seq 1 50); do nc -z 127.0.0.1 2200 && break; sleep 0.2; done
+          docker logs srv 2>&1 | grep -q "SHA256:"
+          docker exec srv id -u | grep -qx 10001
+          docker rm -f srv

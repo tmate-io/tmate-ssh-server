@@ -1,0 +1,51 @@
+# Fly.io configuration for one tmate region. Deploy one app per region (see
+# docs/DEPLOYMENT.md): tmate clients connect to every A record of the service
+# hostname in parallel and keep the fastest, and each server puts its own
+# hostname into the session link, so a viewer always reaches the machine that
+# holds the session. No session store or node-to-node routing is needed.
+
+app = "tmate-nyc"          # one app per region, e.g. tmate-nyc, tmate-fra, tmate-sin
+primary_region = "ewr"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+USE_PROXY_PROTOCOL = "1"
+SSH_PORT_LISTEN = "2200"
+SSH_PORT_ADVERTISE = "22"
+SSH_HOSTNAME = "nyc1.tmate.example"   # the DNS name of THIS region's dedicated IP
+SSH_KEYS_PATH = "/keys"
+RUST_LOG = "info"
+
+[vm]
+cpu_kind = "shared"
+cpus = 1
+memory_mb = 256
+
+[[services]]
+protocol = "tcp"
+internal_port = 2200
+auto_stop_machines = false
+auto_start_machines = false
+min_machines_running = 1
+
+[[services.ports]]
+port = 22
+# Fly prepends a PROXY protocol v1 header so the server sees the real viewer
+# IP in join notices; the container reads it when USE_PROXY_PROTOCOL=1.
+handlers = ["proxy_proto"]
+  [services.ports.proxy_proto_options]
+  version = "v1"
+
+[services.concurrency]
+type = "connections"
+hard_limit = 2000
+soft_limit = 1500
+
+[[services.tcp_checks]]
+interval = "15s"
+timeout = "2s"
+grace_period = "5s"

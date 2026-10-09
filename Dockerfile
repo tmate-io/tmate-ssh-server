@@ -1,54 +1,16 @@
-FROM alpine:3.16 AS build
+FROM rust:1-alpine AS build
+RUN apk add --no-cache musl-dev cmake make g++ perl linux-headers
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release --locked
 
-RUN apk add --no-cache msgpack-c ncurses-libs libevent libexecinfo openssl zlib
-
-RUN apk add --no-cache \
-	autoconf \
-	automake \
-	cmake \
-	g++ \
-	gcc \
-	git \
-	libevent-dev \
-	libexecinfo-dev \
-	linux-headers \
-	make \
-	msgpack-c-dev \
-	ncurses-dev \
-	openssl-dev \
-	zlib-dev
-
-RUN apk add --no-cache libssh-dev
-
-RUN mkdir -p /src/tmate-ssh-server
-COPY . /src/tmate-ssh-server
-
-RUN set -ex; \
-	cd /src/tmate-ssh-server; \
-	./autogen.sh; \
-	./configure --prefix=/usr CFLAGS="-D_GNU_SOURCE"; \
-	make -j "$(nproc)"; \
-	make install
-
-### Minimal run-time image
-FROM alpine:3.16
-
-RUN apk add --no-cache \
-	bash \
-	gdb \
-	libevent \
-	libexecinfo \
-	libssh \
-	msgpack-c \
-	ncurses-libs \
-	openssl \
-	zlib
-
-COPY --from=build /usr/bin/tmate-ssh-server /usr/bin/
-
-# TODO not run as root. Instead, use capabilities.
-
-COPY docker-entrypoint.sh /usr/local/bin
-
+### Minimal run-time image: no shell, no package manager, non-root.
+FROM alpine:3.21
+RUN adduser -D -H -u 10001 tmate && mkdir -p /keys && chown tmate:tmate /keys
+COPY --from=build /src/target/release/tmate-server-rs /usr/local/bin/tmate-server-rs
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+USER tmate
+VOLUME /keys
 EXPOSE 2200
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
