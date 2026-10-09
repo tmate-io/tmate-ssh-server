@@ -273,8 +273,8 @@ async fn windows_and_panes(target: &Target) -> Vec<Vec<String>> {
     let viewer = attach(target, &host, 80, 24).await;
     let mut shots = Vec::new();
 
-    host.run(&["new-window", "/bin/sh"]);
-    host.run(&["split-window", "-h", "/bin/sh"]);
+    host.run(&["new-window", "bash", "--norc", "--noprofile"]);
+    host.run(&["split-window", "-h", "bash", "--norc", "--noprofile"]);
     host.send_keys(&["echo pane-two", "Enter"]);
     viewer.wait_for_text("pane-two").await;
     tokio::time::sleep(Duration::from_millis(500)).await;

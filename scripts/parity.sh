@@ -40,7 +40,7 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 # --privileged: the old server chroots and unshares namespaces per session.
 docker run -d --name "$NAME" --privileged -p "$PORT:2200" \
   -e SSH_KEYS_PATH=/keys -e SSH_HOSTNAME=127.0.0.1 -e "SSH_PORT_ADVERTISE=$PORT" \
-  -v "$KEYS:/keys" "$IMAGE" >/dev/null
+  -v "$KEYS:/keys" "$IMAGE" -v >/dev/null
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -52,10 +52,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for _ in $(seq 1 50); do
-  nc -z 127.0.0.1 "$PORT" 2>/dev/null && break
+up=0
+for _ in $(seq 1 100); do
+  if nc -z 127.0.0.1 "$PORT" 2>/dev/null; then up=1; break; fi
   sleep 0.2
 done
+if [ "$up" -ne 1 ]; then
+  echo "reference server never opened 127.0.0.1:$PORT" >&2
+  docker ps -a --filter "name=$NAME" >&2
+  docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} err={{.State.Error}}' "$NAME" >&2 || true
+  exit 1
+fi
 
 TMATE_REF_ADDR="127.0.0.1:$PORT" \
 TMATE_REF_FINGERPRINT=$(ssh-keygen -lf "$KEYS/ssh_host_ed25519_key.pub" -E sha256 | awk '{print $2}') \

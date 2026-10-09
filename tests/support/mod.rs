@@ -224,7 +224,16 @@ impl Host {
             .arg(&host.conf)
             .arg("-S")
             .arg(&host.sock)
-            .args(["new-session", "-x", "80", "-y", "24", "/bin/sh"])
+            .args([
+                "new-session",
+                "-x",
+                "80",
+                "-y",
+                "24",
+                "bash",
+                "--norc",
+                "--noprofile",
+            ])
             .env("TERM", "xterm-256color")
             .env("PS1", "$ ")
             .env("ENV", "/dev/null")
